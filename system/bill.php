@@ -99,8 +99,7 @@ if ($getMode == 'mail' || $getMode == 'export') {
          AND email.usd_usf_id = ' . $gProfileFields->getProperty('EMAIL', 'usf_id') . '
              
         LEFT JOIN ' . TBL_MEMBERS . ' AS mem
-          ON mem.mem_begin  <= \'' . DATE_NOW . '\'
-         AND mem.mem_end     > \'' . DATE_NOW . '\'
+          ON ' . getContributionYearCondition('mem.') . '
          AND mem.mem_usr_id  = usr_id
              
        WHERE iban.usd_value IS NULL

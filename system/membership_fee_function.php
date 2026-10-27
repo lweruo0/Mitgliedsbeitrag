@@ -29,6 +29,12 @@ $getForm = admFuncVariableIsValid($_GET, 'form', 'string');
 // in ajax mode return simple text on error
 $gMessage->showHtmlTextOnly(true);
 
+// nur Berechtigte duerfen die Einstellungen aendern
+if (!isUserAuthorizedForPreferences()) {
+    $gMessage->show($gL10n->get('SYS_NO_RIGHTS'));
+    // => EXIT
+}
+
 // Rueckgabecode
 $ret = 'success';
 
@@ -38,60 +44,16 @@ try {
             unset($pPreferences->config['Beitrag']);
 
             $pPreferences->config['Beitrag']['beitrag_prefix'] = $_POST['beitrag_prefix'];
-            $pPreferences->config['Beitrag']['beitrag_suffix'] = $_POST['beitrag_suffix'];
-            $pPreferences->config['Beitrag']['beitrag_anteilig'] = isset($_POST['beitrag_anteilig']) ? 1 : 0;
             $pPreferences->config['Beitrag']['beitrag_abrunden'] = isset($_POST['beitrag_abrunden']) ? 1 : 0;
             $pPreferences->config['Beitrag']['beitrag_mindestbetrag'] = $_POST['beitrag_mindestbetrag'];
+            $pPreferences->config['Beitrag']['beitrag_jahr'] = (int) $_POST['beitrag_jahr'];
             $pPreferences->config['Beitrag']['beitrag_textmitnam'] = isset($_POST['beitrag_textmitnam']) ? 1 : 0;
-            $pPreferences->config['Beitrag']['beitrag_textmitfam'] = isset($_POST['beitrag_textmitfam']) ? 1 : 0;
             $pPreferences->config['Beitrag']['beitrag_text_token'] = $_POST['beitrag_text_token'];
             $pPreferences->config['Beitrag']['beitrag_role_separator'] = replace_sepadaten($_REQUEST['beitrag_role_separator']); // $_POST übergibt keine führenden und nachfolgenden Leerzeichen, $_REQUEST schon
             break;
 
-        case 'agestaggeredroles':
-            unset($pPreferences->config['Altersrollen']);
-            $altersrollen_anzahl = 0;
-            $pPreferences->config['Altersrollen']['altersrollen_offset'] = $_POST['altersrollen_offset'];
-
-            for ($conf = 0; isset($_POST['altersrollen_token' . $conf]); $conf ++) {
-                if (empty($_POST['altersrollen_token' . $conf])) {
-                    continue;
-                }
-                $pPreferences->config['Altersrollen']['altersrollen_token'][] = $_POST['altersrollen_token' . $conf];
-                $altersrollen_anzahl ++;
-            }
-            // diese Zeile ist nur zur Sicherheit, falls ein Nutzer einen Refresh (F5) des Browsers ausfuehrt
-            // und dadurch nicht durch das Plugin kontrollierte Loeschungen oder Hinzufuegungen ausfuehrt
-            if ($altersrollen_anzahl == 0) {
-                $gMessage->show($gL10n->get('PLG_MEMBERSHIPFEE_ERROR_MIN_CONFIG'));
-            }
-            break;
-
-        case 'familyroles':
-            // familienrollen_pruefung zwischenspeichern
-            $familienrollen_pruefung = $pPreferences->config['Familienrollen']['familienrollen_pruefung'];
-
-            unset($pPreferences->config['Familienrollen']);
-
-            for ($conf = 0; isset($_POST['familienrollen_prefix' . $conf]); $conf ++) {
-                if (empty($_POST['familienrollen_prefix' . $conf])) {
-                    continue;
-                }
-
-                $pPreferences->config['Familienrollen']['familienrollen_prefix'][] = $_POST['familienrollen_prefix' . $conf];
-                $pPreferences->config['Familienrollen']['familienrollen_beitrag'][] = str_replace(',', '.', $_POST['familienrollen_beitrag' . $conf]);
-                $pPreferences->config['Familienrollen']['familienrollen_zeitraum'][] = $_POST['familienrollen_zeitraum' . $conf];
-                $pPreferences->config['Familienrollen']['familienrollen_beschreibung'][] = $_POST['familienrollen_beschreibung' . $conf];
-                $pPreferences->config['Familienrollen']['familienrollen_pruefung'][] = isset($familienrollen_pruefung[$conf]) ? $familienrollen_pruefung[$conf] : '';
-            }
-            break;
-
         case 'advancedroleediting':
-            $altersrollen = beitragsrollen_einlesen('alt');
-            $fixrollen = beitragsrollen_einlesen('fix');
-            $alt_fix_rollen = $altersrollen + $fixrollen;
-            unset($altersrollen);
-            unset($fixrollen);
+            $alt_fix_rollen = beitragsrollen_einlesen('fix');
 
             $role = new Role($gDb);
 
@@ -105,18 +67,6 @@ try {
             $ret = 'success_replace';
             break;
 
-        case 'eventsselection':
-            if (isset($_POST['eventsselection'])) {
-                $role = new Role($gDb);
-                foreach (array_filter($_POST['eventsselection']) as $rol_id) {
-                    $role->readDataById((int) $rol_id);
-                    $role->setvalue('rol_cost', 0);
-                    $role->setvalue('rol_cost_period', - 1);
-                    $role->save();
-                }
-            }
-            $ret = 'success_replace';
-            break;
         case 'accountdata':
             unset($pPreferences->config['Kontodaten']);
 
@@ -147,7 +97,6 @@ try {
         case 'mandatemanagement':
             unset($pPreferences->config['Mandatsreferenz']);
 
-            $pPreferences->config['Mandatsreferenz']['prefix_fam'] = $_POST['prefix_fam'];
             $pPreferences->config['Mandatsreferenz']['prefix_mem'] = $_POST['prefix_mem'];
             $pPreferences->config['Mandatsreferenz']['prefix_pay'] = $_POST['prefix_pay'];
             $pPreferences->config['Mandatsreferenz']['min_length'] = $_POST['min_length'];
@@ -155,59 +104,17 @@ try {
             break;
 
         case 'testssetup':
-            unset($pPreferences->config['Familienrollen']['familienrollen_pruefung'], $pPreferences->config['Rollenpruefung'], $pPreferences->config['tests_enable']);
-            $pPreferences->config['tests_enable']['age_staggered_roles'] = isset($_POST['age_staggered_roles']) ? 1 : 0;
-            $pPreferences->config['tests_enable']['role_membership_age_staggered_roles'] = isset($_POST['role_membership_age_staggered_roles']) ? 1 : 0;
+            unset($pPreferences->config['Rollenpruefung'], $pPreferences->config['tests_enable']);
             $pPreferences->config['tests_enable']['role_membership_duty_and_exclusion'] = isset($_POST['role_membership_duty_and_exclusion']) ? 1 : 0;
-            $pPreferences->config['tests_enable']['family_roles'] = isset($_POST['family_roles']) ? 1 : 0;
             $pPreferences->config['tests_enable']['account_details'] = isset($_POST['account_details']) ? 1 : 0;
             $pPreferences->config['tests_enable']['mandate_management'] = isset($_POST['mandate_management']) ? 1 : 0;
             $pPreferences->config['tests_enable']['iban_check'] = isset($_POST['iban_check']) ? 1 : 0;
             $pPreferences->config['tests_enable']['bic_check'] = isset($_POST['bic_check']) ? 1 : 0;
 
-            for ($conf = 0; isset($_POST['familienrollen_pruefung' . $conf]); $conf ++) {
-                $pPreferences->config['Familienrollen']['familienrollen_pruefung'][$conf] = $_POST['familienrollen_pruefung' . $conf];
-            }
-
-            if (isset($_POST['familienrollenpflicht'])) {
-                $pPreferences->config['Rollenpruefung']['familienrollenpflicht'] = $_POST['familienrollenpflicht'];
-            }
-
             $fixrollen = beitragsrollen_einlesen('fix');
             foreach ($fixrollen as $key => $data) {
                 if (isset($_POST['fixrollenpflicht' . $key])) {
                     $pPreferences->config['Rollenpruefung']['fixrollenpflicht'][] = $key;
-                }
-                foreach ($pPreferences->config['Altersrollen']['altersrollen_token'] as $token) {
-                    if (isset($_POST['altersrollenfix' . $token . $key])) {
-                        $pPreferences->config['Rollenpruefung']['altersrollenfix'][] = $token . $key;
-                    }
-                }
-
-                if (isset($_POST['familienrollenfix' . $key])) {
-                    $pPreferences->config['Rollenpruefung']['familienrollenfix'][] = $key;
-                }
-            }
-
-            if ((count($pPreferences->config['Altersrollen']['altersrollen_token']) > 1)) {
-                for ($x = 0; $x < count($pPreferences->config['Altersrollen']['altersrollen_token']) - 1; $x ++) {
-                    for ($y = $x + 1; $y < count($pPreferences->config['Altersrollen']['altersrollen_token']); $y ++) {
-                        if (isset($_POST['altersrollenaltersrollen' . $pPreferences->config['Altersrollen']['altersrollen_token'][$x] . $pPreferences->config['Altersrollen']['altersrollen_token'][$y]])) {
-                            $pPreferences->config['Rollenpruefung']['altersrollenaltersrollen'][] = $pPreferences->config['Altersrollen']['altersrollen_token'][$x] . ',' . $pPreferences->config['Altersrollen']['altersrollen_token'][$y];
-                        }
-                    }
-                }
-            }
-
-            foreach ($pPreferences->config['Altersrollen']['altersrollen_token'] as $token) {
-                if (isset($_POST['age_staggered_roles_exclusion' . $token])) {
-                    $pPreferences->config['Rollenpruefung']['age_staggered_roles_exclusion'][] = $token;
-                }
-                if (isset($_POST['altersrollenpflicht' . $token])) {
-                    $pPreferences->config['Rollenpruefung']['altersrollenpflicht'][] = $token;
-                }
-                if (isset($_POST['altersrollenfamilienrollen' . $token])) {
-                    $pPreferences->config['Rollenpruefung']['altersrollenfamilienrollen'][] = $token;
                 }
             }
 
@@ -283,13 +190,6 @@ try {
             }
             break;
 
-        case 'multiplier_roles':
-            if (isset($_POST['multiplier_roles'])) {
-                $pPreferences->config['multiplier']['roles'] = array_filter($_POST['multiplier_roles']);
-            } else {
-                $pPreferences->config['multiplier']['roles'] = array();
-            }
-            break;
 
         case 'emailnotifications':
 

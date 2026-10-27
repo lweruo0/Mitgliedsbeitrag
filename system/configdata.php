@@ -15,44 +15,22 @@ $config_default = array();
 
 // Standardwerte einer Neuinstallation
 
-// Altersrollen
-$config_default['Altersrollen'] = array(
-    'altersrollen_token' => array(
-        '*'
-    ),
-    'altersrollen_offset' => 0
-);
-
-// Familienrollen
+// Existing prefixes are retained so legacy family roles remain excluded from contribution calculations.
 $config_default['Familienrollen'] = array(
-    'familienrollen_beitrag' => array(
-        0
-    ),
-    'familienrollen_zeitraum' => array(
-        12
-    ),
-    'familienrollen_beschreibung' => array(
-        'Familienbeitrag'
-    ),
     'familienrollen_prefix' => array(
         'Familie'
-    ),
-    'familienrollen_pruefung' => array(
-        ''
     )
 );
 
 // Beitrag
 $config_default['Beitrag'] = array(
     'beitrag_prefix' => 'Mitgliedsbeitrag 2026',
-    'beitrag_suffix' => '(ant.)',
     'beitrag_textmitnam' => 1,
-    'beitrag_textmitfam' => '',
     'beitrag_text_token' => '#',
     'beitrag_role_separator' => '',
-    'beitrag_anteilig' => '',
     'beitrag_abrunden' => 1,
-    'beitrag_mindestbetrag' => 0
+    'beitrag_mindestbetrag' => 0,
+    'beitrag_jahr' => 0
 );
 
 // Kontodaten
@@ -68,7 +46,6 @@ $config_default['Kontodaten'] = array(
 
 // Mandatsreferenz
 $config_default['Mandatsreferenz'] = array(
-    'prefix_fam' => 'FAM',
     'prefix_mem' => 'MIT',
     'prefix_pay' => 'ZAL',
     'min_length' => 15,
@@ -77,41 +54,19 @@ $config_default['Mandatsreferenz'] = array(
 
 // Rollenpruefung
 $config_default['Rollenpruefung'] = array(
-    'altersrollenfamilienrollen' => array(
-        ' '
-    ),
-    'altersrollenpflicht' => array(
-        ' '
-    ),
-    'familienrollenpflicht' => '',
     'fixrollenpflicht' => array(
         ' '
     ),
     'bezugskategorie' => array(
         ' '
     ),
-    'altersrollenaltersrollen' => array(
-        ' '
-    ),
-    'familienrollenfix' => array(
-        ' '
-    ),
-    'altersrollenfix' => array(
-        ' '
-    ),
     'fixrollenfixrollen' => array(
-        ' '
-    ),
-    'age_staggered_roles_exclusion' => array(
         ' '
     )
 );
 
 $config_default['tests_enable'] = array(
-    'age_staggered_roles' => 1,
-    'role_membership_age_staggered_roles' => 1,
     'role_membership_duty_and_exclusion' => 1,
-    'family_roles' => 1,
     'account_details' => 1,
     'mandate_management' => 1,
     'iban_check' => 1,
@@ -172,12 +127,6 @@ $config_default['columnconfig'] = array(
     )
 );
 
-// Mitgliedsnummer
-$config_default['membernumber'] = array(
-    'format' => '',
-    'fill_gaps' => 1
-);
-
 // Zugriffsberechtigung für das Modul preferences
 $config_default['access']['preferences'] = array();
 
@@ -204,9 +153,6 @@ $config_default['individual_contributions'] = array(
         ' '
     )
 );
-
-// Multiplikatorrollen (nur Familienrollen)
-$config_default['multiplier']['roles'] = array();
 
 /*
  * Mittels dieser Zeichenkombination werden Konfigurationsdaten, die zur Laufzeit als Array verwaltet werden,

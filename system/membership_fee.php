@@ -102,27 +102,7 @@ try {
                                    OR cat_org_id IS NULL )
                              ORDER BY cat_sequence, rol_name';
 
-    if ($getChoice == 'agestaggeredroles') {
-        if ($getConf == - 1) {
-            $pPreferences->config['Altersrollen']['altersrollen_token'][] = $pPreferences->config_default['Altersrollen']['altersrollen_token'][0];
-        } else {
-            array_splice($pPreferences->config['Altersrollen']['altersrollen_token'], $getConf, 1);
-        }
-    } elseif ($getChoice == 'familyroles') {
-        if ($getConf == - 1) {
-            $pPreferences->config['Familienrollen']['familienrollen_beitrag'][] = $pPreferences->config_default['Familienrollen']['familienrollen_beitrag'][0];
-            $pPreferences->config['Familienrollen']['familienrollen_zeitraum'][] = $pPreferences->config_default['Familienrollen']['familienrollen_zeitraum'][0];
-            $pPreferences->config['Familienrollen']['familienrollen_beschreibung'][] = $pPreferences->config_default['Familienrollen']['familienrollen_beschreibung'][0];
-            $pPreferences->config['Familienrollen']['familienrollen_prefix'][] = $pPreferences->config_default['Familienrollen']['familienrollen_prefix'][0];
-            $pPreferences->config['Familienrollen']['familienrollen_pruefung'][] = $pPreferences->config_default['Familienrollen']['familienrollen_pruefung'][0];
-        } else {
-            array_splice($pPreferences->config['Familienrollen']['familienrollen_beitrag'], $getConf, 1);
-            array_splice($pPreferences->config['Familienrollen']['familienrollen_zeitraum'], $getConf, 1);
-            array_splice($pPreferences->config['Familienrollen']['familienrollen_beschreibung'], $getConf, 1);
-            array_splice($pPreferences->config['Familienrollen']['familienrollen_prefix'], $getConf, 1);
-            array_splice($pPreferences->config['Familienrollen']['familienrollen_pruefung'], $getConf, 1);
-        }
-    } elseif ($getChoice == 'individualcontributions') {
+    if ($getChoice == 'individualcontributions') {
         if ($getConf == - 1) {
             $pPreferences->config['individual_contributions']['desc'][] = $pPreferences->config_default['individual_contributions']['desc'][0];
             $pPreferences->config['individual_contributions']['short_desc'][] = $pPreferences->config_default['individual_contributions']['short_desc'][0];
@@ -138,14 +118,10 @@ try {
         }
     }
 
-    $num_agestaggeredroles = count($pPreferences->config['Altersrollen']['altersrollen_token']);
-    $num_familyroles = count($pPreferences->config['Familienrollen']['familienrollen_prefix']);
     $num_individualcontributions = count($pPreferences->config['individual_contributions']['desc']);
 
-    $familienrollen = beitragsrollen_einlesen('fam');
-    $altersrollen = beitragsrollen_einlesen('alt');
     $fixrollen = beitragsrollen_einlesen('fix');
-    $alt_fix_rollen = $altersrollen + $fixrollen;
+    $alt_fix_rollen = $fixrollen;
 
     // das Array fuer die Auswahl der Profilfelder plus evtl. Zusatzfelder erzeugen
     $fieldSelectionList = array();
@@ -369,6 +345,9 @@ try {
     </tr>
 </table>');
 
+    $showGermanDocumentation = in_array($gSettingsManager->getString('system_language'), array('de', 'de-DE'), true)
+        && is_file(__DIR__ . '/../docs/documentation-de.html');
+
     if (count($rols) > 0) {
         $page->addHtml('
     <ul id="preferences_tabs" class="nav nav-tabs" role="tablist">
@@ -394,6 +373,14 @@ try {
         ');
         }
 
+        if ($showGermanDocumentation) {
+            $page->addHtml('
+            <li class="nav-item">
+                <a id="tabs_nav_documentation" class="nav-link" href="#tabs-documentation" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_DOCUMENTATION') . '</a>
+            </li>
+        ');
+        }
+
         $page->addHtml('
     </ul>
 
@@ -402,21 +389,6 @@ try {
 
         // TAB: FEES
         $page->addHtml(openMenueTab('fees', 'accordion_fees'));
-
-        // PANEL: REMAPPING
-
-        if (count(beitragsrollen_einlesen('alt')) > 0) {
-            $formRemapping = new HtmlForm('remapping_form', '', $page);
-
-            $formRemapping->addButton('btn_remapping_age_staggered_roles', $gL10n->get('PLG_MEMBERSHIPFEE_REMAPPING'), array(
-                'icon' => 'bi-shuffle',
-                'link' => 'remapping.php',
-                'class' => 'btn-primary offset-sm-3'
-            ));
-            $formRemapping->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_REMAPPING_AGE_STAGGERED_ROLES_DESC'));
-
-            $page->addHtml(getMenuePanel('fees', 'remapping', 'accordion_fees', $gL10n->get('PLG_MEMBERSHIPFEE_REMAPPING_AGE_STAGGERED_ROLES'), 'bi bi-shuffle', $formRemapping->show()));
-        }
 
         // PANEL: RECALCULATION
 
@@ -678,60 +650,6 @@ try {
         // TAB: OPTIONS
         $page->addHtml(openMenueTab('options', 'accordion_options'));
 
-        // PANEL: PRODUCEMEMBERNUMBER
-
-        unset($_SESSION['pMembershipFee']['membernumber_user']);
-
-        $formProduceMembernumber = new HtmlForm('producemembernumber_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membernumber.php', $page);
-
-        $formProduceMembernumber->addSelectBoxFromSql('producemembernumber_roleselection', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_SELECTION'), $gDb, $selectBoxEntriesAlleRollen, array(
-            'defaultValue' => (isset($_SESSION['pMembershipFee']['membernumber_rol_sel']) ? $_SESSION['pMembershipFee']['membernumber_rol_sel'] : ''),
-            'showContextDependentFirstEntry' => false,
-            'helpTextId' => 'PLG_MEMBERSHIPFEE_PRODUCE_MEMBERNUMBER_DESC2',
-            'multiselect' => true
-        ));
-        $formProduceMembernumber->addInput('producemembernumber_format', $gL10n->get('PLG_MEMBERSHIPFEE_FORMAT'), (isset($_SESSION['pMembershipFee']['membernumber_format']) ? $_SESSION['pMembershipFee']['membernumber_format'] : (isset($pPreferences->config['membernumber']['format']) ? $pPreferences->config['membernumber']['format'] : '')), array(
-            'helpTextId' => 'PLG_MEMBERSHIPFEE_FORMAT_DESC'
-        ));
-        $formProduceMembernumber->addCheckbox('producemembernumber_fill_gaps', $gL10n->get('PLG_MEMBERSHIPFEE_FILL_GAPS'), (isset($_SESSION['pMembershipFee']['membernumber_fill_gaps']) ? $_SESSION['pMembershipFee']['membernumber_fill_gaps'] : (isset($pPreferences->config['membernumber']['fill_gaps']) ? $pPreferences->config['membernumber']['fill_gaps'] : '')), array(
-            'helpTextId' => 'PLG_MEMBERSHIPFEE_FILL_GAPS_DESC'
-        ));
-        $formProduceMembernumber->addSubmitButton('btn_producemembernumber', $gL10n->get('PLG_MEMBERSHIPFEE_PRODUCE_MEMBERNUMBER'), array(
-            'icon' => 'bi-123',
-            'class' => 'offset-sm-3'
-        ));
-        $formProduceMembernumber->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_PRODUCE_MEMBERNUMBER_DESC'));
-
-        $page->addHtml(getMenuePanel('options', 'producemembernumber', 'accordion_options', $gL10n->get('PLG_MEMBERSHIPFEE_PRODUCE_MEMBERNUMBER'), 'bi bi-123', $formProduceMembernumber->show()));
-
-        // PANEL: FAMILYROLESUPDATE
-
-        unset($_SESSION['pMembershipFee']['familyroles_update']);
-
-        $formFamilyrolesUpdate = new HtmlForm('familyrolesupdate_form', '', $page);
-
-        $formFamilyrolesUpdate->addButton('btn_familyrolesupdate', $gL10n->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES_UPDATE'), array(
-            'icon' => 'bi-arrow-repeat',
-            'link' => 'familyroles_update.php',
-            'class' => 'btn-primary offset-sm-3'
-        ));
-        $formFamilyrolesUpdate->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES_UPDATE_DESC'));
-
-        $page->addHtml(getMenuePanel('options', 'familyrolesupdate', 'accordion_options', $gL10n->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES_UPDATE'), 'bi bi-arrow-repeat', $formFamilyrolesUpdate->show()));
-
-        // PANEL: COPY
-
-        $formCopy = new HtmlForm('copy_form', '', $page);
-
-        $formCopy->addButton('btn_copy', $gL10n->get('PLG_MEMBERSHIPFEE_COPY'), array(
-            'icon' => 'bi-copy',
-            'link' => 'copy.php',
-            'class' => 'btn-primary offset-sm-3'
-        ));
-        $formCopy->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_COPY_DESC'));
-
-        $page->addHtml(getMenuePanel('options', 'copy', 'accordion_options', $gL10n->get('PLG_MEMBERSHIPFEE_COPY'), 'bi bi-copy', $formCopy->show()));
-
         // PANEL: TESTS
 
         // Panel Tests nur anzeigen, wenn mindestens ein Einzeltest aktiviert ist
@@ -791,15 +709,6 @@ try {
             $formContributionSettings->addInput('beitrag_prefix', $gL10n->get('PLG_MEMBERSHIPFEE_PREFIX'), $pPreferences->config['Beitrag']['beitrag_prefix'], array(
                 'helpTextId' => 'PLG_MEMBERSHIPFEE_CONTRIBUTION_PREFIX_DESC'
             ));
-            $formContributionSettings->addInput('beitrag_suffix', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_SUFFIX'), $pPreferences->config['Beitrag']['beitrag_suffix'], array(
-                'helpTextId' => 'PLG_MEMBERSHIPFEE_CONTRIBUTION_SUFFIX_DESC'
-            ));
-
-            $formContributionSettings->addCheckbox('beitrag_anteilig', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PRORATA'), $pPreferences->config['Beitrag']['beitrag_anteilig'], array(
-                'helpTextId' => 'PLG_MEMBERSHIPFEE_CONTRIBUTION_PRORATA_DESC',
-                'helpTextIdLabel' => 'PLG_MEMBERSHIPFEE_CONTRIBUTION_PRORATA_DESC2'
-            ));
-
             $formContributionSettings->addCheckbox('beitrag_abrunden', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ROUNDDOWN'), $pPreferences->config['Beitrag']['beitrag_abrunden'], array(
                 'helpTextId' => 'PLG_MEMBERSHIPFEE_CONTRIBUTION_ROUNDDOWN_DESC'
             ));
@@ -809,11 +718,14 @@ try {
                 'maxNumber' => 999,
                 'helpTextId' => 'PLG_MEMBERSHIPFEE_CONTRIBUTION_MINCALC_DESC'
             ));
+            $formContributionSettings->addInput('beitrag_jahr', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_YEAR'), (int) $pPreferences->config['Beitrag']['beitrag_jahr'], array(
+                'type' => 'number',
+                'minNumber' => 0,
+                'maxNumber' => 9999,
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_CONTRIBUTION_YEAR_DESC'
+            ));
             $formContributionSettings->addCheckbox('beitrag_textmitnam', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_TEXT_MEMNAMES'), $pPreferences->config['Beitrag']['beitrag_textmitnam'], array(
                 'helpTextId' => 'PLG_MEMBERSHIPFEE_CONTRIBUTION_TEXT_MEMNAMES_DESC'
-            ));
-            $formContributionSettings->addCheckbox('beitrag_textmitfam', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_TEXT_FAMNAMES'), $pPreferences->config['Beitrag']['beitrag_textmitfam'], array(
-                'helpTextId' => 'PLG_MEMBERSHIPFEE_CONTRIBUTION_TEXT_FAMNAMES_DESC'
             ));
             $selectBoxEntries = array(
                 '#' => ' &nbsp ' . $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_BLANK'),
@@ -841,164 +753,6 @@ try {
             ));
 
             $page->addHtml(getMenuePanel('preferences', 'contributionsettings', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_SETTINGS'), 'bi bi-database-gear', $formContributionSettings->show()));
-
-            // PANEL: AGE_STAGGERED_ROLES
-
-            $formAgeStaggeredRoles = new HtmlForm('agestaggeredroles_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee_function.php', array(
-                'form' => 'agestaggeredroles'
-            )), $page, array(
-                'class' => 'form-preferences'
-            ));
-            $formAgeStaggeredRoles->addInput('altersrollen_offset', $gL10n->get('PLG_MEMBERSHIPFEE_OFFSET'), $pPreferences->config['Altersrollen']['altersrollen_offset'], array(
-                'type' => 'number',
-                'step' => 1,
-                'minNumber' => - 99,
-                'maxNumber' => 99,
-                'helpTextId' => 'PLG_MEMBERSHIPFEE_OFFSET_DESC',
-                'helpTextIdLabel' => 'PLG_MEMBERSHIPFEE_OFFSET_INFO'
-            ));
-            $formAgeStaggeredRoles->addCustomContent('', '<small>' . $gL10n->get('PLG_MEMBERSHIPFEE_OFFSET_INFO') . '</small>');
-            $formAgeStaggeredRoles->addLine();
-            $formAgeStaggeredRoles->addStaticControl('descd', $gL10n->get('PLG_MEMBERSHIPFEE_DELIMITER'), '', array(
-                'helpTextId' => 'PLG_MEMBERSHIPFEE_DELIMITER_DESC'
-            ));
-
-            $html = $gL10n->get('PLG_MEMBERSHIPFEE_DELIMITER_INFO1') . '<strong><br/>' . $gL10n->get('PLG_MEMBERSHIPFEE_DELIMITER_INFO2') . ' </strong>' . $gL10n->get('PLG_MEMBERSHIPFEE_DELIMITER_INFO3');
-            $formAgeStaggeredRoles->addCustomContent('', $html);
-
-            $formAgeStaggeredRoles->addDescription('<div style="width:100%; height:' . ($num_agestaggeredroles < 2 ? 170 : 210) . 'px; overflow:auto; border:20px;">');
-            for ($conf = 0; $conf < $num_agestaggeredroles; $conf ++) {
-                $formAgeStaggeredRoles->openGroupBox('agestaggeredroles_group', ($conf + 1) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_STAGGERING'));
-                $formAgeStaggeredRoles->addInput('altersrollen_token' . $conf, '', $pPreferences->config['Altersrollen']['altersrollen_token'][$conf], array(
-                    'maxLength' => 1,
-                    'property' => HtmlForm::FIELD_REQUIRED
-                ));
-                if ($num_agestaggeredroles != 1) {
-                    $html = '<a id="add_config" class="icon-text-link" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', array(
-                        'choice' => 'agestaggeredroles',
-                        'conf' => $conf
-                    )) . '">
-                            <i class="bi bi-trash"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_DELETE_CONFIG') . '
-                        </a>';
-                    $formAgeStaggeredRoles->addCustomContent('', $html);
-                }
-                $formAgeStaggeredRoles->closeGroupBox();
-            }
-            $formAgeStaggeredRoles->addDescription('</div>');
-
-            $html = '<a id="add_config" class="icon-text-link" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', array(
-                'choice' => 'agestaggeredroles',
-                'conf' => - 1
-            )) . '">
-                    <i class="bi bi-copy"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_ADD_ANOTHER_CONFIG') . '
-                </a>';
-            $htmlDesc = '<div class="alert alert-warning alert-small" role="alert"><i class="bi bi-exclamation-triangle"></i>' . $gL10n->get('PLG_MEMBERSHIPFEE_NOT_SAVED_SETTINGS_LOST') . '</div>';
-            $formAgeStaggeredRoles->addCustomContent('', $html, array(
-                'helpTextId' => $htmlDesc
-            ));
-            $formAgeStaggeredRoles->addSubmitButton('btn_save_configurations', $gL10n->get('SYS_SAVE'), array(
-                'icon' => 'bi-check-lg',
-                'class' => ' offset-sm-3'
-            ));
-
-            $page->addHtml(getMenuePanel('preferences', 'agestaggeredroles', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES'), 'bi bi-hourglass-split', $formAgeStaggeredRoles->show()));
-
-            // PANEL: FAMILY_ROLES
-
-            $formFamilyRoles = new HtmlForm('familyroles_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee_function.php', array(
-                'form' => 'familyroles'
-            )), $page, array(
-                'class' => 'form-preferences'
-            ));
-            $formFamilyRoles->addDescription('<div style="width:100%; height:' . ($num_familyroles < 2 ? 500 : 650) . 'px; overflow:auto; border:20px;">');
-            for ($conf = 0; $conf < $num_familyroles; $conf ++) {
-                $formFamilyRoles->openGroupBox('familyroles_group', ($conf + 1) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_FAMILY_ROLE'));
-                $formFamilyRoles->addInput('familienrollen_prefix' . $conf, $gL10n->get('PLG_MEMBERSHIPFEE_PREFIX'), $pPreferences->config['Familienrollen']['familienrollen_prefix'][$conf], array(
-                    'helpTextId' => 'PLG_MEMBERSHIPFEE_FAMILY_ROLES_PREFIX_DESC',
-                    'property' => HtmlForm::FIELD_REQUIRED
-                ));
-                $formFamilyRoles->addInput('familienrollen_beitrag' . $conf, $gL10n->get('SYS_CONTRIBUTION') . ' ' . $gSettingsManager->getString('system_currency'), $pPreferences->config['Familienrollen']['familienrollen_beitrag'][$conf], array(
-                    'helpTextId' => 'PLG_MEMBERSHIPFEE_FAMILY_ROLES_CONTRIBUTION_DESC',
-                    'type' => 'number',
-                    'minNumber' => - 99999,
-                    'maxNumber' => 99999,
-                    'step' => 0.01
-                ));
-
-                $selectBoxEntries = array(
-                    '--',
-                    - 1,
-                    1,
-                    2,
-                    4,
-                    12
-                );
-                $role = new Role($gDb);
-                $formFamilyRoles->addSelectBox('familienrollen_zeitraum' . $conf, $gL10n->get('SYS_CONTRIBUTION_PERIOD'), $role->getCostPeriods(), array(
-                    'firstEntry' => '',
-                    'defaultValue' => $pPreferences->config['Familienrollen']['familienrollen_zeitraum'][$conf],
-                    'helpTextId' => 'PLG_MEMBERSHIPFEE_FAMILY_ROLES_CONTRIBUTION_PERIOD_DESC',
-                    'showContextDependentFirstEntry' => false
-                ));
-                $formFamilyRoles->addInput('familienrollen_beschreibung' . $conf, $gL10n->get('SYS_DESCRIPTION'), $pPreferences->config['Familienrollen']['familienrollen_beschreibung'][$conf], array(
-                    'helpTextId' => 'PLG_MEMBERSHIPFEE_FAMILY_ROLES_DESCRIPTION_DESC'
-                ));
-                if ($num_familyroles != 1) {
-                    $html = '<a id="add_config" class="icon-text-link" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', array(
-                        'choice' => 'familyroles',
-                        'conf' => $conf
-                    )) . '">
-                            <i class="bi bi-trash"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_DELETE_CONFIG') . '
-                        </a>';
-                    $formFamilyRoles->addCustomContent('', $html);
-                }
-                $formFamilyRoles->closeGroupBox();
-            }
-            $formFamilyRoles->addDescription('</div>');
-            $html = '<a id="add_config" class="icon-text-link" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', array(
-                'choice' => 'familyroles',
-                'conf' => - 1
-            )) . '">
-                    <i class="bi bi-copy"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_ADD_ANOTHER_CONFIG') . '
-                 </a>';
-            $htmlDesc = '<div class="alert alert-warning alert-small" role="alert"><i class="bi bi-exclamation-triangle"></i>' . $gL10n->get('PLG_MEMBERSHIPFEE_NOT_SAVED_SETTINGS_LOST') . '</div>';
-            $formFamilyRoles->addCustomContent('', $html, array(
-                'helpTextId' => $htmlDesc
-            ));
-            $formFamilyRoles->addSubmitButton('btn_save_configurations', $gL10n->get('SYS_SAVE'), array(
-                'icon' => 'bi-check-lg',
-                'class' => ' offset-sm-3'
-            ));
-
-            $page->addHtml(getMenuePanel('preferences', 'familyroles', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES'), 'bi bi-people', $formFamilyRoles->show()));
-
-            // PANEL: MULTIPLIER_ROLES
-
-            if (count($familienrollen) > 0) {
-                $formMultiplierRoles = new HtmlForm('multiplier_roles_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee_function.php', array(
-                    'form' => 'multiplier_roles'
-                )), $page, array(
-                    'class' => 'form-preferences'
-                ));
-
-                $selectBoxEntries = array();
-                foreach ($familienrollen as $key => $data) {
-                    $selectBoxEntries[$key] = $data['rolle'];
-                }
-                asort($selectBoxEntries);
-                $formMultiplierRoles->addSelectBox('multiplier_roles', '', $selectBoxEntries, array(
-                    'defaultValue' => $pPreferences->config['multiplier']['roles'],
-                    'multiselect' => true,
-                    'helpTextId' => 'PLG_MEMBERSHIPFEE_MULTIPLIER_ROLES_DESC'
-                ));
-
-                $formMultiplierRoles->addSubmitButton('btn_save_configurations', $gL10n->get('SYS_SAVE'), array(
-                    'icon' => 'bi-check-lg',
-                    'class' => ' offset-sm-3'
-                ));
-
-                $page->addHtml(getMenuePanel('preferences', 'multiplier_roles', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_MULTIPLIER_ROLES'), 'bi bi-magic', $formMultiplierRoles->show()));
-            }
 
             // PANEL: ADVANCED_ROLE_EDITING
 
@@ -1035,41 +789,6 @@ try {
             ));
 
             $page->addHtml(getMenuePanel('preferences', 'advancedroleediting', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_ADVANCED_ROLE_EDITING'), 'bi bi-person-gear', $formAdvancedRoleEditing->show()));
-
-            // PANEL: EVENTS_SELECTION
-
-            $formEvents = new HtmlForm('eventsselection_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee_function.php', array(
-                'form' => 'eventsselection'
-            )), $page, array(
-                'class' => 'form-preferences'
-            ));
-
-            $sqlData['query'] = 'SELECT rol.rol_id, rol.rol_name, cat.cat_name
-                               FROM ' . TBL_CATEGORIES . ' as cat, ' . TBL_ROLES . ' as rol
-                              WHERE cat.cat_id = rol.rol_cat_id
-                                AND rol.rol_cost IS NULL
-                                AND rol.rol_cost_period IS NULL
-                                AND ( cat.cat_org_id = ?
-                                 OR cat.cat_org_id IS NULL )
-                                AND cat.cat_name_intern = ? ';
-
-            $sqlData['params'] = array(
-                $gCurrentOrgId,
-                'EVENTS'
-            );
-
-            $formEvents->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_EVENTS_SELECTION_INFO'));
-            $formEvents->addSelectBoxFromSql('eventsselection', $gL10n->get('PLG_MEMBERSHIPFEE_EVENTS_SELECTION'), $gDb, $sqlData, array(
-                'multiselect' => true,
-                'helpTextId' => 'PLG_MEMBERSHIPFEE_EVENTS_SELECTION_DESC',
-                'helpTextIdLabel' => 'PLG_MEMBERSHIPFEE_EVENTS_SELECTION_INFO'
-            ));
-            $formEvents->addSubmitButton('btn_save_eventsselection', $gL10n->get('SYS_SAVE'), array(
-                'icon' => 'bi-check-lg',
-                'class' => ' offset-sm-3'
-            ));
-
-            $page->addHtml(getMenuePanel('preferences', 'eventsselection', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_EVENTS_SELECTION'), 'bi bi-calendar-range', $formEvents->show()));
 
             // PANEL: INDIVIDUAL_CONTRIBUTIONS
 
@@ -1239,7 +958,6 @@ try {
             )), $page, array(
                 'class' => 'form-preferences'
             ));
-            $formMandateManagement->addInput('prefix_fam', $gL10n->get('PLG_MEMBERSHIPFEE_PREFIX_FAM'), $pPreferences->config['Mandatsreferenz']['prefix_fam']);
             $formMandateManagement->addInput('prefix_mem', $gL10n->get('PLG_MEMBERSHIPFEE_PREFIX_MEM'), $pPreferences->config['Mandatsreferenz']['prefix_mem']);
             $formMandateManagement->addInput('prefix_pay', $gL10n->get('PLG_MEMBERSHIPFEE_PREFIX_PAY'), $pPreferences->config['Mandatsreferenz']['prefix_pay']);
             $formMandateManagement->addInput('min_length', $gL10n->get('PLG_MEMBERSHIPFEE_MIN_LENGTH'), $pPreferences->config['Mandatsreferenz']['min_length'], array(
@@ -1507,43 +1225,14 @@ try {
 
             $formTestsSetup->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_TESTS_SETUP_INFO'));
 
-            $formTestsSetup->addCheckbox('age_staggered_roles', $gL10n->get('PLG_MEMBERSHIPFEE_TEST') . ' "' . $gL10n->get('PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES') . '" ' . $gL10n->get('PLG_MEMBERSHIPFEE_ENABLE'), (bool) $pPreferences->config['tests_enable']['age_staggered_roles']);
-            $formTestsSetup->addLine();
-
-            $formTestsSetup->addCheckbox('role_membership_age_staggered_roles', $gL10n->get('PLG_MEMBERSHIPFEE_TEST') . ' "' . $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES') . '" ' . $gL10n->get('PLG_MEMBERSHIPFEE_ENABLE'), (bool) $pPreferences->config['tests_enable']['role_membership_age_staggered_roles']);
-            $formTestsSetup->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES'), '', array(
-                'helpTextId' => 'PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES_DESC_LABEL',
-                'helpTextIdInline' => 'PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES_DESC2'
-            ));
-            if (count($altersrollen) > 0) {
-                if (count($altersrollen) > 0) {
-                    foreach ($pPreferences->config['Altersrollen']['altersrollen_token'] as $token) {
-                        $formTestsSetup->addCheckbox('age_staggered_roles_exclusion' . $token, $gL10n->get('PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES') . ' (' . $token . ')', (in_array($token, $pPreferences->config['Rollenpruefung']['age_staggered_roles_exclusion']) ? 1 : 0));
-                    }
-                }
-            } else {
-                $formTestsSetup->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_NO_CONTRIBUTION_ROLES'));
-            }
-            $formTestsSetup->addLine();
-
             $formTestsSetup->addCheckbox('role_membership_duty_and_exclusion', $gL10n->get('PLG_MEMBERSHIPFEE_TESTS') . ' "' . $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_DUTY') . '" ' . $gL10n->get('PLG_MEMBERSHIPFEE_AND') . ' "' . $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_EXCLUSION') . '" ' . $gL10n->get('PLG_MEMBERSHIPFEE_ENABLE'), (bool) $pPreferences->config['tests_enable']['role_membership_duty_and_exclusion']);
             $formTestsSetup->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_DUTY'), '', array(
                 'helpTextId' => 'PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_DUTY_DESC2'
             ));
-            if ((count($altersrollen) > 0) || (count($familienrollen) > 0) || (count($fixrollen) > 0)) {
+            if (count($fixrollen) > 0) {
                 $formTestsSetup->addDescription('<div style="width:100%; height:250px; overflow:auto; border:20px;">');
-                if (count($altersrollen) > 0) {
-                    foreach ($pPreferences->config['Altersrollen']['altersrollen_token'] as $token) {
-                        $formTestsSetup->addCheckbox('altersrollenpflicht' . $token, $gL10n->get('PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES') . ' (' . $token . ')', (in_array($token, $pPreferences->config['Rollenpruefung']['altersrollenpflicht']) ? 1 : 0));
-                    }
-                }
-                if (count($familienrollen) > 0) {
-                    $formTestsSetup->addCheckbox('familienrollenpflicht', $gL10n->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES'), $pPreferences->config['Rollenpruefung']['familienrollenpflicht']);
-                }
-                if (count($fixrollen) > 0) {
-                    foreach ($fixrollen as $key => $data) {
-                        $formTestsSetup->addCheckbox('fixrollenpflicht' . $key, $data['rolle'], (in_array($key, $pPreferences->config['Rollenpruefung']['fixrollenpflicht']) ? 1 : 0));
-                    }
+                foreach ($fixrollen as $key => $data) {
+                    $formTestsSetup->addCheckbox('fixrollenpflicht' . $key, $data['rolle'], (in_array($key, $pPreferences->config['Rollenpruefung']['fixrollenpflicht']) ? 1 : 0));
                 }
                 $formTestsSetup->addDescription('</div>');
             } else {
@@ -1553,46 +1242,20 @@ try {
             $formTestsSetup->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_EXCLUSION'), '', array(
                 'helpTextId' => 'PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_EXCLUSION_DESC2'
             ));
-            if (((count($altersrollen) > 0) && (count($familienrollen) > 0)) || count($fixrollen) > 0) {
+            if (count($fixrollen) > 1) {
                 $formTestsSetup->addDescription('<div style="width:100%; height:250px; overflow:auto; border:20px;">');
-                if ((count($pPreferences->config['Altersrollen']['altersrollen_token']) > 1)) {
-                    for ($x = 0; $x < count($pPreferences->config['Altersrollen']['altersrollen_token']) - 1; $x ++) {
-                        for ($y = $x + 1; $y < count($pPreferences->config['Altersrollen']['altersrollen_token']); $y ++) {
-                            $formTestsSetup->addCheckbox('altersrollenaltersrollen' . $pPreferences->config['Altersrollen']['altersrollen_token'][$x] . $pPreferences->config['Altersrollen']['altersrollen_token'][$y], $gL10n->get('PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES') . ' (' . $pPreferences->config['Altersrollen']['altersrollen_token'][$x] . ') ./. ' . $gL10n->get('PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES') . ' (' . $pPreferences->config['Altersrollen']['altersrollen_token'][$y] . ')', (in_array($pPreferences->config['Altersrollen']['altersrollen_token'][$x] . ',' . $pPreferences->config['Altersrollen']['altersrollen_token'][$y], $pPreferences->config['Rollenpruefung']['altersrollenaltersrollen']) ? 1 : 0));
-                        }
-                    }
-                }
-                if ((count($altersrollen) > 0) && (count($familienrollen) > 0)) {
-                    foreach ($pPreferences->config['Altersrollen']['altersrollen_token'] as $token) {
-                        $formTestsSetup->addCheckbox('altersrollenfamilienrollen' . $token, $gL10n->get('PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES') . ' (' . $token . ') ./. ' . $gL10n->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES'), (in_array($token, $pPreferences->config['Rollenpruefung']['altersrollenfamilienrollen']) ? 1 : 0));
-                    }
-                }
-                if ((count($altersrollen) > 0) && (count($fixrollen) > 0)) {
-                    foreach ($fixrollen as $key => $data) {
-                        foreach ($pPreferences->config['Altersrollen']['altersrollen_token'] as $token) {
-                            $formTestsSetup->addCheckbox('altersrollenfix' . $token . $key, $gL10n->get('PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES') . ' (' . $token . ') ./. ' . $data['rolle'], (in_array($token . $key, $pPreferences->config['Rollenpruefung']['altersrollenfix']) ? 1 : 0));
-                        }
-                    }
-                }
-                if ((count($familienrollen) > 0) && (count($fixrollen) > 0)) {
-                    foreach ($fixrollen as $key => $data) {
-                        $formTestsSetup->addCheckbox('familienrollenfix' . $key, $gL10n->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES') . ' ./. ' . $data['rolle'], (in_array($key, $pPreferences->config['Rollenpruefung']['familienrollenfix']) ? 1 : 0));
-                    }
-                }
-                if (count($fixrollen) > 1) {
-                    $fixrollenL = $fixrollen;
-                    array_pop($fixrollenL); // das letzte Element entfernen
-                    $fixrollenR = $fixrollen;
+                $fixrollenL = $fixrollen;
+                array_pop($fixrollenL); // das letzte Element entfernen
+                $fixrollenR = $fixrollen;
 
-                    foreach ($fixrollenL as $keyL => $dataL) {
-                        unset($fixrollenR[$keyL]); // dasselbe Element entfernen
-                        foreach ($fixrollenR as $keyR => $dataR) {
-                            $formTestsSetup->addCheckbox('fixrollenfixrollen' . $keyL . '_' . $keyR, $dataL['rolle'] . ' ./. ' . $dataR['rolle'], (in_array($keyL . '_' . $keyR, $pPreferences->config['Rollenpruefung']['fixrollenfixrollen']) ? 1 : 0));
-                        }
+                foreach ($fixrollenL as $keyL => $dataL) {
+                    unset($fixrollenR[$keyL]); // dasselbe Element entfernen
+                    foreach ($fixrollenR as $keyR => $dataR) {
+                        $formTestsSetup->addCheckbox('fixrollenfixrollen' . $keyL . '_' . $keyR, $dataL['rolle'] . ' ./. ' . $dataR['rolle'], (in_array($keyL . '_' . $keyR, $pPreferences->config['Rollenpruefung']['fixrollenfixrollen']) ? 1 : 0));
                     }
-                    unset($fixrollenL);
-                    unset($fixrollenR);
                 }
+                unset($fixrollenL);
+                unset($fixrollenR);
                 $formTestsSetup->addDescription('</div>');
             } else {
                 $formTestsSetup->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_NO_COMBINATION_ROLES'));
@@ -1607,19 +1270,6 @@ try {
                 'multiselect' => true,
                 'helpTextId' => 'PLG_MEMBERSHIPFEE_CAT_SELECTION_DESC'
             ));
-            $formTestsSetup->addLine();
-
-            $formTestsSetup->addCheckbox('family_roles', $gL10n->get('PLG_MEMBERSHIPFEE_TEST') . ' "' . $gL10n->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES') . '" ' . $gL10n->get('PLG_MEMBERSHIPFEE_ENABLE'), (bool) $pPreferences->config['tests_enable']['family_roles']);
-            $formTestsSetup->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES'), '', array(
-                'helpTextId' => 'PLG_MEMBERSHIPFEE_FAMILY_ROLES_ROLE_TEST_DESC2'
-            ));
-            $formTestsSetup->addDescription('<div style="width:100%; height:' . ($num_familyroles < 2 ? 140 : 300) . 'px; overflow:auto; border:20px;">');
-            for ($conf = 0; $conf < $num_familyroles; $conf ++) {
-                $formTestsSetup->openGroupBox('familyroles_group', ($conf + 1) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_FAMILY_ROLE'));
-                $formTestsSetup->addInput('familienrollen_pruefung' . $conf, $pPreferences->config['Familienrollen']['familienrollen_prefix'][$conf], $pPreferences->config['Familienrollen']['familienrollen_pruefung'][$conf]);
-                $formTestsSetup->closeGroupBox();
-            }
-            $formTestsSetup->addDescription('</div>');
             $formTestsSetup->addLine();
 
             $formTestsSetup->addCheckbox('account_details', $gL10n->get('PLG_MEMBERSHIPFEE_TEST') . ' "' . $gL10n->get('PLG_MEMBERSHIPFEE_ACCOUNT_DATA') . '" ' . $gL10n->get('PLG_MEMBERSHIPFEE_ENABLE'), (bool) $pPreferences->config['tests_enable']['account_details']);
@@ -1692,6 +1342,11 @@ try {
             $page->addHtml(getMenuePanel('preferences', 'uninstallation', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_UNINSTALLATION'), 'bi bi-trash', $formUninstallation->show()));
 
             $page->addHtml(closeMenueTab());
+        }
+
+        // TAB: DOCUMENTATION (nur in deutscher Sprache vorhanden)
+        if ($showGermanDocumentation) {
+            $page->addHtml('<div class="tab-pane fade" id="tabs-documentation" role="tabpanel">' . file_get_contents(__DIR__ . '/../docs/documentation-de.html') . '</div>');
         }
 
         $page->addHtml('</div>'); // end div class="tab-content"

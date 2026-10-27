@@ -89,9 +89,6 @@ if ($getMode == 'preview')     //Default
 	//alle Mitglieder loeschen, bei denen bereits eine Mandatsreferenz vorhanden ist
 	$members = array_filter($members, 'delete_with_MANDATEID');
 	
-	//alle Beitragsrollen einlesen
-	$contributingRolls = beitragsrollen_einlesen('fam', array('FIRST_NAME', 'LAST_NAME'));
-	
 	//alle uebriggebliebenen Mitglieder durchlaufen und eine Mandatsreferenz erzeugen
 	foreach ($members as $member => $memberdata)
 	{
@@ -103,15 +100,6 @@ if ($getMode == 'preview')     //Default
 			$prefix = $pPreferences->config['Mandatsreferenz']['prefix_pay'];
 		}
 	
-		foreach ($contributingRolls as $role)
-		{
-			if (array_key_exists($member, $role['members']))
-			{
-				$prefix = $pPreferences->config['Mandatsreferenz']['prefix_fam'];
-				break;
-			}
-		}
-		
 		if ($pPreferences->config['Mandatsreferenz']['data_field'] != '-- User_ID --')
 		{
 			$suffix = str_replace(' ', '', replace_sepadaten($memberdata[$pPreferences->config['Mandatsreferenz']['data_field']]));

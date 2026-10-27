@@ -1,0 +1,485 @@
+<!-- Deutsche HTML-Dokumentation (Fragment). Wird von system/membership_fee.php im Reiter "Dokumentation" eingebunden. -->
+<style>
+    #plg-doc-de { max-width: 60rem; }
+    #plg-doc-de h2 { margin-top: 2rem; padding-bottom: .3rem; border-bottom: 1px solid var(--bs-border-color, #dee2e6); }
+    #plg-doc-de h3 { margin-top: 1.5rem; }
+    #plg-doc-de h4 { margin-top: 1.2rem; }
+    #plg-doc-de .doc-path { font-family: monospace; }
+    #plg-doc-de table { margin-bottom: 1rem; }
+</style>
+
+<div id="plg-doc-de">
+
+<h1>Mitgliedsbeitrag &ndash; Dokumentation</h1>
+<p class="text-muted">Ein Plugin f&uuml;r die kostenlose Online-Mitgliederverwaltungssoftware Admidio. Autor: Rainer M. Binder.</p>
+
+<div class="alert alert-info" role="alert">
+    Verweise auf Men&uuml;punkte des Plugins sind so dargestellt:
+    <span class="doc-path">&rarr; &lt;Reiter&gt; &ndash; &lt;Men&uuml;punkt&gt; &ndash; &lt;ggf. Einzelpunkt&gt;</span>
+    (z.B. &rarr; Einstellungen &ndash; Beitragseinstellungen &ndash; Trennzeichen).
+</div>
+
+<h2 id="doc-inhalt">Inhalt</h2>
+<ol>
+    <li><a href="#doc-funktion">Funktion</a></li>
+    <li><a href="#doc-installation">Installation</a></li>
+    <li><a href="#doc-grundeinstellungen">Die ersten Grundeinstellungen</a></li>
+    <li><a href="#doc-test">Testen der Grundfunktionen</a></li>
+    <li><a href="#doc-update">Update</a></li>
+    <li><a href="#doc-menue">Die Men&uuml;struktur</a></li>
+    <li><a href="#doc-rollen">Beitragsrollen</a></li>
+    <li><a href="#doc-individual">Individualbeitr&auml;ge</a></li>
+    <li><a href="#doc-berechnung">Beitragsberechnung</a></li>
+    <li><a href="#doc-zahlungen">Beitragszahlungen und Analyse</a></li>
+    <li><a href="#doc-export">Export</a></li>
+    <li><a href="#doc-mandate">Mandatsverwaltung</a></li>
+    <li><a href="#doc-optionen">Optionen</a></li>
+    <li><a href="#doc-einstellungen">Einstellungen</a></li>
+    <li><a href="#doc-konfiguration">Speicherung der Konfiguration</a></li>
+    <li><a href="#doc-overview">Informationen auf der &Uuml;bersichtsseite</a></li>
+    <li><a href="#doc-ablauf">Ablauf einer Beitragsberechnung</a></li>
+</ol>
+
+<!-- ===================================================================== -->
+<h2 id="doc-funktion">1. Funktion</h2>
+<p>Das Plugin <strong>Mitgliedsbeitrag</strong> berechnet Mitgliedsbeitr&auml;ge und exportiert sie entweder als SEPA-XML-Datei
+    oder als Liste (XLSX, CSV). Da das Plugin keine SEPA-XML-Datei direkt an eine Bank senden kann, muss daf&uuml;r eine externe
+    Homebanking-Anwendung (z.B. Jameica/Hibiscus) verwendet werden. Sofern die Bank es zul&auml;sst, kann die Datei eventuell auch per
+    USB-Stick eingereicht werden.</p>
+
+<p>Beitragsberechnung und Export sind zwei voneinander unabh&auml;ngige Vorg&auml;nge:</p>
+<ol>
+    <li><strong>Berechnung:</strong> Anhand der Rollenmitgliedschaften werden die Beitr&auml;ge berechnet und in den Profildaten des
+        Mitglieds gespeichert (die erforderlichen zus&auml;tzlichen Profilfelder werden bei der Installation angelegt). Danach ist dieser
+        Vorgang abgeschlossen. Die Werte f&uuml;r Beitrag, Beitragstext oder Sequenztyp k&ouml;nnen im Profil des Mitglieds jederzeit nachtr&auml;glich
+        ge&auml;ndert werden.</li>
+    <li><strong>Export:</strong> Alle Mitglieder werden durchlaufen und es wird gepr&uuml;ft, ob sich in den Profilfeldern Daten des Plugins
+        (z.B. Beitrag) befinden. Diese werden eingelesen, es findet keine weitere Berechnung statt. Danach k&ouml;nnen sie als SEPA-XML-Datei
+        oder als Liste (Excel, CSV) exportiert werden.</li>
+</ol>
+
+<p>Grundlage der Berechnung ist die Rollenstruktur von Admidio: Einer Rolle k&ouml;nnen in Admidio ein <em>Beitrag</em> und ein
+    <em>Beitragszeitraum</em> zugewiesen werden, diese Angaben wertet das Plugin aus. Rollen mit Beitrag und Beitragszeitraum werden im Plugin
+    als <strong>Beitragsrollen</strong> bezeichnet. Zus&auml;tzlich gibt es <a href="#doc-individual">Individualbeitr&auml;ge</a>, mit denen sich z.B.
+    Strom- oder Wasserverbr&auml;uche berechnen lassen.</p>
+
+<!-- ===================================================================== -->
+<h2 id="doc-installation">2. Installation</h2>
+
+<h3>Hochladen der Dateien</h3>
+<p>Die Programmdateien m&uuml;ssen in ein Unterverzeichnis von <code>adm_plugins</code> hochgeladen werden. Der Verzeichnisname ist fest
+    vorgegeben: <strong>MembershipFee</strong>.</p>
+<ul>
+    <li><strong>M&ouml;glichkeit 1:</strong> Die Datei <code>mitgliedsbeitrag_x.y.z.zip</code> entpacken (es entsteht ein Ordner
+        <code>MembershipFee</code>), in <code>adm_plugins</code> einen Ordner <code>MembershipFee</code> anlegen und alle Dateien und Ordner dorthin kopieren.</li>
+    <li><strong>M&ouml;glichkeit 2:</strong> Kann der Dateimanager ZIP-Dateien hochladen und entpacken, die ZIP-Datei direkt in
+        <code>adm_plugins</code> hochladen und entpacken. Der Unterordner wird automatisch erstellt.</li>
+</ul>
+<p>Anschlie&szlig;end die Installationsroutine aufrufen: In Admidio einloggen, in einer vorhandenen Rolle einen Beitrag und einen
+    Beitragszeitraum eintragen und im Browser folgende Datei starten:</p>
+<pre><code>&lt;deine-admidio-seite&gt;/adm_plugins/MembershipFee/system/install.php</code></pre>
+
+<h3>Die Installationsroutine</h3>
+<p>Die <code>install.php</code> legt alle erforderlichen Profilfelder und Kategorien an. Der Prozess l&auml;uft im Hintergrund, nur kleine
+    Nutzereingaben sind n&ouml;tig. Bei jedem Start des Plugins wird zus&auml;tzlich gepr&uuml;ft, ob die <code>version.php</code> mit den in der Datenbank
+    gespeicherten Werten &uuml;bereinstimmt und ob noch alle Profilfelder vorhanden sind. Bei Abweichungen wird ein detaillierter Installationsprozess
+    mit weiteren Pr&uuml;fungen aufgerufen; dabei k&ouml;nnen vorhandene Konfigurationsdaten neu initialisiert werden.</p>
+<p>Der Installationsprozess besteht aus zwei Durchg&auml;ngen:</p>
+<ol>
+    <li><strong>Anlegen fehlender Profilfelder und Kategorien.</strong> Fehlende Elemente werden &uuml;ber den Button &bdquo;Weiter&ldquo; angelegt.
+        Nur wenn alle notwendigen Profilfelder vorhanden sind, kann zum zweiten Durchgang gewechselt werden.</li>
+    <li><strong>Soll-Ist-Vergleich.</strong> Es wird gezeigt, wie Kategorien und Profilfelder definiert sein sollten; Unterschiede sind fett
+        hervorgehoben (z.B. wenn ein Feld &bdquo;Mitgliedsnummer&ldquo; bereits existiert, aber den falschen Datentyp hat). Notwendige &Auml;nderungen
+        f&uuml;hrt die Routine nicht selbst durch.</li>
+</ol>
+
+<h3>Der Men&uuml;punkt und die Zugriffsrolle</h3>
+<p>Die Installationsroutine erzeugt</p>
+<ul>
+    <li>einen zus&auml;tzlichen Men&uuml;punkt zum Starten des Plugins und</li>
+    <li>eine Rolle (Zugriffsrolle) f&uuml;r den Zugriff auf das Plugin.</li>
+</ul>
+<p>Die Zugriffsrolle ist im Men&uuml;punkt unter &bdquo;Sichtbar f&uuml;r&ldquo; eingetragen, der aktuelle Nutzer ist bereits Mitglied dieser Rolle. Weitere
+    Berechtigte k&ouml;nnen der Rolle hinzugef&uuml;gt werden. Das Plugin erteilt den Zugriff nur den Mitgliedern dieser Rolle; ein direkter Aufruf einer
+    Plugin-Seite (z.B. <code>.../MembershipFee/system/payments.php</code>) &uuml;ber die Adresszeile ist f&uuml;r Nichtmitglieder nicht m&ouml;glich.</p>
+<div class="alert alert-warning" role="alert">Name des Men&uuml;punkts und der Zugriffsrolle d&uuml;rfen nicht ver&auml;ndert werden, da sie bei der
+    Deinstallation nur unver&auml;ndert entfernt werden.</div>
+
+<!-- ===================================================================== -->
+<h2 id="doc-grundeinstellungen">3. Die ersten Grundeinstellungen</h2>
+<p>Nach der Installation sind im Reiter <em>Einstellungen</em> wichtige Grundeinstellungen vorzunehmen:</p>
+<ul>
+    <li><strong>Beitragseinstellungen</strong> (&rarr; Einstellungen &ndash; Beitragseinstellungen): Alle Einzelpunkte besitzen einen kurzen Hilfetext.</li>
+    <li><strong>Kontodaten</strong> (&rarr; Einstellungen &ndash; Kontodaten): Die Kontoverbindung des Vereins eintragen.</li>
+    <li><strong>Mandatsverwaltung</strong> (&rarr; Einstellungen &ndash; Mandatsverwaltung): Wichtig ist die richtige Auswahl unter
+        <em>Datenfeld f&uuml;r die laufende Nummer</em>. Das Feld bestimmt ein Segment der Mandatsreferenz und sollte sp&auml;ter nicht mehr ge&auml;ndert werden.</li>
+    <li><strong>Ansichtsdefinitionen</strong> (&rarr; Einstellungen &ndash; Ansichtsdefinitionen): Zu jeder Spalte muss ein Inhaltsfeld angegeben sein
+        (kein Feld darf leer sein). Sind nach der Installation einige Inhaltsfelder leer, weil Profilfeld-IDs nicht korrekt gelesen werden konnten,
+        einmal den Button &bdquo;Speichern&ldquo; bet&auml;tigen.</li>
+</ul>
+
+<!-- ===================================================================== -->
+<h2 id="doc-test">4. Testen der Grundfunktionen</h2>
+
+<h3>Die Ansichten</h3>
+<p>Mehrere Module zeigen nur dann Daten an, wenn bestimmte Voraussetzungen erf&uuml;llt sind: Beitragszahlungen, Rechnung, F&auml;lligkeitsdatum und Vorabinformation.</p>
+<ol>
+    <li>Im Profil eines Mitglieds unter <em>Beitrag</em> die Zahl 99 eintragen. In der &Uuml;bersicht wird bei <em>Gesamtsumme</em> jetzt 99 angezeigt.
+        In den Modulen <em>Beitragszahlungen</em> (&rarr; Beitr&auml;ge &ndash; Beitragszahlungen) und <em>Rechnung</em> (&rarr; Export &ndash; Rechnung &ndash; Rechnungsdaten bearbeiten)
+        wird genau dieses Mitglied angezeigt (diese Module zeigen nur Mitglieder, bei denen der Beitrag <em>nicht leer</em> ist).</li>
+    <li>Das Modul <em>F&auml;lligkeitsdatum</em> ben&ouml;tigt: Beitrag, Mandatsreferenz, Mandatsdatum, IBAN und ein <em>leeres</em> Bezahlt-Datum.
+        Diese Werte im Profil erg&auml;nzen und danach &rarr; Export &ndash; SEPA &ndash; F&auml;lligkeitsdatum &ouml;ffnen.</li>
+    <li>Die Checkbox in der ersten Spalte anklicken (als F&auml;lligkeitsdatum wird das aktuelle Datum eingetragen) und mit &bdquo;Zur&uuml;ck&ldquo; zur&uuml;ckgehen.
+        Unter &rarr; Export &ndash; SEPA erscheint eine neue Zeile mit Checkboxen. <em>FRST</em> anklicken, zuerst <em>XML-Datei</em>, dann <em>Kontrolldatei</em> erzeugen.
+        Die Kontrolldatei enth&auml;lt dieselben Daten wie die XML-Datei, nur besser lesbar aufbereitet.</li>
+</ol>
+
+<h3>Beitragsberechnung testen</h3>
+<ol>
+    <li>Die zuvor eingetragenen Daten (Beitrag, Mandatsreferenz, Mandatsdatum, F&auml;lligkeitsdatum usw.) wieder l&ouml;schen.</li>
+    <li>Eine Rolle mit Beitrag 99 und Beitragszeitraum &bdquo;j&auml;hrlich&ldquo; anlegen und ein Mitglied aufnehmen.</li>
+    <li>&rarr; Beitr&auml;ge &ndash; Neuberechnung ausf&uuml;hren. Wird der Beitrag unter <em>Beitragszahlungen</em> richtig angezeigt, funktionieren alle Grundfunktionen.</li>
+    <li>Die Testrolle kann gel&ouml;scht werden; der berechnete Beitrag wird &uuml;ber &rarr; Einstellungen &ndash; L&ouml;schen &ndash; &bdquo;Alles l&ouml;schen&ldquo; entfernt.</li>
+</ol>
+
+<!-- ===================================================================== -->
+<h2 id="doc-update">5. Update</h2>
+<p>Bei einem Update sind immer alle Dateien des Plugins zu ersetzen:</p>
+<ul>
+    <li>Kann der Dateimanager entpacken: das komplette Installationsverzeichnis l&ouml;schen und die ZIP-Datei hochladen und gleichzeitig entpacken.</li>
+    <li>Andernfalls: zuerst alle Dateien und Ordner im Pluginverzeichnis l&ouml;schen, danach alle Dateien aus dem entpackten Ordner <code>MembershipFee</code> hineinkopieren.</li>
+</ul>
+<p>Der Pluginordner muss <code>MembershipFee</code> hei&szlig;en, ggf. umbenennen.</p>
+
+<!-- ===================================================================== -->
+<h2 id="doc-menue">6. Die Men&uuml;struktur</h2>
+<p>Alle Funktionen sind &uuml;ber Reiter erreichbar. Oberhalb der Reiter wird der aktuelle Stand der Beitragsberechnung dargestellt.</p>
+<table class="table table-bordered table-sm">
+    <thead><tr><th>Reiter</th><th>Inhalt</th></tr></thead>
+    <tbody>
+        <tr><td>Beitr&auml;ge</td><td>Hauptfunktionen: Neuberechnung, Individualbeitr&auml;ge, Beitragszahlungen, Beitragsanalyse</td></tr>
+        <tr><td>Mandatsverwaltung</td><td>Mandatsreferenzen erzeugen, Mandate bearbeiten</td></tr>
+        <tr><td>Export</td><td>SEPA (F&auml;lligkeitsdatum, XML-Datei, Kontrolldatei, Vorabinformation), Rechnung</td></tr>
+        <tr><td>Optionen</td><td>Pr&uuml;fungen, Rollen&uuml;bersicht, Plugininformationen</td></tr>
+        <tr><td>Einstellungen</td><td>Alle Grundeinstellungen (standardm&auml;&szlig;ig nur f&uuml;r Administratoren sichtbar)</td></tr>
+        <tr><td>Dokumentation</td><td>Diese Dokumentation</td></tr>
+    </tbody>
+</table>
+
+<!-- ===================================================================== -->
+<h2 id="doc-rollen">7. Beitragsrollen</h2>
+<p>Beitr&auml;ge werden aus den Rollenmitgliedschaften ermittelt. Ma&szlig;geblich sind alle Rollen, bei denen in Admidio ein <strong>Beitrag</strong> und ein
+    <strong>Beitragszeitraum</strong> eingetragen sind (auch ein Beitrag von 0 &euro; ist m&ouml;glich, z.B. f&uuml;r Ehrenmitglieder). Die Namen der Rollen und die
+    Kategorien, in denen sie sich befinden, sind nicht von Bedeutung.</p>
+<ul>
+    <li>Ein Mitglied kann Angeh&ouml;riger einer oder mehrerer Beitragsrollen sein. Die Beitr&auml;ge dieser Rollen werden <strong>aufsummiert</strong>.</li>
+    <li>Berechnet wird der in der Rolle eingetragene Beitrag in voller H&ouml;he (unabh&auml;ngig vom eingestellten Beitragszeitraum); es findet keine anteilige
+        (monatsgenaue) Berechnung statt.</li>
+    <li>Ber&uuml;cksichtigt werden alle Mitglieder, die im <strong>Beitragsjahr</strong> (&rarr; Einstellungen &ndash; Beitragseinstellungen)     mindestens <strong>einen Tag</strong>
+            Mitglied der Rolle waren. Auch inzwischen ausgetretene Mitglieder werden also noch f&uuml;r das Jahr ber&uuml;cksichtigt, zuk&uuml;nftige Mitgliedschaften nicht.
+        Ist kein Beitragsjahr eingetragen (0 oder leer), gilt das aktuelle Jahr.</li>
+    <li>Rollen der Kategorie f&uuml;r Veranstaltungen (Teilnahmebest&auml;tigungen) werden nicht als Beitragsrollen betrachtet.</li>
+</ul>
+
+<p>&Uuml;ber Beitragsrollen lassen sich u.a. abbilden:</p>
+<ul>
+    <li>beliebig viele Spartenbeitr&auml;ge</li>
+    <li>Beitr&auml;ge f&uuml;r Jugendliche, Sch&uuml;ler, Senioren</li>
+    <li>Beitr&auml;ge f&uuml;r Ehrenmitglieder (Beitrag 0 &euro;)</li>
+    <li>Beitragserm&auml;&szlig;igungen (negativer Beitrag)</li>
+</ul>
+
+<h3>Anwendung</h3>
+<p>&Uuml;ber &bdquo;Gruppen &amp; Rollen&ldquo; eine oder mehrere Rollen anlegen und f&uuml;r jede Rolle Beitrag und Beitragszeitraum festlegen. Anschlie&szlig;end beliebig viele
+    Mitglieder aufnehmen. Danach &uuml;ber &rarr; Optionen &ndash; Rollen&uuml;bersicht pr&uuml;fen, ob alle Rollen erkannt werden.</p>
+<div class="alert alert-info" role="alert">Dezimalwerte und negative Beitr&auml;ge sind in Admidio beim Bearbeiten einer Rolle nicht eingebbar. Daf&uuml;r gibt es
+    unter &rarr; Einstellungen &ndash; Erweiterte Rollenbearbeitung die M&ouml;glichkeit, Beitrag, Beitragszeitraum und Beschreibung zu bearbeiten.</div>
+
+<!-- ===================================================================== -->
+<h2 id="doc-individual">8. Individualbeitr&auml;ge</h2>
+<p>Zus&auml;tzlich zu den Beitragsrollen k&ouml;nnen Individualbeitr&auml;ge (z.B. Strom- oder Wasserverbrauch) berechnet werden. Es gibt zwei Arten:</p>
+<p>Die Rollenzugeh&ouml;rigkeit gilt wie bei den Beitragsrollen im Beitragsjahr.</p>
+<ul>
+    <li><strong>Grundbetrag:</strong> wird berechnet, wenn das Mitglied Angeh&ouml;riger einer bestimmten Rolle ist.</li>
+    <li><strong>Verbrauchsbetrag:</strong> wird berechnet, wenn das Mitglied Angeh&ouml;riger einer bestimmten Rolle ist <em>und</em> in einem Profilfeld
+        ein Verbrauchswert eingetragen ist.</li>
+</ul>
+<p>Hierf&uuml;r sind keine Beitragsrollen (mit Beitrag und Beitragszeitraum) erforderlich; es werden nur Rollenzugeh&ouml;rigkeiten ausgewertet.
+    Die Konfiguration erfolgt unter &rarr; Einstellungen &ndash; Individualbeitr&auml;ge. Das Modul steht erst nach Aktivierung zur Verf&uuml;gung.</p>
+
+<h3>Beispiel: Wasserverbrauch</h3>
+<h4>Grundbetrag</h4>
+<p>Eine neue Konfiguration anlegen (z.B. &bdquo;Wassergeb&uuml;hren Grundbetrag&ldquo;), unter <em>Rolle</em> die betroffene Rolle w&auml;hlen und unter
+    <em>Grund- oder Verbrauchsbetrag</em> einen Betrag angeben. Ist das Mitglied Angeh&ouml;riger der Rolle, wird der Betrag (z.B. 30) zum bestehenden Mitgliedsbeitrag addiert.</p>
+<h4>Verbrauchsbetrag</h4>
+<p>Eine weitere Konfiguration (z.B. &bdquo;Wassergeb&uuml;hren Verbrauchsbetrag&ldquo;) mit Rolle, Betrag und zus&auml;tzlich einem <em>Profilfeld</em>, das den Verbrauchswert enth&auml;lt.
+    Mathematisch wird der Betrag mit dem Wert des Profilfeldes multipliziert (ist kein Profilfeld angegeben, wird mit 1 multipliziert; ist das Profilfeld beim Mitglied leer, ergibt sich 0).
+    Beispiel: Betrag 0,70 &times; Verbrauch 428 = 299,60. Dieser Wert wird zum bestehenden Beitrag addiert.</p>
+<p>Wie bei der Neuberechnung gelten auch hier die Einstellungen <em>Beitr&auml;ge abrunden</em> und <em>Mindestberechnungsbetrag</em>.</p>
+
+<!-- ===================================================================== -->
+<h2 id="doc-berechnung">9. Beitragsberechnung</h2>
+
+<h3>Neuberechnung</h3>
+<p>&rarr; Beitr&auml;ge &ndash; Neuberechnung berechnet die Mitgliedsbeitr&auml;ge neu. Nach dem Klick auf &bdquo;Neuberechnung&ldquo; erscheint zun&auml;chst eine <strong>Voransicht</strong>;
+    erst nach &bdquo;Speichern&ldquo; werden die neuen Beitr&auml;ge gespeichert. Gespeichert werden pro Mitglied der Gesamtbeitrag und der Beitragstext.</p>
+<p>Einstellm&ouml;glichkeiten der Neuberechnung:</p>
+<ul>
+    <li><strong>Berechnungsmodus:</strong>
+        <ul>
+            <li><em>Standard:</em> Ein vorhandener Beitrag (au&szlig;er 0 &euro;) wird nicht ver&auml;ndert.</li>
+            <li><em>&Uuml;berschreiben:</em> Existierende Eintr&auml;ge werden gel&ouml;scht und durch neue ersetzt.</li>
+            <li><em>Aufsummieren:</em> Beitr&auml;ge werden aufsummiert und der Beitragstext erg&auml;nzt.</li>
+        </ul>
+    </li>
+    <li><strong>nicht bezahlt:</strong> Die Neuberechnung wird nur f&uuml;r Mitglieder durchgef&uuml;hrt, bei denen noch kein Bezahlt-Datum vorhanden ist.</li>
+    <li><strong>Rollenauswahl:</strong> Standardm&auml;&szlig;ig werden alle Beitragsrollen betrachtet. Mit der Rollenauswahl wird die Berechnung auf die gew&auml;hlten Rollen
+        und deren Mitglieder beschr&auml;nkt (auch der Berechnungsmodus wirkt dann nur f&uuml;r diese Rollen; nicht abgedeckte vorhandene Beitr&auml;ge bleiben unver&auml;ndert).</li>
+</ul>
+<p>Ma&szlig;geblich ist das Beitragsjahr: Ein Mitglied muss im Beitragsjahr Mitglied der Rolle gewesen sein.</p>
+
+<h3>Beitragseinstellungen mit Einfluss auf die Berechnung</h3>
+<ul>
+    <li><strong>Beitragsjahr:</strong> Jahr, f&uuml;r das berechnet wird (leer/0 = aktuelles Jahr). Der volle Beitrag wird f&auml;llig, wenn das Mitglied in diesem Jahr Mitglied einer Beitragsrolle war.
+        Alle Listen und Funktionen (F&auml;lligkeiten, Mandate, Zahlungen, Rechnung, Vorabinformation, SEPA-Export, L&ouml;schen, Pr&uuml;fungen) beziehen sich ebenfalls auf die Mitglieder des Beitragsjahres, nicht auf den heutigen Tag.</li>
+    <li><strong>Beitr&auml;ge abrunden:</strong> Alle Beitr&auml;ge werden zugunsten des Mitglieds abgerundet.</li>
+    <li><strong>Mindestberechnungsbetrag:</strong> Errechnete Beitr&auml;ge, die nicht gr&ouml;&szlig;er als dieser Betrag sind, werden herausgefiltert und nicht gespeichert
+        (bei 0 werden also Beitr&auml;ge von 0 &euro; nicht gespeichert).</li>
+    <li><strong>Rollentrennzeichen:</strong> Zeichen, das im Beitragstext zwischen den Beschreibungen mehrerer Beitragsrollen eingef&uuml;gt wird (leer = Leerzeichen).
+        Der Beitragstext besteht aus der Beitragsbezeichnung (Pr&auml;fix) und den Beschreibungen der Beitragsrollen des Mitglieds.</li>
+    <li><strong>Beitragstext mit Namen:</strong> Ist das Feld &bdquo;Kontoinhaber&ldquo; gef&uuml;llt (i.d.R. wenn das Mitglied nicht der Kontoinhaber ist), wird der Name
+        des Mitglieds im Beitragstext aufgef&uuml;hrt. Das <em>Trennzeichen</em> hebt den Namen hervor (mit (*) markierte Zeichen sind bei EU-&Uuml;berweisungen nicht zul&auml;ssig).</li>
+</ul>
+
+<h3>Individualbeitr&auml;ge berechnen</h3>
+<p>Im Reiter <em>Beitr&auml;ge</em> erscheint (nach Aktivierung) der Punkt <em>Individualbeitr&auml;ge</em> mit Voransicht und &bdquo;Speichern&ldquo;.</p>
+<div class="alert alert-warning" role="alert">Individualbeitr&auml;ge immer <strong>nach</strong> der Beitragsberechnung durchf&uuml;hren, da ein hierbei erzeugter Beitragstext
+    stets an einen bereits vorhandenen Text angeh&auml;ngt wird.</div>
+
+<!-- ===================================================================== -->
+<h2 id="doc-zahlungen">10. Beitragszahlungen und Analyse</h2>
+
+<h3>Beitragszahlungen</h3>
+<p>Wurde ein Beitrag bezahlt, wird das Datum des Zahltages (<em>Bezahlt-Datum</em>) gespeichert: Zuerst das Datum setzen (&bdquo;bezahlt am&ldquo;), dann die betroffenen Mitglieder
+    markieren und &uuml;ber &bdquo;Datum speichern&ldquo; das Bezahlt-Datum setzen.</p>
+<div class="alert alert-warning" role="alert">Das Setzen eines Bezahlt-Datums l&ouml;scht ein eventuell vorhandenes F&auml;lligkeitsdatum und wechselt den
+    SEPA-Sequenztyp von FRST nach RCUR. Ein globales Zur&uuml;cksetzen des Bezahlt-Datums ist &uuml;ber &rarr; Einstellungen &ndash; L&ouml;schen m&ouml;glich.</div>
+
+<h4>Zahlungserinnerung</h4>
+<p>Wurde nicht gezahlt, kann eine E-Mail mit vordefiniertem Text gesendet werden (&rarr; Einstellungen &ndash; E-Mail-Benachrichtigungen &ndash; Beitragszahlungen E-Mail-Text).
+    Daf&uuml;r muss im Modul in mindestens einer Spalte ein Profilfeld vom Typ E-Mail angezeigt werden; beim Anklicken der E-Mail-Adresse erscheint das Nachrichtenmodul mit dem vordefinierten Text.</p>
+
+<h3>Beitragsanalyse</h3>
+<p>Die Beitragsanalyse dient als schneller &Uuml;berblick &uuml;ber die zu erwartenden Mitgliedsbeitr&auml;ge. Die Auswertung pro Rolle (Prognose) z&auml;hlt die Mitglieder, die im Beitragsjahr
+    Mitglied der Rolle waren; die Auswertung nach Mitgliedern basiert auf den gespeicherten Beitr&auml;gen aller Mitglieder, auch bereits ausgetretener.</p>
+
+<!-- ===================================================================== -->
+<h2 id="doc-export">11. Export</h2>
+
+<h3>SEPA</h3>
+<p>Unter <em>SEPA</em> sind alle SEPA-spezifischen Exportfunktionen zusammengefasst. Ein Download einer Datei oder das Versenden von Vorabinformationen ist erst m&ouml;glich,
+    wenn mindestens ein F&auml;lligkeitsdatum festgelegt wurde.</p>
+<div class="alert alert-warning" role="alert">Alle SEPA-Funktionen setzen eine zuvor durchgef&uuml;hrte und abgeschlossene Beitragsberechnung voraus.
+    Alle erzeugten Daten (Mandatsreferenz, Mandatsdatum, Sequenztyp usw.) k&ouml;nnen im Profil eines Mitglieds nachtr&auml;glich ge&auml;ndert werden &ndash; das sollte wohl&uuml;berlegt sein,
+    da jede SEPA-Funktion auf einer anderen aufbaut (ein F&auml;lligkeitsdatum kann z.B. nur gesetzt werden, wenn Mandatsreferenz und Mandatsdatum vorhanden sind).</div>
+<p>Die Einstellung <em>F&auml;lligkeitsdatum f&uuml;r alle</em> (&rarr; Einstellungen &ndash; Export &ndash; SEPA) erlaubt es, ein F&auml;lligkeitsdatum auch ohne IBAN und Mandatsdaten zu setzen. So kann der Platzhalter
+    <code>#due_day#</code> in E-Mail-Benachrichtigungen verwendet werden, z.B. f&uuml;r Zahlungsaufforderungen an Mitglieder, die nicht am Lastschriftverfahren teilnehmen.</p>
+
+<p>Verarbeitete Sequenztypen:</p>
+<table class="table table-bordered table-sm">
+    <thead><tr><th>Typ</th><th>Bedeutung</th></tr></thead>
+    <tbody>
+        <tr><td>FRST</td><td>Erstlastschrift</td></tr>
+        <tr><td>RCUR</td><td>Folgelastschrift</td></tr>
+        <tr><td>FNAL</td><td>letzte Lastschrift</td></tr>
+        <tr><td>OOFF</td><td>Einmallastschrift</td></tr>
+    </tbody>
+</table>
+<p>Beim erstmaligen Setzen eines Bezahlt-Datums wird FRST dauerhaft in RCUR ge&auml;ndert. RCUR kann nur &uuml;ber eine Mandats&auml;nderung, &uuml;ber
+    &rarr; Export &ndash; SEPA &ndash; F&auml;lligkeitsdatum oder durch Editieren des Mitgliedsprofils ge&auml;ndert werden.</p>
+
+<h3>F&auml;lligkeitsdatum</h3>
+<p>In der Ansicht &bdquo;F&auml;lligkeitsdatum&ldquo; kann ein F&auml;lligkeitsdatum gesetzt werden. Ein globales Zur&uuml;cksetzen ist &uuml;ber &rarr; Einstellungen &ndash; L&ouml;schen m&ouml;glich.
+    Nur wenn F&auml;lligkeitsdaten existieren, k&ouml;nnen Daten exportiert werden.</p>
+
+<h3>XML-Datei</h3>
+<p>W&auml;hlt man mehrere Kombinationen aus F&auml;lligkeitsdatum und Sequenztyp, wird eine XML-Datei mit mehreren <code>PmtTpInf</code>-Bl&ouml;cken erzeugt
+    (Dateiname z.B. <code>sepa_2022-10-23-RCUR_2022-10-21-FRST_2022-10-21-RCUR.xml</code>). Wird nur <em>eine</em> Kombination gew&auml;hlt, enth&auml;lt die Datei genau einen
+    <code>PmtTpInf</code>-Block (z.B. <code>sepa_2022-10-21-RCUR.xml</code>); diese Datei sollte von allen Banken und Homebankingprogrammen eingelesen werden k&ouml;nnen.
+    Welches XML-Format (pain.008.001.02 bzw. pain.008.001.08) verwendet wird, ist in den Export-Einstellungen festgelegt.</p>
+
+<h3>Kontrolldatei</h3>
+<p>Die Kontrolldatei enth&auml;lt dieselben Daten wie die XML-Datei, nur zur besseren Lesbarkeit anders dargestellt. Die Struktur ist fest vorgegeben.</p>
+
+<h3>Vorabinformation</h3>
+<p>Vor einem Lastschrifteinzug muss der Zahlungsempf&auml;nger den Zahlungspflichtigen schriftlich &uuml;ber den geplanten Einzug informieren (Pre-Notification,
+    mindestens 14 Tage vor Belastung). Das kann auch durch Vertrag oder Rechnung erfolgen. Eine Vorabinformation ist neu zu erstellen, wenn sich der Betrag einer
+    Folgelastschrift &auml;ndert. Sie ist grunds&auml;tzlich an den Kontoinhaber zu senden; ersatzweise an das Mitglied mit der Bitte um Weiterleitung.</p>
+<p>Unter &rarr; Einstellungen &ndash; E-Mail-Benachrichtigungen kann ein Nachrichtentext mit Platzhaltern definiert werden. Wird an <em>ein</em> markiertes Mitglied gesendet,
+    enth&auml;lt der Text bereits eindeutige Angaben; bei <em>mehreren</em> Mitgliedern stehen Platzhalter im Text, die erst nach &bdquo;Abschicken&ldquo; ersetzt werden.</p>
+
+<h3>Rechnung</h3>
+<p>Hier k&ouml;nnen Dateien mit Daten zum Erzeugen von Rechnungen erstellt und &Uuml;berweisungsaufforderungen per E-Mail versendet werden. In diesem Modul werden nur Mitglieder angezeigt,
+    bei denen <strong>keine IBAN</strong> vorhanden ist. Die angezeigten Spalten werden unter &rarr; Einstellungen &ndash; Ansichtsdefinitionen festgelegt
+    (die Spalten E-Mail und KtoInh-E-Mail sollten immer aktiviert sein).</p>
+<ul>
+    <li><strong>Button Export:</strong> erstellt aus den markierten Mitgliedern eine Datei mit Daten f&uuml;r Serienbriefe (Struktur fest kodiert).</li>
+    <li><strong>Button E-Mail:</strong> sendet zuerst an die Kontoinhaber-E-Mail-Adresse; ist diese leer, an die Standard-E-Mail-Adresse. Weitere Adressen werden nicht abgefragt,
+        k&ouml;nnen aber &uuml;ber die Ansichtsdefinition &bdquo;Rechnung&ldquo; eingeblendet und per Briefsymbol angeschrieben werden.</li>
+</ul>
+
+<!-- ===================================================================== -->
+<h2 id="doc-mandate">12. Mandatsverwaltung</h2>
+
+<h3>Mandatsreferenzen erzeugen</h3>
+<p>Erzeugt Mandatsreferenzen abh&auml;ngig von den Vorgaben unter &rarr; Einstellungen &ndash; Mandatsverwaltung. Es erscheint zun&auml;chst eine Voransicht; erst nach &bdquo;Speichern&ldquo;
+    werden die Referenzen gespeichert.</p>
+
+<h3>Mandate bearbeiten</h3>
+<p>Hier kann ein Mandatsdatum gesetzt oder eine <strong>Mandats&auml;nderung</strong> durchgef&uuml;hrt werden. Mandats&auml;nderungen sind erforderlich, wenn sich Mandatsdaten gegen&uuml;ber dem letzten
+    Einzug ge&auml;ndert haben. Es gibt eine Mandats&auml;nderung f&uuml;r Zahlungspflichtige (Mitglieder) und eine f&uuml;r den Zahlungsempf&auml;nger (&rarr; Einstellungen &ndash; Kontodaten).</p>
+
+<!-- ===================================================================== -->
+<h2 id="doc-optionen">13. Optionen</h2>
+
+<h3>Pr&uuml;fungen</h3>
+<p>Pr&uuml;fungen haben keinen Einfluss auf die Beitragsberechnung, sie dienen nur der &Uuml;berpr&uuml;fung bestimmter Daten. Die Rollenpr&uuml;fungen (Pflicht, Ausschluss) beziehen sich auf das Beitragsjahr. Jede Pr&uuml;fung kann unter &rarr; Einstellungen &ndash; Pr&uuml;fungen aktiviert oder deaktiviert werden.</p>
+<table class="table table-bordered table-sm">
+    <thead><tr><th>Pr&uuml;fung</th><th>Beschreibung</th></tr></thead>
+    <tbody>
+        <tr><td>Rollenmitgliedschaft (Pflicht)</td><td>Pr&uuml;ft, ob sich ein Mitglied in mindestens einer Pflicht-Beitragsrolle befindet. Gepr&uuml;ft werden alle Mitglieder, die im Beitragsjahr in irgendeiner Rolle Mitglied waren.</td></tr>
+        <tr><td>Rollenmitgliedschaft (Ausschluss)</td><td>Pr&uuml;ft, ob sich ein Mitglied in Rollen befindet, die sich gegenseitig ausschlie&szlig;en.</td></tr>
+        <tr><td>Kontodaten</td><td>Pr&uuml;ft, ob bei gef&uuml;lltem Feld Kontoinhaber auch die Adressdaten ausgef&uuml;llt sind.</td></tr>
+        <tr><td>Mandatsverwaltung</td><td>Pr&uuml;ft, ob Mandats-ID und Mandatsdatum vorhanden sind (Voraussetzung: IBAN und Mitgliedsbeitrag sind gef&uuml;llt).</td></tr>
+        <tr><td>IBAN-Test</td><td>Pr&uuml;fung auf korrekte IBAN.</td></tr>
+        <tr><td>BIC-Test</td><td>Pr&uuml;ft das Vorhandensein (bei Zahlungen au&szlig;erhalb EU/EWR erforderlich, z.B. Schweiz, Monaco, San Marino, Jersey, Guernsey, Isle of Man, St. Pierre und Miquelon)
+            und die Formatierung (4-stelliger Bankcode, 2-stelliger L&auml;ndercode, 2-stelliger Ortscode, optional 3-stelliger Branch-Code).</td></tr>
+    </tbody>
+</table>
+<div class="alert alert-info" role="alert">
+    <strong>Kontoinhaber:</strong> Ist das Mitglied gleichzeitig der Kontoinhaber, muss das Feld <em>Kontoinhaber</em> <strong>leer</strong> sein; es ist nur die IBAN zu f&uuml;llen
+    (BIC und Kreditinstitut k&ouml;nnen, m&uuml;ssen aber nicht gef&uuml;llt sein). Sind Kontoinhaber und Mitglied nicht identisch, sind zus&auml;tzlich Vor- und Nachname des Kontoinhabers,
+    Stra&szlig;e und Hausnummer, Postleitzahl und Ort anzugeben.
+</div>
+
+<h3>Rollen&uuml;bersicht</h3>
+<p>Zeigt alle erkannten Beitragsrollen mit der Anzahl ihrer Mitglieder im Beitragsjahr.</p>
+
+<h3>Plugininformationen</h3>
+<p>Zeigt Informationen zu Version und Stand des Plugins sowie einen Link zur PDF-Dokumentation.</p>
+
+<!-- ===================================================================== -->
+<h2 id="doc-einstellungen">14. Einstellungen</h2>
+<p>Der Reiter <em>Einstellungen</em> ist in der Grundeinstellung nur f&uuml;r Administratoren sichtbar.</p>
+
+<h3>Beitragseinstellungen</h3>
+<p>Allgemeine Einstellungen zur Beitragsberechnung: Beitragsbezeichnung (Pr&auml;fix), Abrunden, Mindestberechnungsbetrag, Beitragstext mit Namen und Trennzeichen (siehe <a href="#doc-berechnung">Beitragsberechnung</a>).</p>
+
+<h3>Erweiterte Rollenbearbeitung</h3>
+<p>Hier k&ouml;nnen Beitrag, Beitragszeitraum und Beschreibung von Beitragsrollen bearbeitet werden. Nur &uuml;ber diesen Punkt ist es m&ouml;glich, einen Dezimalwert oder einen negativen Beitrag f&uuml;r eine Rolle einzugeben.</p>
+
+<h3>Individualbeitr&auml;ge</h3>
+<p>Aktivieren/Deaktivieren des Moduls und Konfiguration der Grund- und Verbrauchsbetr&auml;ge (Bezeichnung, Kurzbezeichnung, Rolle, Betrag, Profilfeld). Beliebig viele Konfigurationen sind m&ouml;glich (siehe <a href="#doc-individual">Individualbeitr&auml;ge</a>).</p>
+
+<h3>Kontodaten</h3>
+<p>Die Kontodaten des Zahlungsempf&auml;ngers (Kreditinstitut, Kontoinhaber, IBAN, BIC, Gl&auml;ubiger-Identifikationsnummer). &Uuml;ber den Link &bdquo;Mandats&auml;nderung&ldquo; kann eine Mandats&auml;nderung des Zahlungsempf&auml;ngers erfasst werden.
+    Sie ist erforderlich, wenn sich Mandatsdaten gegen&uuml;ber dem letzten Einzug ge&auml;ndert haben.</p>
+
+<h3>Mandatsverwaltung</h3>
+<p>Parameter f&uuml;r die Zusammensetzung der Mandatsreferenz. Eine einmal erstellte Mandatsreferenz sollte nicht mehr ge&auml;ndert werden; wird sie ge&auml;ndert, muss eine Mandats&auml;nderung durchgef&uuml;hrt werden.</p>
+<p>Eine Mandatsreferenz besteht aus drei Abschnitten, deren Gesamtl&auml;nge (Mindestl&auml;nge) im Men&uuml; festgelegt wird:</p>
+<table class="table table-bordered table-sm">
+    <thead><tr><th>Abschnitt 1</th><th>Abschnitt 2</th><th>Abschnitt 3</th></tr></thead>
+    <tbody><tr><td>Pr&auml;fix</td><td>Nullstellen</td><td>Laufende Nummer</td></tr></tbody>
+</table>
+<ul>
+    <li><strong>Pr&auml;fix:</strong> individuell vergebbar, getrennt nach Selbstzahlern (z.B. MIT) und Mitgliedern mit Zahlungspflichtigem, d.h. gef&uuml;lltem Feld Kontoinhaber (z.B. ZAL). Ein Pr&auml;fix kann, muss aber nicht eingetragen sein.</li>
+    <li><strong>Nullstellen:</strong> F&uuml;llen die Referenz bis zur Mindestl&auml;nge mit Nullen auf.</li>
+    <li><strong>Laufende Nummer:</strong> Wert eines Datenbankfeldes mit eindeutigem Inhalt (z.B. Mitgliedsnummer oder user_id).</li>
+</ul>
+<p>Beispiele: Mindestl&auml;nge 10, Pr&auml;fix MIT, laufende Nummer 566 &rarr; <code>MIT0000566</code>; Mindestl&auml;nge 5, Pr&auml;fix MITGLIED, laufende Nummer 723 &rarr; <code>MITGLIED723</code>.</p>
+
+<h3>Ansichtsdefinitionen</h3>
+<p>Legt die anzuzeigenden Spalten (Profilfelder) fest f&uuml;r die Ansichten Beitragszahlungen, Mandatsverwaltung, F&auml;lligkeitsdatum und Rechnung.</p>
+
+<h3>Export</h3>
+<p>Einstellungen f&uuml;r den Datenexport: SEPA-Dateiname und XML-Format, Kontrolldatei, Vorabinformation, Rechnungsexport sowie <em>F&auml;lligkeitsdatum f&uuml;r alle</em>.</p>
+
+<h3>E-Mail-Benachrichtigungen</h3>
+<p>Nachrichtentexte mit Platzhaltern f&uuml;r Vorabinformation, Zahlungserinnerung (Beitragszahlungen) und Rechnung.</p>
+
+<h3>Pr&uuml;fungen</h3>
+<ul>
+    <li><strong>Pr&uuml;fungen aktivieren:</strong> Jede Pr&uuml;fung kann einzeln aktiviert werden.</li>
+    <li><strong>Rollenmitgliedschaft (Pflicht):</strong> Hier sind alle Beitragsrollen auszuw&auml;hlen, denen ein Mitglied angeh&ouml;ren muss. Beispiel: Ein Mitglied soll entweder in der Rolle
+        &bdquo;Aktive&ldquo; <em>oder</em> in der Rolle &bdquo;Ehrenmitglieder&ldquo; sein &rarr; bei beiden ist ein Haken zu setzen.</li>
+    <li><strong>Rollenmitgliedschaft (Ausschluss):</strong> Hier wird ausgew&auml;hlt, welche Beitragsrollen sich gegenseitig ausschlie&szlig;en (z.B. um eine doppelte Beitragsberechnung zu vermeiden).</li>
+    <li><strong>Bezugskategorie:</strong> Schr&auml;nkt die Pr&uuml;fungen auf Mitglieder der gew&auml;hlten Kategorien ein.</li>
+</ul>
+
+<h3>Zugriffsberechtigung f&uuml;r Einstellungen</h3>
+<p>Hier k&ouml;nnen zus&auml;tzlich zur Rolle &bdquo;Administrator&ldquo; weitere Rollen f&uuml;r den Zugriff auf die Einstellungen berechtigt werden.</p>
+
+<h3>L&ouml;schen von Beitr&auml;gen</h3>
+<p>&Uuml;ber <em>L&ouml;schen</em> k&ouml;nnen Eintr&auml;ge wie Beitrag, Beitragstext, Bezahlt-Datum oder F&auml;lligkeitsdatum in der Datenbank gel&ouml;scht werden.</p>
+
+<h3>Deinstallation</h3>
+<p>Die Deinstallation entfernt alle vom Plugin erstellten Daten:</p>
+<ul>
+    <li>den bei der Installation angelegten Men&uuml;punkt,</li>
+    <li>die angelegte Zugriffsrolle,</li>
+    <li>alle vom Plugin erzeugten Profilfelder und die darin gespeicherten Daten,</li>
+    <li>alle Konfigurationsdaten.</li>
+</ul>
+<div class="alert alert-danger" role="alert">Gel&ouml;schte Benutzerdaten (z.B. IBAN oder Mitgliedsnummer) k&ouml;nnen nicht wiederhergestellt werden!</div>
+
+<!-- ===================================================================== -->
+<h2 id="doc-konfiguration">15. Speicherung der Konfiguration</h2>
+<p>Alle Konfigurationsdaten werden in der Tabelle <code>adm_plugin_preferences</code> der Admidio-Datenbank gespeichert (sie wird angelegt, falls sie nicht existiert).
+    Die Eintr&auml;ge des Plugins Mitgliedsbeitrag beginnen dabei mit den Buchstaben &bdquo;PMB&ldquo;.</p>
+
+<!-- ===================================================================== -->
+<h2 id="doc-overview">16. Informationen zur Beitragsberechnung auf der &Uuml;bersichtsseite</h2>
+<p>Als Information f&uuml;r das Mitglied kann auf der &Uuml;bersichtsseite von Admidio der aktuelle Sachstand des Beitragseinzugs angezeigt werden.
+    Dazu sind folgende Zeilen in die Datei <code>themes/simple/templates/system/overview.tpl</code> einzuf&uuml;gen:</p>
+<pre><code>&lt;div class="admidio-overview-plugin col-sm-6 col-lg-4 col-xl-3" id="admidio-plugin-membership_fee"&gt;
+    &lt;div class="card admidio-card"&gt;
+        &lt;div class="card-body"&gt;
+            {load_admidio_plugin plugin="MembershipFee" file="system/membership_fee_overview.php"}
+        &lt;/div&gt;
+    &lt;/div&gt;
+&lt;/div&gt;</code></pre>
+
+<!-- ===================================================================== -->
+<h2 id="doc-ablauf">17. Ablauf einer Beitragsberechnung</h2>
+<p>Voraussetzungen:</p>
+<ul>
+    <li>Die Grundeinstellungen sind eingetragen und die Grundfunktionen wurden getestet.</li>
+    <li>Die Beitragsrollen sind definiert und werden vom Plugin erkannt (&rarr; Optionen &ndash; Rollen&uuml;bersicht).</li>
+    <li>Unter &rarr; Einstellungen &ndash; Pr&uuml;fungen sind die Pr&uuml;fbedingungen definiert.</li>
+</ul>
+
+<h3>Grobablauf</h3>
+<ol>
+    <li>Beitragsberechnung durchf&uuml;hren, danach F&auml;lligkeitsdatum setzen, XML-Datei erzeugen und die Beitr&auml;ge einziehen.</li>
+    <li>Sind alle Beitr&auml;ge eingezogen, das <strong>Bezahlt-Datum</strong> setzen. Es l&ouml;st mehrere Folgeaktionen aus (z.B. FRST wird RCUR, Mandats&auml;nderungen werden zur&uuml;ckgesetzt).
+        Wann es gesetzt wird, ist unwichtig &ndash; wichtig ist nur, dass es gesetzt wird.</li>
+    <li>Treten im Laufe des Jahres weitere Mitglieder bei, wird genauso verfahren: Beitragsberechnung, F&auml;lligkeitsdatum, Einzug, Bezahlt-Datum.</li>
+    <li>Am Jahresende (wenn alle Beitr&auml;ge eingezogen wurden) wird &bdquo;L&ouml;schen&ldquo; ausgef&uuml;hrt. Dadurch werden alle berechneten Beitr&auml;ge, Beitragstexte und F&auml;lligkeitsdaten entfernt;
+        im neuen Jahr beginnt man wieder mit dem Gesamteinzug.</li>
+</ol>
+
+<h3>Ablaufplan f&uuml;r ein neues Mitglied</h3>
+<ol>
+    <li><strong>Aufnahme des neuen Mitglieds</strong> in Admidio und in die passenden Beitragsrollen (dabei kann bereits das Mandatsdatum eingetragen werden).</li>
+    <li><strong>Mandatsreferenz erstellen:</strong> &rarr; Mandatsverwaltung &ndash; Mandatsreferenzen erzeugen.</li>
+    <li><strong>Mandatsdatum eintragen</strong> (falls noch nicht geschehen): &rarr; Mandatsverwaltung &ndash; Mandate bearbeiten oder im Profil des Mitglieds.</li>
+    <li><strong>Beitragsberechnung:</strong> &rarr; Beitr&auml;ge &ndash; Neuberechnung.</li>
+    <li><strong>F&auml;lligkeitsdatum:</strong> &rarr; Export &ndash; SEPA &ndash; F&auml;lligkeitsdatum bearbeiten.</li>
+    <li><strong>XML-Datei:</strong> Nach Vergabe eines F&auml;lligkeitsdatums &uuml;ber &rarr; Export &ndash; SEPA &ndash; XML-Datei erzeugen.</li>
+    <li><strong>Vorabinformation:</strong> Ebenfalls erst nach Vergabe eines F&auml;lligkeitsdatums &uuml;ber &rarr; Export &ndash; SEPA &ndash; Vorabinformation.</li>
+    <li><strong>Weitergabe der XML-Datei</strong> &uuml;ber ein Homebanking-Programm (z.B. StarMoney oder Jameica/Hibiscus) an die Bank.</li>
+    <li><strong>Abschluss:</strong> Bezahlt-Datum setzen. Dadurch wird der Sequenztyp FRST in RCUR ge&auml;ndert.</li>
+</ol>
+
+</div>

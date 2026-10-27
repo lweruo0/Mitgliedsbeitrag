@@ -25,6 +25,13 @@ use Plugins\MembershipFee\classes\Config\ConfigTable;
 require_once(__DIR__ . '/../../../system/common.php');
 require_once(__DIR__ . '/common_function.php');
 
+// only authorized user are allowed to start this module
+if (!isUserAuthorized())
+{
+    $gMessage->show($gL10n->get('SYS_NO_RIGHTS'));
+    // => EXIT
+}
+
 // Initialize and check the parameters
 $getUserUuid = admFuncVariableIsValid($_GET, 'user_uuid', 'string');
 $getUsfUuid  = admFuncVariableIsValid($_GET, 'usf_uuid', 'string');

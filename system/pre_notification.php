@@ -83,8 +83,7 @@ if ($getMode == 'mail' || $getMode == 'export') {
            FROM ' . TBL_MEMBERS . ', ' . TBL_ROLES . ', ' . TBL_CATEGORIES . ',' . TBL_USER_DATA . '
           WHERE mem_usr_id = usr_id
             AND mem_rol_id = rol_id
-            AND mem_begin <= \'' . DATE_NOW . '\'
-            AND mem_end    > \'' . DATE_NOW . '\'
+            AND ' . getContributionYearCondition() . '
             AND usd_usr_id = usr_id
             AND usd_usf_id = ' . $gProfileFields->getProperty('DUEDATE' . $gCurrentOrgId, 'usf_id') . '
             AND rol_valid  = true
@@ -165,8 +164,7 @@ if ($getMode == 'mail' || $getMode == 'export') {
          AND country.usd_usf_id = ? -- $gProfileFields->getProperty(\'COUNTRY\', \'usf_id\')
 
         LEFT JOIN ' . TBL_MEMBERS . ' mem
-          ON  mem.mem_begin  <= ? -- DATE_NOW
-         AND mem.mem_end     > ? -- DATE_NOW
+          ON  ' . getContributionYearCondition('mem.') . '
          AND mem.mem_usr_id  = usr_id
        WHERE  iban.usd_value IS NOT NULL
          AND mandatedate.usd_value IS NOT NULL
@@ -193,9 +191,7 @@ if ($getMode == 'mail' || $getMode == 'export') {
         $gProfileFields->getProperty('EMAIL', 'usf_id'),
         $gProfileFields->getProperty('DEBTOR_POSTCODE', 'usf_id'),
         $gProfileFields->getProperty('DEBTOR_CITY', 'usf_id'),
-        $gProfileFields->getProperty('COUNTRY', 'usf_id'),
-        DATE_NOW,
-        DATE_NOW
+        $gProfileFields->getProperty('COUNTRY', 'usf_id')
     );
 
     $statement = $gDb->queryPrepared($sql, $queryParams);
@@ -344,8 +340,7 @@ if ($getMode == 'mail' || $getMode == 'export') {
         $sql = 'SELECT DISTINCT usd_value
                 FROM ' . TBL_USER_DATA . ',' . TBL_MEMBERS . ', ' . TBL_ROLES . ', ' . TBL_CATEGORIES . '
                 WHERE usd_usf_id =  ? -- $gProfileFields->getProperty(\'DUEDATE\'.$gCurrentOrgId, \'usf_id\')
-                AND   mem_begin <= ? -- DATE_NOW
-                AND   mem_end >= ? -- DATE_NOW
+                AND   ' . getContributionYearCondition() . '
                 AND   usd_usr_id = mem_usr_id
                 AND   mem_rol_id = rol_id
                 AND   rol_valid = true
@@ -355,8 +350,6 @@ if ($getMode == 'mail' || $getMode == 'export') {
 
         $queryParams = array(
             $gProfileFields->getProperty('DUEDATE' . $gCurrentOrgId, 'usf_id'),
-            DATE_NOW,
-            DATE_NOW,
             $gCurrentOrgId
         );
 

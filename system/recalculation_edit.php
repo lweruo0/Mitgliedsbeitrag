@@ -22,6 +22,13 @@ use Admidio\Infrastructure\Utils\SecurityUtils;
 require_once(__DIR__ . '/../../../system/common.php');
 require_once(__DIR__ . '/common_function.php');
 
+// only authorized user are allowed to start this module
+if (!isUserAuthorized())
+{
+    $gMessage->show($gL10n->get('SYS_NO_RIGHTS'));
+    // => EXIT
+}
+
 // Initialize and check the parameters
 $getUserId               = admFuncVariableIsValid($_GET, 'user_id', 'int');
 $getMode                 = admFuncVariableIsValid($_GET, 'mode', 'string', array('defaultValue' => 'edit', 'validValues' => array('edit', 'save')));

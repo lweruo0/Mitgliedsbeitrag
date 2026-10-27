@@ -2,17 +2,14 @@
 /**
  ***********************************************************************************************
  * Gemeinsame Funktionen fuer das Admidio-Plugin Mitgliedsbeitrag
- *
  * @copyright The Admidio Team
  * @see https://www.admidio.org/
  * @license https://www.gnu.org/licenses/gpl-2.0.html GNU General Public License v2.0 only
- *
  ***********************************************************************************************
  */
 use Admidio\Infrastructure\Database;
 use Admidio\Infrastructure\Utils\SecurityUtils;
 use Admidio\Infrastructure\Utils\StringUtils;
-use Admidio\Roles\Entity\Role;
 use Admidio\Roles\Entity\RolesRights;
 use Admidio\Users\Entity\User;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
@@ -160,9 +157,7 @@ function isUserAuthorizedForPreferences()
  * Funktion um alle beitragsbezogenen Rollen einzulesen
  *
  * @param string $rollenwahl
- *            [optional] 'alt' fuer alle altersgestaffelte Rollen,
- *            'fam' fuer alle Familienrollen,
- *            'fix' fuer alle Fixbeitragsrollen,
+ *            [optional] 'fix' fuer alle Fixbeitragsrollen,
  *            leer fuer alle Beitragsrollen
  * @param array $with_members
  *            [optional] Um die Rollen mit Mitgliedern einzulesen ist hier
@@ -175,10 +170,7 @@ function isUserAuthorizedForPreferences()
  *         $rollen[rol_id]['rol_cost_period'] =Beitragszeitraum ('rol_cost_period')<br/>
  *         $rollen[rol_id]['rol_timestamp_create'] =Erzeugungsdatum der Rolle ('rol_timestamp_create')<br/>
  *         $rollen[rol_id]['rol_description'] =Beschreibung ('rol_description')<br/>
- *         $rollen[rol_id]['von'] =nur bei altersgestaffelten Rollen 'von'<br/>
- *         $rollen[rol_id]['bis'] =nur bei altersgestaffelten Rollen 'bis'<br/>
- *         $rollen[rol_id]['alterstyp'] =nur bei altersgestaffelten Rollen 'Trennzeichen'<br/>
- *         $rollen[rol_id]['rollentyp'] =Rollentyp ('alt', 'fam' oder 'fix')
+ *         $rollen[rol_id]['rollentyp'] =Rollentyp ('fix')
  */
 function beitragsrollen_einlesen($rollenwahl = '', $with_members = array())
 {
@@ -192,10 +184,12 @@ function beitragsrollen_einlesen($rollenwahl = '', $with_members = array())
                AND rol_cost IS NOT NULL
                AND rol_cost_period IS NOT NULL
                AND rol_cat_id = cat_id
+               AND cat_name_intern <> ?
                AND ( cat_org_id = ?
                 OR cat_org_id IS NULL ) ';
 
     $statement = $GLOBALS['gDb']->queryPrepared($sql, array(
+        'EVENTS',
         $GLOBALS['gCurrentOrgId']
     ));
 
@@ -206,46 +200,14 @@ function beitragsrollen_einlesen($rollenwahl = '', $with_members = array())
             'rol_cost_period' => $row['rol_cost_period'],
             'rol_timestamp_create' => $row['rol_timestamp_create'],
             'rol_description' => (empty($row['rol_description']) ? '' : $row['rol_description']),
-            'von' => 0,
-            'bis' => 0,
             'rollentyp' => ''
         );
     }
 
     foreach ($rollen as $key => $data) {
-        // alle Alterskonfigurationen durchlaufen
-        foreach ($pPreferences->config['Altersrollen']['altersrollen_token'] as $altkey => $altdata) {
-            // ist es eine altersgestaffelte Rolle?
-            if (substr_count($data['rolle'], $pPreferences->config['Altersrollen']['altersrollen_token'][$altkey]) === 4) {
-                $v1 = strpos($data['rolle'], $pPreferences->config['Altersrollen']['altersrollen_token'][$altkey], 0);
-                $v2 = strpos($data['rolle'], $pPreferences->config['Altersrollen']['altersrollen_token'][$altkey], $v1 + 1);
-                $v3 = strpos($data['rolle'], $pPreferences->config['Altersrollen']['altersrollen_token'][$altkey], $v2 + 1);
-                $v4 = strpos($data['rolle'], $pPreferences->config['Altersrollen']['altersrollen_token'][$altkey], $v3 + 1);
-
-                $rollen[$key]['von'] = substr($data['rolle'], $v1 + 1, $v2 - $v1 - 1);
-                $rollen[$key]['bis'] = substr($data['rolle'], $v3 + 1, $v4 - $v3 - 1);
-
-                $rollen[$key]['von'] = str_replace(' ', '', $rollen[$key]['von']);
-                $rollen[$key]['bis'] = str_replace(' ', '', $rollen[$key]['bis']);
-
-                if ((is_numeric($rollen[$key]['von'])) && (is_numeric($rollen[$key]['bis']))) {
-                    if ($rollen[$key]['von'] > $rollen[$key]['bis']) {
-                        $dummy = $rollen[$key]['von'];
-                        $rollen[$key]['von'] = $rollen[$key]['bis'];
-                        $rollen[$key]['bis'] = $dummy;
-                    }
-                    $rollen[$key]['rollentyp'] = 'alt';
-                    $rollen[$key]['alterstyp'] = $pPreferences->config['Altersrollen']['altersrollen_token'][$altkey];
-                }
-            }
-        }
-
-        // alle Familienkonfigurationen durchlaufen
-        foreach ($pPreferences->config['Familienrollen']['familienrollen_prefix'] as $famkey => $famdata) {
-            // ist es eine Familienrolle?
-            if (substr($data['rolle'], 0, strlen($pPreferences->config['Familienrollen']['familienrollen_prefix'][$famkey])) == $pPreferences->config['Familienrollen']['familienrollen_prefix'][$famkey]) {
-                $rollen[$key]['rollentyp'] = 'fam';
-                $rollen[$key]['familientyp'] = $pPreferences->config['Familienrollen']['familienrollen_prefix'][$famkey];
+        foreach ($pPreferences->config['Familienrollen']['familienrollen_prefix'] as $legacyFamilyPrefix) {
+            if ($legacyFamilyPrefix !== '' && substr($data['rolle'], 0, strlen($legacyFamilyPrefix)) === $legacyFamilyPrefix) {
+                $rollen[$key]['rollentyp'] = 'excluded';
             }
         }
 
@@ -255,12 +217,9 @@ function beitragsrollen_einlesen($rollenwahl = '', $with_members = array())
         }
     }
 
-    // jetzt sind alle Familienrollen, Altersrollen und Fixrollen markiert
     // alle nicht benoetigten Rollen loeschen
     foreach ($rollen as $key => $data) {
-        if (($rollenwahl == 'fam') && ($rollen[$key]['rollentyp'] != 'fam')) {
-            unset($rollen[$key]);
-        } elseif (($rollenwahl == 'alt') && ($rollen[$key]['rollentyp'] != 'alt')) {
+        if ($rollen[$key]['rollentyp'] == 'excluded') {
             unset($rollen[$key]);
         } elseif (($rollenwahl == 'fix') && ($rollen[$key]['rollentyp'] != 'fix')) {
             unset($rollen[$key]);
@@ -308,8 +267,7 @@ function bezugskategorie_einlesen()
         $sql .= ' AND mem_rol_id = rol_id
                   AND rol_valid  = true
 
-                  AND mem_begin <= \'' . DATE_NOW . '\'
-                  AND mem_end >= \'' . DATE_NOW . '\'
+                  AND ' . getContributionYearCondition() . '
 
                   AND rol_cat_id = cat_id ';
         $sql .= ' ) ';
@@ -331,6 +289,73 @@ function bezugskategorie_einlesen()
 }
 
 /**
+ * Liefert das eingestellte Beitragsjahr (ohne Einstellung das aktuelle Jahr).
+ *
+ * @return int
+ */
+function getContributionYear()
+{
+    global $pPreferences;
+
+    // Skripte ohne eigene Konfiguration (z.B. delete_function.php) laden sie bei Bedarf
+    if (!($pPreferences instanceof \Plugins\MembershipFee\classes\Config\ConfigTable)) {
+        $pPreferences = new \Plugins\MembershipFee\classes\Config\ConfigTable();
+        $pPreferences->read();
+    }
+
+    $year = (int) ($pPreferences->config['Beitrag']['beitrag_jahr'] ?? 0);
+    return ($year > 0) ? $year : (int) substr(DATE_NOW, 0, 4);
+}
+
+/**
+ * Liefert eine SQL-Bedingung (ohne fuehrendes AND), die zutrifft, wenn sich eine Mitgliedschaft
+ * (mem_begin/mem_end) mit dem Beitragsjahr ueberschneidet.
+ *
+ * @param string $prefix
+ *            optionaler Tabellenalias inkl. Punkt, z.B. 'mem.'
+ * @return string
+ */
+function getContributionYearCondition($prefix = '')
+{
+    $year = getContributionYear();
+    return $prefix . 'mem_begin <= \'' . sprintf('%04d-12-31', $year) . '\' AND ' . $prefix . 'mem_end >= \'' . sprintf('%04d-01-01', $year) . '\'';
+}
+
+/**
+ * Liefert die user_ids der Mitglieder, die im angegebenen Beitragsjahr mindestens einen Tag
+ * Mitglied waren (auch bei inzwischen beendeter Mitgliedschaft).
+ *
+ * @param int|null $roleId
+ *            rol_id der Rolle; null = beliebige Rolle
+ * @param int $year
+ *            Beitragsjahr
+ * @return array user_ids als Schluessel
+ */
+function list_members_in_year($roleId, $year)
+{
+    $sql = 'SELECT DISTINCT mem_usr_id
+              FROM ' . TBL_MEMBERS . '
+             WHERE mem_begin <= ?
+               AND mem_end >= ?';
+    $params = array(
+        sprintf('%04d-12-31', $year),
+        sprintf('%04d-01-01', $year)
+    );
+    if ($roleId !== null) {
+        $sql .= ' AND mem_rol_id = ?';
+        $params[] = (int) $roleId;
+    }
+
+    $members = array();
+    $statement = $GLOBALS['gDb']->queryPrepared($sql, $params);
+    while ($row = $statement->fetch()) {
+        $members[$row['mem_usr_id']] = $row['mem_usr_id'];
+    }
+
+    return $members;
+}
+
+/**
  * Diese Funktion liefert als Rueckgabe die usr_ids von Rollenangehoerigen.<br/>
  * moegliche Aufrufe:<br/>
  * list_members(array('usf_name_intern1','usf_name_intern2'), array('Rollenname1' => Schalter aktiv/ehem) )<br/>
@@ -338,7 +363,7 @@ function bezugskategorie_einlesen()
  * oder list_members(array('usf_name_intern1','usf_name_intern2'), Schalter aktiv/ehem )<br/>
  * oder list_members(array('p1','p2'), Schalter aktiv/ehem )<br/>
  *
- * Schalter aktiv/ehem: 0 = aktive Mitglieder, 1 = ehemalige Mitglieder, ungleich 1 oder 0: alle Mitglieder <br/>
+ * Schalter aktiv/ehem: 0 = Mitglieder im Beitragsjahr (Mitgliedschaft ueberschneidet das Beitragsjahr), 1 = alle anderen Mitglieder, ungleich 1 oder 0: alle Mitglieder <br/>
  *
  * Aufruf: z.B. list_members(array('FIRST_NAME','LAST_NAME'), array('Mitglied' => 0,'Administrator' => 0));
  *
@@ -404,11 +429,10 @@ function list_members($fields, $rols = array(), $conditions = '')
         $inString .= ' WHERE mem_rol_id = ' . getRoleId($rols) . ' AND ';
     } elseif (is_int($rols) && ($rols == 0)) {
         // aktive Mitglieder
-        $inString .= ' WHERE mem_begin <= \'' . DATE_NOW . '\' ';
-        $inString .= ' AND mem_end >= \'' . DATE_NOW . '\' AND ';
+        $inString .= ' WHERE ' . getContributionYearCondition() . ' AND ';
     } elseif (is_int($rols) && ($rols == 1)) {
         // nicht-aktive Mitglieder (ehemalige Mitglieder)
-        $inString .= ' WHERE ( (mem_begin > \'' . DATE_NOW . '\') OR (mem_end < \'' . DATE_NOW . '\') ) AND ';
+        $inString .= ' WHERE NOT (' . getContributionYearCondition() . ') AND ';
     } elseif (is_int($rols) && ($rols > 1 || $rols < 0)) {
         // alle Mitglieder (aktiv und nicht-aktiv)
         $inString .= ' WHERE ';
@@ -425,11 +449,10 @@ function list_members($fields, $rols = array(), $conditions = '')
             $addString .= ' ) AND mem_rol_id = ' . getRoleId($roleKey) . ' ';
             if ($roleValue == 0) {
                 // aktive Mitglieder
-                $addString .= ' AND mem_begin <= \'' . DATE_NOW . '\' ';
-                $addString .= ' AND mem_end >= \'' . DATE_NOW . '\'  ';
+                $addString .= ' AND ' . getContributionYearCondition();
             } elseif ($roleValue == 1) {
                 // nicht aktive Mitglieder (ehemalige Mitglieder)
-                $addString .= ' AND ( (mem_begin > \'' . DATE_NOW . '\') OR (mem_end < \'' . DATE_NOW . '\') ) ';
+                $addString .= ' AND NOT (' . getContributionYearCondition() . ') ';
             }
             $inString .= ' WHERE (';
         } else {
@@ -444,11 +467,10 @@ function list_members($fields, $rols = array(), $conditions = '')
 
                 if ($rol_switch == 0) {
                     // aktive Mitglieder
-                    $inString .= ' AND mem_begin <= \'' . DATE_NOW . '\' ';
-                    $inString .= ' AND mem_end >= \'' . DATE_NOW . '\' ';
+                    $inString .= ' AND ' . getContributionYearCondition();
                 } elseif ($rol_switch == 1) {
                     // nicht aktive Mitglieder (ehemalige Mitglieder)
-                    $inString .= ' AND ( (mem_begin > \'' . DATE_NOW . '\') OR (mem_end < \'' . DATE_NOW . '\') )';
+                    $inString .= ' AND NOT (' . getContributionYearCondition() . ')';
                 }
                 $inString .= ' ) ';
                 $firstpass = false;
@@ -605,7 +627,7 @@ function analyse_mem()
         'PAID' . $GLOBALS['gCurrentOrgId'],
         'IBAN',
         'DEBTOR'
-    ), 0);
+    ), 2); // alle Mitglieder: berechnete Beitraege gelten auch fuer inzwischen ausgetretene Mitglieder
     $ret = array(
         'data' => $members,
         'BEITRAG_kto' => 0,
@@ -655,93 +677,12 @@ function analyse_mem()
  */
 function analyse_rol()
 {
-    global $pPreferences;
 
-    $ret = beitragsrollen_einlesen('alt');
-    $ret = array_merge($ret, beitragsrollen_einlesen('fix'));
+    $ret = beitragsrollen_einlesen('fix');
     foreach ($ret as $rol => $roldata) {
-        $ret[$rol]['members'] = list_members(array(
-            'FEE' . $GLOBALS['gCurrentOrgId'],
-            'PAID' . $GLOBALS['gCurrentOrgId']
-        ), array(
-            $roldata['rolle'] => 0
-        ));
+        $ret[$rol]['members'] = list_members_in_year($rol, getContributionYear());
     }
 
-    $fam = beitragsrollen_einlesen('fam');
-
-    foreach ($pPreferences->config['Familienrollen']['familienrollen_prefix'] as $famkey => $famdata) {
-        // wieviele Familienrollen mit diesem Praefix gibt es denn?
-        // in der aufrufenden Funktion wird mittels sizeof abgefragt,
-        // deshalb muss hier eine Array erzeugt werden
-        $arr = array();
-        foreach ($fam as $key => $data) {
-            if (substr($data['rolle'], 0, strlen($pPreferences->config['Familienrollen']['familienrollen_prefix'][$famkey])) == $pPreferences->config['Familienrollen']['familienrollen_prefix'][$famkey]) {
-                $arr[] = $key;
-            }
-        }
-        $ret[$pPreferences->config['Familienrollen']['familienrollen_prefix'][$famkey]] = array(
-            'rolle' => $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_FAMILY_ROLE') . ' ' . $pPreferences->config['Familienrollen']['familienrollen_prefix'][$famkey],
-            'rol_cost' => $pPreferences->config['Familienrollen']['familienrollen_beitrag'][$famkey],
-            'rol_cost_period' => $pPreferences->config['Familienrollen']['familienrollen_zeitraum'][$famkey],
-            'members' => $arr,
-            'rollentyp' => 'fam'
-        );
-    }
-    return $ret;
-}
-
-/**
- * Prueft die Rollenmitgliedschaften in altersgestaffelten Rollen
- *
- * @return array $ret
- */
-function check_rollenmitgliedschaft_altersrolle()
-{
-    global $pPreferences, $gProfileFields;
-    $ret = array();
-    $alt = beitragsrollen_einlesen('alt', array(
-        'FIRST_NAME',
-        'LAST_NAME'
-    ));
-    $user = new User($GLOBALS['gDb'], $gProfileFields);
-
-    $check = array();
-    foreach ($alt as $altrol => $altdata) {
-        if (in_array($altdata['alterstyp'], $pPreferences->config['Rollenpruefung']['age_staggered_roles_exclusion'])) {
-            unset($alt[$altrol]);
-            continue;
-        }
-
-        foreach ($altdata['members'] as $member => $memberdata) {
-            $check[$member]['alterstyp'][] = $altdata['alterstyp'];
-            $check[$member]['FIRST_NAME'] = $memberdata['FIRST_NAME'];
-            $check[$member]['LAST_NAME'] = $memberdata['LAST_NAME'];
-        }
-    }
-
-    // jetzt $check durchlaufen und nur die Eintraege bearbeiten, bei denen mehr als ein Alterstyp vorhanden ist
-    foreach ($check as $member => $memberdata) {
-        if (count($memberdata['alterstyp']) > 1) {
-            $alterstypen = '';
-            foreach ($memberdata['alterstyp'] as $alterstyp) {
-                $alterstypen .= ' (' . $alterstyp . ')';
-            }
-            $user->readDataById($member);
-
-            $ret[] .= '- <a href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_MODULES . '/profile/profile.php', array(
-                'user_uuid' => $user->getValue('usr_uuid')
-            )) . '">' . $memberdata['LAST_NAME'] . ', ' . $memberdata['FIRST_NAME'] . $alterstypen . '</a>';
-        }
-    }
-
-    if (count($ret) === 0) {
-        $ret = array(
-            $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES_RESULT_OK')
-        );
-    } else {
-        $ret[] = '<br/><strong>=> ' . $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES_RESULT_ERROR') . '</strong>';
-    }
     return $ret;
 }
 
@@ -756,24 +697,27 @@ function check_rollenmitgliedschaft_pflicht()
     $ret = array();
     $user = new User($GLOBALS['gDb'], $gProfileFields);
 
-    // alle Beitragsrollen einlesen ('FIRST_NAME' wird zwar in der Funktion nicht benoetigt, ist aber notwendig,
-    // damit die Rollenmitglieder eingelesen werden)
-    $beitragsrollen = beitragsrollen_einlesen('', array(
-        'FIRST_NAME'
-    ));
+    // alle Beitragsrollen einlesen; die Rollenmitglieder werden anhand des Beitragsjahres bestimmt
+    $beitragsrollen = beitragsrollen_einlesen();
+    foreach ($beitragsrollen as $rol => $roldata) {
+        $beitragsrollen[$rol]['members'] = list_members_in_year($rol, getContributionYear());
+    }
+    // geprueft werden alle Mitglieder, die im Beitragsjahr in irgendeiner Rolle Mitglied waren
+    $yearMembers = list_members_in_year(null, getContributionYear());
     $members = list_members(array(
         'FIRST_NAME',
         'LAST_NAME'
-    ), 0);
+    ), 2);
+    foreach ($members as $member => $memberdata) {
+        if (! isset($yearMembers[$member])) {
+            unset($members[$member]);
+        }
+    }
 
     // alle Beitragsrollen durchlaufen und diejenigen Rollen loeschen, die nicht als Pflichtrolle definiert sind
     foreach ($beitragsrollen as $rol => $roldata) {
         // alle if und elseif koennte man in einer Zeile schreiben und mit || verknuepfen, aber so ist es uebersichtlicher
-        if (($roldata['rollentyp'] == 'fam') && (! $pPreferences->config['Rollenpruefung']['familienrollenpflicht'])) {
-            unset($beitragsrollen[$rol]);
-        } elseif (($roldata['rollentyp'] == 'alt') && (is_array($pPreferences->config['Rollenpruefung']['altersrollenpflicht'])) && ! (in_array($roldata['alterstyp'], $pPreferences->config['Rollenpruefung']['altersrollenpflicht']))) {
-            unset($beitragsrollen[$rol]);
-        } elseif (($roldata['rollentyp'] == 'fix') && (! is_array($pPreferences->config['Rollenpruefung']['fixrollenpflicht']))) {
+        if (($roldata['rollentyp'] == 'fix') && (! is_array($pPreferences->config['Rollenpruefung']['fixrollenpflicht']))) {
             unset($beitragsrollen[$rol]);
         } elseif (($roldata['rollentyp'] == 'fix') && (is_array($pPreferences->config['Rollenpruefung']['fixrollenpflicht'])) && ! (in_array($rol, $pPreferences->config['Rollenpruefung']['fixrollenpflicht']))) {
             unset($beitragsrollen[$rol]);
@@ -831,15 +775,16 @@ function check_rollenmitgliedschaft_ausschluss()
     $ret = array();
     $user = new User($GLOBALS['gDb'], $gProfileFields);
 
-    // alle Beitragsrollen einlesen ('FIRST_NAME' wird zwar in der Funktion nicht benoetigt, ist aber notwendig,
-    // damit die Rollenmitglieder eingelesen werden)
-    $beitragsrollen = beitragsrollen_einlesen('', array(
-        'FIRST_NAME'
-    ));
+    // alle Beitragsrollen einlesen; die Rollenmitglieder werden anhand des Beitragsjahres bestimmt
+    $beitragsrollen = beitragsrollen_einlesen();
+    foreach ($beitragsrollen as $rol => $roldata) {
+        $beitragsrollen[$rol]['members'] = list_members_in_year($rol, getContributionYear());
+    }
+    // alle Mitglieder (auch inzwischen ausgetretene), geprueft werden nur Mitglieder von Beitragsrollen
     $members = list_members(array(
         'FIRST_NAME',
         'LAST_NAME'
-    ), 0);
+    ), 2);
 
     // alle Beitragsrollen durchlaufen und fuer jedes Mitglied seine Rollenzugehoerigkeiten bestimmen
     foreach ($beitragsrollen as $rol => $roldata) {
@@ -848,13 +793,7 @@ function check_rollenmitgliedschaft_ausschluss()
                 $members[$key]['rollen'] = array();
             }
 
-            if ($roldata['rollentyp'] == 'alt') {
-                $members[$key]['rollen'][] = $roldata['alterstyp'] . 'alt';
-            } elseif ($roldata['rollentyp'] == 'fam') {
-                $members[$key]['rollen'][] = 'fam';
-            } else {
-                $members[$key]['rollen'][] = $rol;
-            }
+            $members[$key]['rollen'][] = $rol;
         }
     }
 
@@ -879,37 +818,6 @@ function check_rollenmitgliedschaft_ausschluss()
         }
 
         $marker = false;
-        if (is_array($pPreferences->config['Rollenpruefung']['altersrollenaltersrollen'])) {
-            foreach ($pPreferences->config['Rollenpruefung']['altersrollenaltersrollen'] as $data) {
-                $token = explode(',', $data);
-                if ((in_array($token[0] . 'alt', $memberdata['rollen'])) && (in_array($token[1] . 'alt', $memberdata['rollen']))) {
-                    $marker = true;
-                }
-            }
-        }
-        if (is_array($pPreferences->config['Rollenpruefung']['altersrollenfamilienrollen'])) {
-            foreach ($pPreferences->config['Rollenpruefung']['altersrollenfamilienrollen'] as $token) {
-                if ((in_array('fam', $memberdata['rollen'])) && (in_array($token . 'alt', $memberdata['rollen']))) {
-                    $marker = true;
-                }
-            }
-        }
-        if (is_array($pPreferences->config['Rollenpruefung']['familienrollenfix'])) {
-            foreach ($pPreferences->config['Rollenpruefung']['familienrollenfix'] as $rol => $roldata) {
-                if ((in_array($roldata, $memberdata['rollen'])) && (in_array('fam', $memberdata['rollen']))) {
-                    $marker = true;
-                }
-            }
-        }
-        if (is_array($pPreferences->config['Rollenpruefung']['altersrollenfix']) && is_array($pPreferences->config['Altersrollen']['altersrollen_token'])) {
-            foreach ($pPreferences->config['Altersrollen']['altersrollen_token'] as $token) {
-                foreach ($pPreferences->config['Rollenpruefung']['altersrollenfix'] as $rol => $roldata) {
-                    if ((in_array(substr($roldata, strlen($token)), $memberdata['rollen'])) && (in_array(substr($roldata, 0, strlen($token)) . 'alt', $memberdata['rollen']))) {
-                        $marker = true;
-                    }
-                }
-            }
-        }
         if (is_array($pPreferences->config['Rollenpruefung']['fixrollenfixrollen'])) {
             foreach ($pPreferences->config['Rollenpruefung']['fixrollenfixrollen'] as $roldata) {
                 $fixRols = explode('_', $roldata);
@@ -933,215 +841,6 @@ function check_rollenmitgliedschaft_ausschluss()
         );
     } else {
         $ret[] = '<br/><strong>=> ' . $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_EXCLUSION_RESULT_ERROR') . '</strong>';
-    }
-    return $ret;
-}
-
-/**
- * Vergleichsfunktion erforderlich fuer usort()
- *
- * @param
- *            $wert_a
- * @param
- *            $wert_b
- * @return int 0, 1 oder -1
- */
-function vergleich($wert_a, $wert_b)
-{
-    // Sortierung nach dem zweiten Wert des Arrays (Index: 1)
-    $a = $wert_a['year'];
-    $b = $wert_b['year'];
-
-    if ($a == $b)
-        return 0;
-    elseif ($a > $b)
-        return 1;
-    else
-        return - 1;
-}
-
-/**
- * Prueft die altersgestaffelten Rollen auf Luecken bzw Ueberschneidungen
- *
- * @return array $ret
- */
-function check_rols()
-{
-    global $pPreferences;
-    $ret = array();
-    $alt = beitragsrollen_einlesen('alt', array(
-        'LAST_NAME'
-    ));
-
-    foreach ($pPreferences->config['Altersrollen']['altersrollen_token'] as $tokenkey => $tokendata) {
-        $check = array();
-        foreach ($alt as $altrol => $altdata) {
-            if ($altdata['alterstyp'] == $tokendata) {
-                $check[] = array(
-                    'year' => $altdata['von'],
-                    'rol' => $altrol
-                );
-                $check[] = array(
-                    'year' => $altdata['bis'],
-                    'rol' => $altrol
-                );
-            }
-        }
-
-        usort($check, 'vergleich');
-
-        for ($i = 0; $i < count($check) - 1; $i = $i + 2) {
-            if ($check[$i]['rol'] != $check[$i + 1]['rol']) {
-                $ret[$check[$i]['rol']] = '- ' . $alt[$check[$i]['rol']]['rolle'];
-                $ret[$check[$i + 1]['rol']] = '- ' . $alt[$check[$i + 1]['rol']]['rolle'];
-            }
-            if (($i < count($check) - 2) && ($check[$i + 1]['year'] != ($check[$i + 2]['year']) - 1)) {
-                $ret[$check[$i + 1]['rol']] = '- ' . $alt[$check[$i + 1]['rol']]['rolle'];
-                $ret[$check[$i + 2]['rol']] = '- ' . $alt[$check[$i + 2]['rol']]['rolle'];
-            }
-        }
-    }
-
-    if (count($ret) === 0) {
-        $ret = array(
-            $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES_RESULT_OK')
-        );
-    } else {
-        $ret[] = '<br/><strong>=> ' . $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES_RESULT_ERROR') . '</strong>';
-    }
-    return $ret;
-}
-
-/**
- * Prueft, ob Angehoerige von Familienrollen die Pruefbedingungen erfuellen
- *
- * @return array $ret
- */
-function check_family_roles()
-{
-    global $pPreferences;
-    $ret = array();
-    $ret_error = array();
-    $temp_arr = array();
-    $temp_arr2 = array();
-    $ret_marker = false;
-    $fam = beitragsrollen_einlesen('fam', array(
-        'LAST_NAME',
-        'FIRST_NAME',
-        'BIRTHDAY'
-    ));
-    $check = $pPreferences->config['Familienrollen'];
-    $role = new Role($GLOBALS['gDb']);
-
-    // alle Pruefbedingungen einlesen
-    foreach ($check['familienrollen_prefix'] as $key => $prefix) {
-        $temp_arr = explode(';', $pPreferences->config['Familienrollen']['familienrollen_pruefung'][$key]);
-        foreach ($temp_arr as $keybed => $bedingung) {
-            // den Doppelpunkt in der Pruefbedingung ersetzen
-            // eine Pruefbedingung koennte deshalb auch in folgender Syntax geschrieben werden: von*bis*Anzahl
-            $bedingung = str_replace(':', '*', $bedingung);
-
-            $temp_arr2 = explode('*', $bedingung);
-
-            // pruefen auf ungültige oder fehlerhafte Bedingungen und einlesen der Bedingungen
-            $cond_incorrect = FALSE;
-            if (count($temp_arr2) >= 3 && is_numeric($temp_arr2[0]) && is_numeric($temp_arr2[1])) {
-                $check['pruefungsbedingungen'][$key][$keybed]['von'] = $temp_arr2[0];
-                $check['pruefungsbedingungen'][$key][$keybed]['bis'] = $temp_arr2[1];
-                for ($i = 2; $i < count($temp_arr2); $i ++) {
-                    if (is_numeric($temp_arr2[$i])) {
-                        $check['pruefungsbedingungen'][$key][$keybed]['anz'][] = $temp_arr2[$i];
-                    } else {
-                        $cond_incorrect = TRUE;
-                    }
-                }
-            } else {
-                $cond_incorrect = TRUE;
-            }
-
-            if ($cond_incorrect) {
-                unset($check['familienrollen_prefix'][$key], $check['familienrollen_beitrag'][$key], $check['familienrollen_zeitraum'][$key], $check['familienrollen_beschreibung'][$key], $check['familienrollen_pruefung'][$key], $check['pruefungsbedingungen'][$key]);
-
-                $ret_marker = true;
-                continue;
-            }
-        }
-
-        // Meldung bei fehlerhaften Pruefbedingungen
-        if ($ret_marker && strlen($pPreferences->config['Familienrollen']['familienrollen_pruefung'][$key]) > 0) {
-            $ret_error[] = '<small>' . $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_CONDITION') . ' ' . $pPreferences->config['Familienrollen']['familienrollen_pruefung'][$key] . ' (' . $prefix . ') ' . $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_INVALID') . '.</small>';
-        }
-        $ret_marker = false;
-    }
-
-    // Leerzeile einfuegen
-    if (count($ret_error) !== 0) {
-        $ret_error[] = '';
-    }
-
-    unset($bedingung, $keybed, $temp_arr, $temp_arr2, $ret_marker);
-
-    // alle Pruefbedingungen durchlaufen
-    foreach ($check['familienrollen_prefix'] as $key => $prefix) {
-        // alle Familienrollen durchlaufen
-        foreach ($fam as $famkey => $famdata) {
-            if ($famdata['familientyp'] == $prefix) {
-                $ret_temp = array();
-
-                // alle Pruefungsbedingungen durchlaufen
-                foreach ($check['pruefungsbedingungen'][$key] as $pruefkey => $pruefdata) {
-                    $counter = 0;
-                    // alle Mitglieder durchlaufen
-                    foreach ($famdata['members'] as $memberID => $memberdata) {
-                        // das Alter des Mitglieds am Stichtag bestimmen
-                        $deadline = getDeadline($pPreferences->config['Altersrollen']['altersrollen_offset']);
-                        $age = ageCalculator(strtotime($memberdata['BIRTHDAY']), strtotime($deadline));
-
-                        // passt das Alter zu einer der Pruefbedingungen?
-                        if ($age >= $pruefdata['von'] && $age <= $pruefdata['bis']) {
-                            $counter ++;
-                        }
-                    }
-
-                    if (! in_array($counter, $pruefdata['anz'])) {
-                        $temp = '&#160&#160&#160&#183<small>' . $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_CONDITION') . ' ' . $pruefdata['von'] . '*' . $pruefdata['bis'];
-                        for ($i = 0; $i < count($pruefdata['anz']); $i ++) {
-                            $temp .= ':' . $pruefdata['anz'][$i];
-                        }
-                        $temp .= ' ' . $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_NOT_SATISFIED') . ' (' . $counter . ').</small>';
-                        $ret_temp[] = $temp;
-                    }
-                }
-                if (count($ret_temp) !== 0) {
-                    $test = $role->readDataById($famkey);
-                    $ret[] = '- <a href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_MODULES . '/groups-roles/groups_roles.php', array(
-                        'mode' => 'edit',
-                        'role_uuid' => $role->getValue('rol_uuid')
-                    )) . '">' . $famdata['rolle'] . '</a>
-                        <a class="admidio-icon-link" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_MODULES . '/groups-roles/lists_show.php', array(
-                        'mode' => 'html',
-                        'role_list' => $role->getValue('rol_uuid')
-                    )) . '">
-                            <i class="bi bi-people" alt="' . $GLOBALS['gL10n']->get('SYS_SHOW_MEMBER_LIST') . '" title="' . $GLOBALS['gL10n']->get('SYS_SHOW_MEMBER_LIST') . '"></i>
-                        </a>';
-
-                    $ret = array_merge($ret, $ret_temp);
-                }
-            }
-        }
-    }
-
-    if (count($ret) === 0) {
-        $ret = array(
-            $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES_ROLE_TEST_RESULT_OK')
-        );
-    } else {
-        $ret[] = '<br/><strong>=> ' . $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES_ROLE_TEST_RESULT_ERROR') . '</strong>';
-    }
-
-    // eine evtl. vorhandene Fehlermeldung davorsetzen
-    if (count($ret_error) !== 0) {
-        $ret = array_merge($ret_error, $ret);
     }
     return $ret;
 }
@@ -1506,59 +1205,6 @@ function date_format2mysql($date)
 }
 
 /**
- * Generates a new reference time for the division into age-based roles.
- *
- * @param int $altersrollen_offset
- *            The monthly offset for the reference time
- * @return string The new reference time (deadline) in Y-m-d format
- */
-function getDeadline($altersrollen_offset)
-{
-    $dateTime = \DateTime::createFromFormat('Y-m-d', date('Y') . '-1-1');
-
-    $dayOffset = new \DateInterval('P1D');
-    $monthOffset = new \DateInterval('P' . abs($altersrollen_offset) . 'M');
-
-    if ($altersrollen_offset < 0) {
-        $monthOffset->invert = 1;
-    }
-
-    $dateTime->add($monthOffset);
-    $dateTime->sub($dayOffset);
-
-    return $dateTime->format('Y-m-d');
-}
-
-/**
- * Berechnet das Alter an einem bestimmten Tag (Stichtag)
- *
- * @param DateTime $geburtstag
- *            Datum des Geburtstages
- * @param DateTime $stichtag
- *            Datum des Stichtages
- * @return int Das Alter in Jahren
- */
-function ageCalculator($geburtstag, $stichtag)
-{
-    $day = date('d', $geburtstag);
-    $month = date('m', $geburtstag);
-    $year = date('Y', $geburtstag);
-
-    $cur_day = date('d', $stichtag);
-    $cur_month = date('m', $stichtag);
-    $cur_year = date('Y', $stichtag);
-
-    $calc_year = $cur_year - $year;
-
-    if ($month > $cur_month)
-        return $calc_year - 1;
-    elseif ($month == $cur_month && $day > $cur_day)
-        return $calc_year - 1;
-    else
-        return $calc_year;
-}
-
-/**
  * Callbackfunktion fuer array_filter
  *
  * @param string $wert
@@ -1812,20 +1458,12 @@ function replace_emailparameter($text, $user)
  * Wandelt Rollentyp von Kurzform in Langform um
  *
  * @param string $rollentyp
- *            Rollentyp in Kurzform ('fix' oder 'fam')
- * @return string $ret Rollentyp in Langform (z.B. 'Familienrollen')
+ *            Rollentyp in Kurzform ('fix')
+ * @return string $ret Rollentyp in Langform
  */
 function expand_rollentyp($rollentyp = '')
 {
-    if ($rollentyp == 'fix') {
-        $ret = $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_OTHER_CONTRIBUTION_ROLES');
-    } elseif ($rollentyp == 'fam') {
-        $ret = $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES');
-    } else // ==alt
-    {
-        $ret = $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES');
-    }
-    return $ret;
+    return $GLOBALS['gL10n']->get('PLG_MEMBERSHIPFEE_OTHER_CONTRIBUTION_ROLES');
 }
 
 /**
@@ -2023,5 +1661,3 @@ function showTestResultWithScrollbar($testResult)
     }
     return $html;
 }
-
-

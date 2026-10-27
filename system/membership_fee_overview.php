@@ -29,12 +29,13 @@ $rootPath = dirname(__DIR__, 3);
 $pluginFolder = basename(__DIR__);
 
 require_once($rootPath . '/system/common.php');
+require_once(__DIR__ . '/common_function.php');
 
 echo '<div id="plugin_'. $pluginFolder. '" class="admidio-plugin-content">';
 
 echo '<h3>'.$gL10n->get('PLG_MEMBERSHIPFEE_MEMBERSHIP_FEE').'</h3>';
 
-if ($gValidLogin) 
+if ($gValidLogin && isUserAuthorized())
 {
     $user = new User($gDb, $gProfileFields, $gCurrentUserId);
     

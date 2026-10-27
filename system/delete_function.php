@@ -24,6 +24,13 @@ $getForm = admFuncVariableIsValid($_GET, 'form', 'string');
 
 $gMessage->showHtmlTextOnly(true);
 
+// nur Berechtigte duerfen Beitragsdaten loeschen (wie delete.php)
+if (!isUserAuthorizedForPreferences())
+{
+    $gMessage->show($gL10n->get('SYS_NO_RIGHTS'));
+    // => EXIT
+}
+
 $ret_message = 'success';
 
 try

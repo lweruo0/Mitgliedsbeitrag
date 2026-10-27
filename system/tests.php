@@ -37,23 +37,6 @@ if (in_array(1, $pPreferences->config['tests_enable']))
 {
     $form = new HtmlForm('tests_form', '', $page);
     
-    if ($pPreferences->config['tests_enable']['age_staggered_roles'])
-    {
-        $form->openGroupBox('AGE_STAGGERed_roles', $gL10n->get('PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES'));
-        $form->addDescription('<strong>'.$gL10n->get('PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES_DESC').'</strong>');
-        $form->addDescription(showTestResultWithScrollbar(check_rols()));
-        $form->closeGroupBox();
-    }
-    
-    // Pruefung der Rollenmitgliedschaften in den altersgestaffelten Rollen nur, wenn es mehrere Staffelungen gibt
-    if ($pPreferences->config['tests_enable']['role_membership_age_staggered_roles'] && count($pPreferences->config['Altersrollen']['altersrollen_token']) > 1)
-    {
-        $form->openGroupBox('role_membership_AGE_STAGGERed_roles', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES'));
-        $form->addDescription('<strong>'.$gL10n->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES_DESC').'</strong>');
-        $form->addDescription(showTestResultWithScrollbar(check_rollenmitgliedschaft_altersrolle()));
-        $form->closeGroupBox();
-    }
-    
     if ($pPreferences->config['tests_enable']['role_membership_duty_and_exclusion'])
     {
         $form->openGroupBox('role_membership_duty', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_DUTY'));
@@ -64,14 +47,6 @@ if (in_array(1, $pPreferences->config['tests_enable']))
         $form->openGroupBox('role_membership_exclusion', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_EXCLUSION'));
         $form->addDescription('<strong>'.$gL10n->get('PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_EXCLUSION_DESC').'</strong>');
         $form->addDescription(showTestResultWithScrollbar(check_rollenmitgliedschaft_ausschluss()));
-        $form->closeGroupBox();
-    }
-    
-    if ($pPreferences->config['tests_enable']['family_roles'])
-    {
-        $form->openGroupBox('family_roles', $gL10n->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES'));
-        $form->addDescription('<strong>'.$gL10n->get('PLG_MEMBERSHIPFEE_FAMILY_ROLES_ROLE_TEST_DESC').'</strong>');
-        $form->addDescription(showTestResultWithScrollbar(check_family_roles()));
         $form->closeGroupBox();
     }
     

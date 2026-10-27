@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <resources>
     <string name="PLG_MEMBERSHIPFEE_ABORT">Annuleer</string>
     <string name="PLG_MEMBERSHIPFEE_ACCESS_PREFERENCES">Toegangsrechten voor voorkeuren</string>
@@ -24,11 +24,6 @@
     <string name="PLG_MEMBERSHIPFEE_AGE_DESC">Leeftijd tot de deadline</string> 
     <string name="PLG_MEMBERSHIPFEE_AGE_LIMIT">Leeftijdsgrens</string>
     <string name="PLG_MEMBERSHIPFEE_AGE_LIMIT_DESC">Hier moeten de leeftijdsgrenzen worden ingevoerd tot waar de gezinsleden worden gecontroleerd. Wanneer er sprake is van een senior functie (vb. vanaf 60 jaar) kan het gunstiger zijn om een gezin op te splitsen en de contributie voor elk lid afzonderlijk te verrekenen.</string>
-    <string name="PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES">Op leeftijd gebaseerde rollen</string>
-    <string name="PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES_DESC">Controleren van op leeftijd gebaseerde rollen op afwijkingen ten opzichte van de leeftijdsbepalingen.</string>
-    <string name="PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES_RESULT_ERROR">De vermelde rollen vertonen enkele hiaten en/of overlappingen.</string>
-    <string name="PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES_RESULT_ERROR2">Het opnieuw toewijzen wordt geannuleerd omdat er gaten of overlappingen zijn in de op leeftijd gebaseerde rollen.</string>
-    <string name="PLG_MEMBERSHIPFEE_AGE_STAGGERED_ROLES_RESULT_OK">Er zijn geen mazen of overlappingen in de op leeftijd gebaseerde rollen.</string>
     <string name="PLG_MEMBERSHIPFEE_ALL_FIELDS_ARE_AVAILABLE">Alle vereiste profielvelden zijn aanwezig.</string>
     <string name="PLG_MEMBERSHIPFEE_ALREADY_PAID">Reeds betaald</string>
     <string name="PLG_MEMBERSHIPFEE_AMOUNT">Basis- of verbruiksbedrag</string>
@@ -96,6 +91,8 @@
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_ROLLQUERY_NOROLL">Er zijn geen rollen geselecteerd.</string>
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_ROUNDDOWN">Rond lidmaatschapsgelden af</string>
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_ROUNDDOWN_DESC">Het betreffende selectievakje moet worden geactiveerd als alle kosten ten gunste van het lid moeten worden afgerond.</string>
+    <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_YEAR">Contribution year</string>
+    <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_YEAR_DESC">Year for which the contribution is calculated. An annual contribution is due if a member was a member of a contribution role during the contribution year (even if the membership has since ended). With 0 or empty, the current year is used.</string>
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_SETTINGS">Contributie instellingen</string>
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_SLASH">Schuine streep</string>
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_SUFFIX">Achtervoegsel</string>
@@ -115,9 +112,6 @@
     <string name="PLG_MEMBERSHIPFEE_CONTROL_FILE_NAME_DESC">Bestandsnamen moeten zonder achtervoegsel worden ingevoerd.\n\nVoorbeeld:\nBesturingsbestandsnaam: &quot;Controledata&quot; wordt &quot;Controledata-2023-01-03-RCUR.csv&quot;</string>
     <string name="PLG_MEMBERSHIPFEE_CONTROL_FILE_TYPE">Controlebestand type</string>    
     <string name="PLG_MEMBERSHIPFEE_CONTROL_SUM">Controle totaal</string>
-    <string name="PLG_MEMBERSHIPFEE_COPY">Kopiëren</string>
-    <string name="PLG_MEMBERSHIPFEE_COPY_DESC">Deze profielgegevens van een lid kunnen worden gekopieerd naar een ander lid.</string>
-    <string name="PLG_MEMBERSHIPFEE_COPY_HEADERINFO">Kies eerst uit een bron en een bestemming uit voor het kopiëren. Vervolgens bepaalt u met "keuze" welk profielveld van "bron" naar "doel" wordt gekopieerd. Het kopieerproces wordt automatisch uitgevoerd door de haak van het doelbereik in te stellen.</string>
     <string name="PLG_MEMBERSHIPFEE_CORRECTION">Correctie</string>
     <string name="PLG_MEMBERSHIPFEE_CREATE_EXPORT_FILE">Exportbestand maken</string>    
     <string name="PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID">Maak machtigingsreferenties aan</string>
@@ -153,11 +147,6 @@
     <string name="PLG_MEMBERSHIPFEE_DELETE_MEMBERNUMBER">Lidmaatschapsnummers verwijderen</string>
     <string name="PLG_MEMBERSHIPFEE_DELETE_SEQUENCETYPE">Reekstypen verwijderen</string>
     <string name="PLG_MEMBERSHIPFEE_DELETED">verwijderd</string>
-    <string name="PLG_MEMBERSHIPFEE_DELIMITER">scheidingsteken</string>
-    <string name="PLG_MEMBERSHIPFEE_DELIMITER_DESC">Hier moet het scheidingsteken worden ingevoerd dat wordt gebruikt om de leeftijden in de op leeftijd gebaseerde rollen te extraheren.</string>
-    <string name="PLG_MEMBERSHIPFEE_DELIMITER_INFO1">Voorbeeld rolnaam met scheidingsteken *:</string>
-    <string name="PLG_MEMBERSHIPFEE_DELIMITER_INFO2">Leden tussen *14* en *18*</string>
-    <string name="PLG_MEMBERSHIPFEE_DELIMITER_INFO3">\n --&gt; IIn dit geval wordt de contributie van leden tussen 14 en 18 jaar berekend.</string>
     <string name="PLG_MEMBERSHIPFEE_DESCRIPTION">Beschrijving</string>
     <string name="PLG_MEMBERSHIPFEE_DESCRIPTION_DESC">Voer een naam in voor deze configuratie van een individuele contributie.</string>
     <string name="PLG_MEMBERSHIPFEE_DOCUMENTATION">Documentatie</string>
@@ -191,13 +180,9 @@
     <string name="PLG_MEMBERSHIPFEE_ENABLE">activeren</string>
     <string name="PLG_MEMBERSHIPFEE_ERROR">Fout</string>
     <string name="PLG_MEMBERSHIPFEE_ERROR_BANK_CHANGED">Er is gekozen voor een andere bank nieuwe bankrekening, maar de IBAN is hetzelfde. - Dat kan niet.</string>
-    <string name="PLG_MEMBERSHIPFEE_ERROR_MIN_CONFIG">FOUT: er moet minimaal één configuratie aanwezig zijn!</string>
     <string name="PLG_MEMBERSHIPFEE_ERROR_NOTHING_CHANGED">Geen van de velden is veranderd</string>
     <string name="PLG_MEMBERSHIPFEE_ERROR_ORIGIBAN_MISSING">De IBAN is gewijzigd bij dezelfde bank. Het oorspronkelijke IBAN-veld moet dus worden ingevuld.</string>
     <string name="PLG_MEMBERSHIPFEE_ERROR_ORIGMANDATEID_MISSING">De machtigingsreferentie is gewijzigd. Het veld van de oorspronkelijke machtigingsreferentie moet worden ingevuld.</string>
-    <string name="PLG_MEMBERSHIPFEE_EVENTS_SELECTION">Afspraak selectie</string>
-    <string name="PLG_MEMBERSHIPFEE_EVENTS_SELECTION_DESC">Aan de hier geselecteerde data kan vervolgens een bijdrage en een bijdrageperiode worden toegewezen met behulp van de module "Geavanceerde rolbewerking".</string>  
-    <string name="PLG_MEMBERSHIPFEE_EVENTS_SELECTION_INFO">Standaard kan er geen contributie en geen contributieperiode toegekend worden aan een afspraak in Admidio. De geselecteerde afspraken krijgen via de "Afspraak selectie" een bijdrage van 0 en een bijdrageperiode van "Eenmalig". Als gevolg hiervan worden ze door de plug-in herkend als bijdragende rollen en kunnen ze verder worden bewerkt.</string>
     <string name="PLG_MEMBERSHIPFEE_EXPORT">Export</string>
     <string name="PLG_MEMBERSHIPFEE_EXPORT_AND_FILTER">Export en filter</string>    
     <string name="PLG_MEMBERSHIPFEE_EXPORT_EMPTY">Er zijn geen gegevens om te exporteren.</string>
@@ -221,15 +206,11 @@
     <string name="PLG_MEMBERSHIPFEE_FEE_PREVIOUS">Vorige contributie</string> 
     <string name="PLG_MEMBERSHIPFEE_FEES">Kosten</string>
     <string name="PLG_MEMBERSHIPFEE_FIELDS_SHOULD_BE_CREATED">Wilt u de ontbrekende velden en categorieën aanmaken?</string>
-    <string name="PLG_MEMBERSHIPFEE_FILL_GAPS">Vul hiaten in</string>
-    <string name="PLG_MEMBERSHIPFEE_FILL_GAPS_DESC">Hiaten in lidmaatschapnummers zijn ingevuld.</string>
     <string name="PLG_MEMBERSHIPFEE_FILTER">Filter</string>
     <string name="PLG_MEMBERSHIPFEE_FILTER_DESC">Filterselectie voor weergave.</string>
     <string name="PLG_MEMBERSHIPFEE_FINAL_DIRECT_DEBIT">Definitieve incasso(FNAL)</string>
     <string name="PLG_MEMBERSHIPFEE_FIRST_DIRECT_DEBIT">Eerste incasso(FRST)</string>
     <string name="PLG_MEMBERSHIPFEE_FOLLOW_DIRECT_DEBIT">Terugkerende incasso (RCUR)</string>
-    <string name="PLG_MEMBERSHIPFEE_FORMAT">Formatteren</string>
-    <string name="PLG_MEMBERSHIPFEE_FORMAT_DESC">U kunt hier een opmaak specificeren die wordt gebruikt om een lidnummer te maken.\n\nEen opmaak kan maximaal drie segmenten bevatten: het voorsegment, het volgnummer, het secundaire segment, het voorbeeld: ENG####GYMN. Elke verandering in het pre-segment veroorzaakt een nieuwe start van het volgnummer. Het volgnummer is gemarkeerd met het teken #. Het volgende segment wordt alleen gekoppeld aan het lidnummer dat wordt gegenereerd door het pre-segment- en serienummer.\n\nDEU###GYMN genereert bijvoorbeeld de volgende lidnummers: DEU001GYMN, DEU002GYMN, DEU999GYMN, DEU1023GYMN. AUT###GYMN genereert bijvoorbeeld de volgende lidnummers: AUT001GYMN, AUT002GYMN, AUT999GYMN, AUT1023GYMN.</string>    
     <string name="PLG_MEMBERSHIPFEE_IBAN">IBAN</string>
     <string name="PLG_MEMBERSHIPFEE_IBAN_OBFUSCATED">Rekeninghouder's verborgen IBAN</string>
     <string name="PLG_MEMBERSHIPFEE_IBANCHECK">IBAN test</string>
@@ -285,12 +266,6 @@
     <string name="PLG_MEMBERSHIPFEE_MEMBER_DATA_DESC">Gebruikersgegevens zijn de gegevens die zijn ingesteld in het profiel van een gebruiker (bijvoorbeeld IBAN of vervaldatum).</string>
     <string name="PLG_MEMBERSHIPFEE_MEMBER_MEMBERS">Leden</string>
     <string name="PLG_MEMBERSHIPFEE_MEMBERNUMBER">Lidmaatschaps nummer</string>
-    <string name="PLG_MEMBERSHIPFEE_MEMBERNUMBER_ERROR">Programma is afgebroken wegens dubbel lidmaatschapsnummer #VAR1_BOLD#.</string>
-    <string name="PLG_MEMBERSHIPFEE_MEMBERNUMBER_NEW">nieuw Lidmaatschaps nummer</string>
-    <string name="PLG_MEMBERSHIPFEE_MEMBERNUMBER_NO_ASSIGN">Er kunnen geen nieuwe lidmaatschapsnummers worden toegekend omdat alle leden, of alle leden van de geselecteerde rollen, al een lidmaatschapsnummer hebben.</string>
-    <string name="PLG_MEMBERSHIPFEE_MEMBERNUMBER_PREVIEW">De nieuwe lidmaatschapsnummers zijn alleen berekend, maar nog niet opgeslagen.</string>
-    <string name="PLG_MEMBERSHIPFEE_MEMBERNUMBER_SAVED">De nieuwe lidmaatschapsnummers zijn opgeslagen.</string>
-    <string name="PLG_MEMBERSHIPFEE_MEMBERNUMBERS_NEW">Nieuwe lidmaatschapsnummers</string>     
     <string name="PLG_MEMBERSHIPFEE_MEMBERS_CONTRIBUTION">Contributies</string>
     <string name="PLG_MEMBERSHIPFEE_MEMBERS_CONTRIBUTION_DESC">Deze gegevens zijn gebaseerd op de rekeninggegevens en de posten Contributie en Betaald van de betalende leden..</string>
     <string name="PLG_MEMBERSHIPFEE_MEMBERSHIP">Lidmaatschap</string>
@@ -331,9 +306,6 @@
     <string name="PLG_MEMBERSHIPFEE_NOTHING_SELECTED">Er is niets geselecteerd.</string>    
     <string name="PLG_MEMBERSHIPFEE_NUMBER">Nummer</string>
     <string name="PLG_MEMBERSHIPFEE_NUMBER_TRANSACTIONS">Aantal transacties</string>
-    <string name="PLG_MEMBERSHIPFEE_OFFSET">maandelijkse verrekening</string>
-    <string name="PLG_MEMBERSHIPFEE_OFFSET_DESC">Bij een maandelijkse verrekening kan de referentietijd a) voor de indeling in de leeftijdsrollen en b) voor de leeftijdsgerelateerde tests met x maanden in de toekomst of in het verleden worden gecompenseerd (0 komt overeen met geen offset).</string>
-    <string name="PLG_MEMBERSHIPFEE_OFFSET_INFO">Het referentietijdstip is altijd 31 december. (24 uur) van het afgelopen jaar.\n\nVoorbeeld van de indeling in een op leeftijd gebaseerde rol:\nEen rol moet worden gegeven met de volgende leeftijdsbeperkingen:\n"Leden %1% tot %2% jaar"\nIn in dit geval wordt gecontroleerd of het lid op 31.12. (middernacht) van het afgelopen jaar passen nog steeds in de leeftijdsstructuur "1 tot 2" jaar (minimum was 1 jaar oud, of maximum was 2 jaar en 365 dagen oud). Zo niet, dan wordt hij verplaatst naar een andere rol.\n\nMet een maandelijkse verrekening kan dit referentiepunt in de tijd met hele maanden in de toekomst of in het verleden worden verschoven.</string>    
     <string name="PLG_MEMBERSHIPFEE_OLD_ROLE">oude rol</string>
     <string name="PLG_MEMBERSHIPFEE_OLD_ROLE_DESC">oude rol van een lid</string>    
     <string name="PLG_MEMBERSHIPFEE_ONETIMES_DIRECT_DEBIT">Eenmalige afschrijving(OOFF)</string>
@@ -374,12 +346,8 @@
     <string name="PLG_MEMBERSHIPFEE_PRE_NOTIFICATION_MAIL_TEXT">Vooraankondiging e-mail bericht</string>
     <string name="PLG_MEMBERSHIPFEE_PRE_NOTIFICATION_MAIL_TEXT_DESC">Personaliseer hier het e-mailbericht. Teksten hebben twee alinea's (onderwerp en inhoud) die worden geïdentificeerd door titels als #subject# en #content#. Inhoudsdelen volgen na deze titels.\n\nElk bericht kan vrije ruimte hebben voor huidige berichten.</string>
     <string name="PLG_MEMBERSHIPFEE_PREFIX">Aanhef</string>
-    <string name="PLG_MEMBERSHIPFEE_PREFIX_FAM">Familie aanhef</string>
     <string name="PLG_MEMBERSHIPFEE_PREFIX_MEM">Lid aanhef</string>
     <string name="PLG_MEMBERSHIPFEE_PREFIX_PAY">Betaler aanhef</string>
-    <string name="PLG_MEMBERSHIPFEE_PRODUCE_MEMBERNUMBER">Genereer lidmaatschapnummer(s)</string>
-    <string name="PLG_MEMBERSHIPFEE_PRODUCE_MEMBERNUMBER_DESC">Genereert lidmaatschapsnummers voor actieve leden in de huidige organisatie.</string>
-    <string name="PLG_MEMBERSHIPFEE_PRODUCE_MEMBERNUMBER_DESC2">Standaard worden lidmaatschapsnummers gegenereerd voor alle actieve leden van de huidige organisatie. Deze rolselectie kan alleen worden gebruikt om de geselecteerde rollen te genereren. Als er geen beperking is tot bepaalde rollen, moet dit veld leeg worden gelaten.</string>
     <string name="PLG_MEMBERSHIPFEE_PROFILE_FIELD">Profiel veld</string>
     <string name="PLG_MEMBERSHIPFEE_PROFILE_FIELD_DESC">Als er een verbruiksbedrag is opgegeven, moet hier een profielveld (met de specificatie van het verbruik) worden geselecteerd.</string>
     <string name="PLG_MEMBERSHIPFEE_RECALCULATION">Herberekening</string>
@@ -393,14 +361,6 @@
     <string name="PLG_MEMBERSHIPFEE_RECALCULATION_ROLLQUERY_DESC">Bij een herberekening worden standaard alle bijdragerollen meegenomen. Over deze rolselectie kan alleen voor de geselecteerde rollen een herberekening worden uitgevoerd. Er mogen geen beperkingen gelden voor bepaalde rollen, dus dit veld moet leeg worden gelaten.</string>
     <string name="PLG_MEMBERSHIPFEE_RECALCULATION_ROLLQUERY_INFO">Vanwege invoer in de rolselectie werd alleen rekening gehouden met de volgende rol(len) voor de berekening van de contributie:</string>
     <string name="PLG_MEMBERSHIPFEE_RECALCULATION_SAVED">De nieuwe contributies zijn opgeslagen.</string>
-    <string name="PLG_MEMBERSHIPFEE_REMAPPING">Opnieuw toewijzen</string>
-    <string name="PLG_MEMBERSHIPFEE_REMAPPING_AGE_STAGGERED_ROLES">Opnieuw toewijzen van op leeftijd gebaseerde rollen</string>
-    <string name="PLG_MEMBERSHIPFEE_REMAPPING_AGE_STAGGERED_ROLES_DESC">Via deze optie worden alle leden van op leeftijd gebaseerde rollen opnieuw toegewezen.</string>
-    <string name="PLG_MEMBERSHIPFEE_REMAPPING_MISSING_BIRTHDAY">>Voor de deelnemer #VAR1# #VAR2# is geen geboortedatum ingevuld.</string>    
-    <string name="PLG_MEMBERSHIPFEE_REMAPPING_NO_ASSIGN">Een nieuwe toewijzing is niet vereist omdat alle leden de juiste op leeftijd gebaseerde rol hebben.</string>
-    <string name="PLG_MEMBERSHIPFEE_REMAPPING_PREVIEW">De nieuwe roltoewijzingen zijn alleen berekend maar nog niet opgeslagen.</string>
-    <string name="PLG_MEMBERSHIPFEE_REMAPPING_SAVED">De nieuwe roltoewijzingen zijn opgeslagen.</string>
-    <string name="PLG_MEMBERSHIPFEE_REMAPPING_SUMMARY">Samenvatting van de hertoewijzing uitgevoerd op #VAR1#</string>    
     <string name="PLG_MEMBERSHIPFEE_REMOVE_CATEGORY">Categorie verwijderen</string>
     <string name="PLG_MEMBERSHIPFEE_REMOVE_CONTRIBUTIONS">Contrbuties verwijderen</string>
     <string name="PLG_MEMBERSHIPFEE_REMOVE_CONTRIBUTIONS_DESC">Verwijdert alle contributies uit de database.</string>
@@ -412,12 +372,6 @@
     <string name="PLG_MEMBERSHIPFEE_RESET">Wis</string>
     <string name="PLG_MEMBERSHIPFEE_ROLE">Rol</string>
     <string name="PLG_MEMBERSHIPFEE_ROLE_DESC">Hier moet een rol worden geselecteerd waarvoor deze individuele contributie wordt berekend.</string>
-    <string name="PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES">Rollidmaatschap (op leeftijd gebaseerde rollen)</string>
-    <string name="PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES_DESC">Controleren op meerdere lidmaatschappen in op leeftijd gebaseerde rollen.</string>
-    <string name="PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES_DESC_LABEL">Hier wordt gecontroleerd of een lid tot meerdere op leeftijd gebaseerde rollen behoort. Standaard wordt rekening gehouden met alle op leeftijd gebaseerde rollen. Met deze optie kunnen één of meerdere schaalverdelingen buiten beschouwing worden gelaten.</string>    
-    <string name="PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES_DESC2">Selecteer de differentiatie die niet in de controle moeten worden opgenomen.</string>
-    <string name="PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES_RESULT_ERROR">De genoemde leden zijn meerdere malen in verschillende Reekss van leeftijdsgerelateerde rollen.</string>
-    <string name="PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_AGE_STAGGERED_ROLES_RESULT_OK">Geen enkel lid bevindt zich herhaaldelijk in verschillende reeks van de op leeftijd gebaseerde rollen.</string>
     <string name="PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_DUTY">Rollidmaatschap (verplicht)</string>
     <string name="PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_DUTY_DESC">Controleren op verplichte rollidmaatschappen</string>
     <string name="PLG_MEMBERSHIPFEE_ROLE_MEMBERSHIP_DUTY_DESC2">Tot welke lidmaatschapsrollen moet een lid minimaal behoren (inclusief-OF-bewerking)?\nAlle mogelijke rollen moeten worden gemarkeerd.</string>
@@ -437,7 +391,7 @@
     <string name="PLG_MEMBERSHIPFEE_ROLE_SEPARATOR_DESC">Karakter waarmee de beschrijvingen van bijdragerollen aan elkaar worden gekoppeld. Standaard wordt de beschrijving van elke berichtrol vermeld in de berichttekst. Met rolscheidingstekens kan elke tekenreeks worden gedefinieerd als scheidingsteken in plaats van als spatie.</string>
     <string name="PLG_MEMBERSHIPFEE_ROLE_SEPARATOR_DESC2">SEPA XML-bestanden kunnen alleen worden aangemaakt met een toegestane tekenset. Deze tekenset bestaat uit de tekens: a - z, A - Z, 0 - 9, de speciale tekens /?:().,'+- en een spatie. Illegale tekens worden vervangen.</string>
     <string name="PLG_MEMBERSHIPFEE_ROLES_CONTRIBUTION">Contributie voor lidmaatschapsrollen</string>
-    <string name="PLG_MEMBERSHIPFEE_ROLES_CONTRIBUTION_DESC">De basis van deze gegevens zijn de invoer in de setup, niet de invoer voor de individuele rollen in de database. Handmatig gewijzigde contributies voor individuele rollen of proportionele contributies worden niet in aanmerking genomen. Om deze reden kan dit alleen als een prognose worden beschouwd.</string>
+    <string name="PLG_MEMBERSHIPFEE_ROLES_CONTRIBUTION_DESC">De basis van deze gegevens zijn de invoer in de setup, niet de invoer voor de individuele rollen in de database. Handmatig gewijzigde contributies voor individuele rollen worden niet in aanmerking genomen. Om deze reden kan dit alleen als een prognose worden beschouwd.</string>
     <string name="PLG_MEMBERSHIPFEE_ROLLQUERY">Vraag de bijdragerollen op</string>
     <string name="PLG_MEMBERSHIPFEE_ROLLQUERY_ACTIV">* * * Rolfilter actief! * * *</string>
     <string name="PLG_MEMBERSHIPFEE_ROLLQUERY_NOROLL">Er zijn geen rollen geselecteerd.</string>
@@ -456,24 +410,17 @@
     <string name="PLG_MEMBERSHIPFEE_SHORT_DESCRIPTION">Korte naam</string>
     <string name="PLG_MEMBERSHIPFEE_SHORT_DESCRIPTION_DESC">Vul hier een korte naam in. Nadat de contributieberekening is uitgevoerd, verschijnt deze korte naam in de contributietekst.</string>
     <string name="PLG_MEMBERSHIPFEE_SHOW_ALL">toon alles</string>
-    <string name="PLG_MEMBERSHIPFEE_SOURCE">Bron</string>
-    <string name="PLG_MEMBERSHIPFEE_SOURCE_DESC">Dit hier geselecteerde lid is de bron van de kopieeractie.</string>
-    <string name="PLG_MEMBERSHIPFEE_STAGGERING">Reeksen</string>
-    <string name="PLG_MEMBERSHIPFEE_STAGGERING_NUMBER">Aantal reeksen</string>
     <string name="PLG_MEMBERSHIPFEE_STATUS">Status</string>
     <string name="PLG_MEMBERSHIPFEE_STREET">Rek.houder straat</string>    
     <string name="PLG_MEMBERSHIPFEE_SUM">Som</string>
     <string name="PLG_MEMBERSHIPFEE_SUMMATION">Tel op</string>
     <string name="PLG_MEMBERSHIPFEE_TAB_COMMON">Algemeen</string>
-    <string name="PLG_MEMBERSHIPFEE_TARGET">Doel</string>
-    <string name="PLG_MEMBERSHIPFEE_TARGET_DESC">Dit hier geselecteerde Lid is het doel van de kopieeractie.</string>
     <string name="PLG_MEMBERSHIPFEE_TEST">Test</string>
     <string name="PLG_MEMBERSHIPFEE_TESTS">Testen</string>
     <string name="PLG_MEMBERSHIPFEE_TESTS_DESC">Weergave van verschillende testen.</string>   
     <string name="PLG_MEMBERSHIPFEE_TESTS_SETUP_INFO">De volgende tests kunnen afzonderlijk worden geactiveerd. Voor sommige tests zijn aanvullende instellingen mogelijk. Alle hier gemaakte instellingen zijn alleen ter controle, ze hebben geen invloed op de berekening.</string>
     <string name="PLG_MEMBERSHIPFEE_TOTAL">Totaal som</string>
     <string name="PLG_MEMBERSHIPFEE_ULTIMATE_DEBTOR">Alternatieve betaler</string>
-    <string name="PLG_MEMBERSHIPFEE_UNEQUAL_DATATYPE">Deze profielvelden kunnen niet worden gekopieerd omdat ze verschillende gegevenstypen hebben (bijvoorbeeld datum naar tekst).</string>
     <string name="PLG_MEMBERSHIPFEE_UNINST_ACCESS_ROLE_ERROR">- Er is een fout opgetreden bij het verwijderen van de toegangsrol.\n</string>
     <string name="PLG_MEMBERSHIPFEE_UNINST_ACCESS_ROLE_SUCCESS">- De toegangsrol die door de plugin is aangemaakt, is verwijderd.\n</string>
     <string name="PLG_MEMBERSHIPFEE_UNINST_CATEGORY_ERROR">- Er is een fout opgetreden bij het verwijderen van categorie #VAR1#.\n</string>

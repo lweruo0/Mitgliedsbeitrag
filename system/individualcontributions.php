@@ -62,8 +62,18 @@ if ($getMode == 'preview')     //Default
 	$members = array();
 	$message = '';
 
-	// alle aktiven Mitglieder einlesen
-	$members = list_members(array('FIRST_NAME', 'LAST_NAME', 'FEE'.$gCurrentOrgId, 'CONTRIBUTORY_TEXT'.$gCurrentOrgId), 0);
+	// alle Mitglieder einlesen (auch inzwischen ausgetretene; massgeblich ist die Mitgliedschaft im Beitragsjahr)
+	$members = list_members(array('FIRST_NAME', 'LAST_NAME', 'FEE'.$gCurrentOrgId, 'CONTRIBUTORY_TEXT'.$gCurrentOrgId), 2);
+
+	// Mitglieder der Rollen der Individualbeitraege im Beitragsjahr
+	$roleMembers = array();
+	foreach ($pPreferences->config['individual_contributions']['role'] as $roleId)
+	{
+	    if (!isset($roleMembers[$roleId]))
+	    {
+	        $roleMembers[$roleId] = list_members_in_year((int) $roleId, getContributionYear());
+	    }
+	}
 
  	foreach ($members as $member => $memberdata)
 	{
@@ -71,12 +81,11 @@ if ($getMode == 'preview')     //Default
 		$members[$member]['CONTRIBUTORY_TEXT_NEW'] = '';   
 
  	    $user->readDataById($member);
- 	    $user->getRoleMemberships();
         
         for ($i = 0; $i < count($pPreferences->config['individual_contributions']['desc']); $i++)
      	{
      	   
-     		if (!$user->isMemberOfRole((int) $pPreferences->config['individual_contributions']['role'][$i]))
+			if (!isset($roleMembers[$pPreferences->config['individual_contributions']['role'][$i]][$member]))
      		{
      			 continue;
      		}

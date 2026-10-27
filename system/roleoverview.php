@@ -48,9 +48,10 @@ $table->setColumnAlignByArray($columnAlign);
 $columnValues = array($gL10n->get('PLG_MEMBERSHIPFEE_ROLE_NAME'), 'dummy', $gL10n->get('PLG_MEMBERSHIPFEE_MEMBER_ACCOUNT'));
 $table->addRowHeadingByArray($columnValues);
 
-$rollen = beitragsrollen_einlesen('', array('LAST_NAME'));
+$rollen = beitragsrollen_einlesen();
 foreach ($rollen as $rol_id => $data)
 {
+    $data['members'] = list_members_in_year($rol_id, getContributionYear());
     $role->readDataById($rol_id);
     
     $columnValues = array();
