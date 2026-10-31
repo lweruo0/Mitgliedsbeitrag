@@ -1813,3 +1813,132 @@ function mf_booking_label(string $value): string
     return isset($map[$value]) ? $gL10n->get($map[$value]) : $value;
 }
 
+/**
+ * Bankfeiertage, an denen keine Lastschrift faellig sein soll: bundesweite Feiertage, die
+ * Feiertage in Baden-Wuerttemberg (Hl. Drei Koenige, Fronleichnam, Allerheiligen) sowie
+ * Heiligabend und Silvester (keine Bankarbeitstage).
+ *
+ * @param int $year
+ * @return array<string, string> Datum (Y-m-d) => Name
+ */
+function mf_bank_holidays(int $year): array
+{
+    // Ostersonntag nach der Gaussschen Osterformel (ohne calendar-Erweiterung)
+    $a = $year % 19;
+    $b = intdiv($year, 100);
+    $c = $year % 100;
+    $d = intdiv($b, 4);
+    $e = $b % 4;
+    $f = intdiv($b + 8, 25);
+    $g = intdiv($b - $f + 1, 3);
+    $h = (19 * $a + $b - $d - $g + 15) % 30;
+    $i = intdiv($c, 4);
+    $k = $c % 4;
+    $l = (32 + 2 * $e + 2 * $i - $h - $k) % 7;
+    $m = intdiv($a + 11 * $h + 22 * $l, 451);
+    $month = intdiv($h + $l - 7 * $m + 114, 31);
+    $day = (($h + $l - 7 * $m + 114) % 31) + 1;
+    $easter = new \DateTimeImmutable(sprintf('%04d-%02d-%02d', $year, $month, $day));
+    $relative = static function (int $days) use ($easter): string {
+        return $easter->modify(($days >= 0 ? '+' : '') . $days . ' days')->format('Y-m-d');
+    };
+
+    $holidays = array(
+        sprintf('%04d-01-01', $year) => 'Neujahr',
+        sprintf('%04d-01-06', $year) => 'Heilige Drei Könige',
+        $relative(-2) => 'Karfreitag',
+        $relative(1) => 'Ostermontag',
+        sprintf('%04d-05-01', $year) => 'Tag der Arbeit',
+        $relative(39) => 'Christi Himmelfahrt',
+        $relative(50) => 'Pfingstmontag',
+        $relative(60) => 'Fronleichnam',
+        sprintf('%04d-10-03', $year) => 'Tag der Deutschen Einheit',
+        sprintf('%04d-11-01', $year) => 'Allerheiligen',
+        sprintf('%04d-12-24', $year) => 'Heiligabend',
+        sprintf('%04d-12-25', $year) => '1. Weihnachtstag',
+        sprintf('%04d-12-26', $year) => '2. Weihnachtstag',
+        sprintf('%04d-12-31', $year) => 'Silvester'
+    );
+    ksort($holidays);
+    return $holidays;
+}
+
+/**
+ * Prueft, ob ein Datum als Faelligkeit einer Lastschrift taugt (kein Samstag, Sonntag oder Bankfeiertag).
+ *
+ * @param string $date Datum im Format Y-m-d
+ * @return string|null Grund, warum das Datum nicht moeglich ist, sonst null
+ */
+function mf_duedate_problem(string $date): ?string
+{
+    $value = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+    if ($value === false) {
+        return 'ungültiges Datum';
+    }
+    $weekday = (int) $value->format('N');
+    if ($weekday === 6) {
+        return 'Samstag';
+    }
+    if ($weekday === 7) {
+        return 'Sonntag';
+    }
+    $holidays = mf_bank_holidays((int) $value->format('Y'));
+    return $holidays[$date] ?? null;
+}
+
+/**
+ * Naechster moeglicher Faelligkeitstag ab dem angegebenen Datum (einschliesslich).
+ *
+ * @param string $date Datum im Format Y-m-d
+ * @return string Y-m-d
+ */
+function mf_next_valid_duedate(string $date): string
+{
+    $value = new \DateTimeImmutable($date);
+    for ($i = 0; $i < 30 && mf_duedate_problem($value->format('Y-m-d')) !== null; $i++) {
+        $value = $value->modify('+1 day');
+    }
+    return $value->format('Y-m-d');
+}
+
+/**
+ * Ermittelt den Sequenztyp fuer die automatische Auswahl: RCUR, wenn fuer das Mitglied schon einmal
+ * per SEPA eingezogen wurde (mit dem aktuellen Mandat oder ohne gespeicherte Mandatsreferenz,
+ * z. B. bei aus Winner uebernommenen Buchungen), sonst FRST.
+ *
+ * @param array<int, int> $userIds
+ * @return array<int, string> usr_id => 'FRST' oder 'RCUR'
+ */
+function mf_auto_sequence_types(array $userIds): array
+{
+    global $gDb, $gProfileFields, $gCurrentOrgId;
+
+    $result = array();
+    $userIds = array_values(array_unique(array_map('intval', $userIds)));
+    foreach ($userIds as $userId) {
+        $result[$userId] = 'FRST';
+    }
+    if (count($userIds) === 0) {
+        return $result;
+    }
+
+    $usfMandate = (int) $gProfileFields->getProperty('MANDATEID' . $gCurrentOrgId, 'usf_id');
+    $bookingsTable = TABLE_PREFIX . '_plugin_membershipfee_bookings';
+    foreach (array_chunk($userIds, 500) as $chunk) {
+        $sql = 'SELECT DISTINCT b.mfb_usr_id
+                  FROM ' . $bookingsTable . ' b
+             LEFT JOIN ' . TBL_USER_DATA . ' mandate
+                    ON mandate.usd_usr_id = b.mfb_usr_id
+                   AND mandate.usd_usf_id = ?
+                 WHERE b.mfb_org_id = ?
+                   AND b.mfb_status = ?
+                   AND b.mfb_method = ?
+                   AND (b.mfb_mandate_id IS NULL OR b.mfb_mandate_id = \'\' OR b.mfb_mandate_id = mandate.usd_value)
+                   AND b.mfb_usr_id IN (' . implode(',', array_fill(0, count($chunk), '?')) . ')';
+        $statement = $gDb->queryPrepared($sql, array_merge(array($usfMandate, (int) $gCurrentOrgId, 'eingezogen', 'SEPA'), $chunk));
+        while ($row = $statement->fetch()) {
+            $result[(int) $row['mfb_usr_id']] = 'RCUR';
+        }
+    }
+    return $result;
+}

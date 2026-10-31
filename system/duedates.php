@@ -18,7 +18,12 @@
  * mem_show_choice  : 0 - (Default) Alle Benutzer anzeigen
  *                    1 - Nur Benutzer anzeigen, bei denen ein Faelligkeitsdatum vorhanden ist
  *                    2 - Nur Benutzer anzeigen, bei denen kein Faelligkeitsdatum vorhanden ist
- * sequencetype     : Sequenztyp, der gleichzeitig mit dem Faelligkeitsdatum gesetzt wird (FRST, RCUR, FNAL oder OOFF)
+ * bulk             : nur ohne usr_id: set = Faelligkeit bei allen angezeigten Benutzern ohne Faelligkeit setzen,
+ *                    remove = bei allen angezeigten Benutzern entfernen; leer = umschalten (bisheriges Verhalten)
+ * sequencetype     : Sequenztyp, der gleichzeitig mit dem Faelligkeitsdatum gesetzt wird (AUTO, FRST, RCUR, FNAL oder OOFF);
+ *                    AUTO = FRST bei der ersten Lastschrift, sonst RCUR (siehe mf_auto_sequence_types())
+ *
+ * Samstage, Sonntage und Bankfeiertage (mf_bank_holidays()) sind als Faelligkeit nicht moeglich.
  ***********************************************************************************************
  */
 use Admidio\Infrastructure\Exception;
@@ -62,6 +67,10 @@ $getMembersShow = admFuncVariableIsValid($_GET, 'mem_show_choice', 'numeric', ar
     'defaultValue' => 0
 ));
 $getSequenceType = admFuncVariableIsValid($_GET, 'sequencetype', 'string');
+$getBulk = admFuncVariableIsValid($_GET, 'bulk', 'string', array(
+    'defaultValue' => '',
+    'validValues' => array('', 'set', 'remove')
+));
 
 // write role selection in session
 if (strpos($gNavigation->getUrl(), 'membership_fee.php') !== false) {
@@ -84,20 +93,53 @@ if ($getMode == 'assign') {
         $userArray = $_SESSION['pMembershipFee']['duedates_user'];
     }
 
+    $problem = mf_duedate_problem((string) $getDatumNeu);
+    $autoTypes = array();
+    if ($getSequenceType === 'AUTO') {
+        $autoTypes = mf_auto_sequence_types($userArray);
+    }
+    $resultTypes = array();
+
+    // ungueltiges Datum: abbrechen, bevor bei irgendeinem Benutzer etwas geaendert wird
+    if ($problem !== null && $getBulk !== 'remove') {
+        foreach ($userArray as $data) {
+            $user->readDataById($data);
+            if (strlen($user->getValue('DUEDATE' . $gCurrentOrgId)) === 0) {
+                echo 'Das Fälligkeitsdatum ' . date('d.m.Y', (int) strtotime((string) $getDatumNeu)) . ' ist nicht möglich (' . $problem
+                    . '). Bitte einen Bankarbeitstag wählen, z. B. ' . date('d.m.Y', (int) strtotime(mf_next_valid_duedate((string) $getDatumNeu))) . '.';
+                exit();
+            }
+        }
+    }
+
     try {
         foreach ($userArray as $dummy => $data) {
             $user->readDataById($data);
+            $hasDuedate = strlen($user->getValue('DUEDATE' . $gCurrentOrgId)) !== 0;
+
+            // Schaltflaechen „bei allen setzen/entfernen“: nur die Benutzer aendern, bei denen sich etwas aendert
+            if (($getBulk === 'set' && $hasDuedate) || ($getBulk === 'remove' && !$hasDuedate)) {
+                $ret_text = 'success';
+                continue;
+            }
 
             // zuerst mal sehen, ob bei diesem user bereits ein Faelligkeitsdatum vorhanden ist
-            if (strlen($user->getValue('DUEDATE' . $gCurrentOrgId)) === 0) {
+            if (!$hasDuedate) {
                 // er hat noch kein Faelligkeitsdatum, deshalb ein neues eintragen
+                if ($problem !== null) {
+                    echo 'Das Fälligkeitsdatum ' . date('d.m.Y', (int) strtotime((string) $getDatumNeu)) . ' ist nicht möglich (' . $problem
+                        . '). Bitte einen Bankarbeitstag wählen, z. B. ' . date('d.m.Y', (int) strtotime(mf_next_valid_duedate((string) $getDatumNeu))) . '.';
+                    exit();
+                }
                 $user->setValue('DUEDATE' . $gCurrentOrgId, $getDatumNeu);
 
-                if ($getSequenceType == 'FRST') {
+                $sequenceType = $getSequenceType === 'AUTO' ? ($autoTypes[(int) $data] ?? 'FRST') : $getSequenceType;
+                if ($sequenceType == 'FRST') {
                     $user->setValue('SEQUENCETYPE' . $gCurrentOrgId, '');
-                } elseif ($getSequenceType != '') {
-                    $user->setValue('SEQUENCETYPE' . $gCurrentOrgId, $getSequenceType);
+                } elseif ($sequenceType != '') {
+                    $user->setValue('SEQUENCETYPE' . $gCurrentOrgId, $sequenceType);
                 }
+                $resultTypes[] = $sequenceType;
             } else {
                 // er hat bereits ein Faelligkeitsdatum, deshalb das vorhandene loeschen
                 $user->setValue('DUEDATE' . $gCurrentOrgId, '');
@@ -106,10 +148,12 @@ if ($getMode == 'assign') {
             $user->save();
             $ret_text = 'success';
         }
-    } catch (AdmException $e) {
-        $e->showText();
+    } catch (Exception $e) {
+        echo $e->getMessage();
+        exit();
     }
-    echo $ret_text;
+    // bei einem einzelnen Benutzer den gesetzten Sequenztyp mitliefern (success:RCUR), damit die Zeile ihn anzeigt
+    echo ($ret_text === 'success' && $getUserId != 0 && count($resultTypes) === 1) ? $ret_text . ':' . $resultTypes[0] : $ret_text;
 } else {
     $userArray = array();
     $membersList = array();
@@ -192,7 +236,47 @@ if ($getMode == 'assign') {
     $page = new HtmlPage('plg-mitgliedsbeitrag-duedates', $headline);
     $page->setContentFullWidth();
 
+    // gesperrte Tage (Bankfeiertage) fuer die Pruefung im Browser: Vorjahr bis zwei Jahre voraus
+    $blockedDays = array();
+    for ($holidayYear = (int) date('Y') - 1; $holidayYear <= (int) date('Y') + 2; $holidayYear++) {
+        $blockedDays = array_merge($blockedDays, mf_bank_holidays($holidayYear));
+    }
+
     $javascriptCode = '
+        var mfHolidays = ' . json_encode($blockedDays, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) . ';
+
+        // Samstag, Sonntag oder Bankfeiertag? Liefert den Grund oder ""
+        function mfDuedateProblem(value) {
+            if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) {
+                return "kein gültiges Datum";
+            }
+            var parts = value.split("-");
+            var day = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getDay();
+            if (day === 6) {
+                return "Samstag";
+            }
+            if (day === 0) {
+                return "Sonntag";
+            }
+            return mfHolidays[value] || "";
+        }
+
+        function mfFormatDate(value) {
+            var parts = value.split("-");
+            return parts.length === 3 ? parts[2] + "." + parts[1] + "." + parts[0] : value;
+        }
+
+        function mfCheckDuedate() {
+            var value = $("#datum").val();
+            var problem = mfDuedateProblem(value);
+            $("#datum").toggleClass("is-invalid", problem !== "");
+            $("#mf_duedate_problem").text(problem !== "" ? mfFormatDate(value) + " ist als Fälligkeit nicht möglich (" + problem + ")." : "");
+            return problem;
+        }
+        $("#datum").on("change input", mfCheckDuedate);
+        $("#datum").closest("form").after("<div id=\\"mf_duedate_problem\\" class=\\"text-danger fw-bold mb-2\\"></div>");
+        mfCheckDuedate();
+
         // Anzeige abhaengig vom gewaehlten Filter
         $("#mem_show").change(function () {
             if($(this).val().length > 0) {
@@ -200,9 +284,47 @@ if ($getMode == 'assign') {
             }
         });
 
+        // Schaltflaechen „bei allen setzen“ / „bei allen entfernen“
+        $(".mf-duedate-bulk").click(function(){
+            var bulk = $(this).data("bulk");
+            var datum = $("#datum").val();
+            var sequencetype = $("#lastschrifttyp").val();
+            var count = $("input[type=checkbox].memlist_member").length;
+            if (bulk === "set" && mfCheckDuedate() !== "") {
+                alert($("#mf_duedate_problem").text() + " Bitte einen Bankarbeitstag wählen.");
+                return false;
+            }
+            var question = bulk === "set"
+                ? "Fälligkeit " + mfFormatDate(datum) + " (Sequenztyp: " + $("#lastschrifttyp option:selected").text() + ") bei allen angezeigten Mitgliedern ohne Fälligkeit setzen?"
+                : "Fälligkeit bei allen angezeigten Mitgliedern entfernen?";
+            if (!confirm(question)) {
+                return false;
+            }
+            var button = $(this);
+            $(".mf-duedate-bulk").prop("disabled", true);
+            button.find(".spinner-border").removeClass("d-none");
+            $.post("' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/duedates.php', array(
+        'mode' => 'assign'
+    )) . '&bulk=" + bulk + "&sequencetype=" + sequencetype + "&datum_neu=" + datum,
+                function(data){
+                    if(data.indexOf("success") === 0) {
+                        window.location.replace("' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/duedates.php') . '?mem_show_choice=" + $("#mem_show").val());
+                    } else {
+                        $(".mf-duedate-bulk").prop("disabled", false);
+                        button.find(".spinner-border").addClass("d-none");
+                        alert(data);
+                    }
+                }
+            );
+        });
+
         // if checkbox in header is clicked then change all data
         $("input[type=checkbox].change_checkbox").click(function(){
             var datum = $("#datum").val();
+            if (mfCheckDuedate() !== "") {
+                alert($("#mf_duedate_problem").text() + " Bitte einen Bankarbeitstag wählen.");
+                return false;
+            }
             var sequencetype = $("#lastschrifttyp").val(); 
             $.post("' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/duedates.php', array(
         'mode' => 'assign'
@@ -232,6 +354,11 @@ if ($getMode == 'assign') {
             var datum = $("#datum").val();
             var member_checked = $("input[type=checkbox]#member_"+userid).prop("checked");
             var sequencetype = $("#lastschrifttyp").val();
+            if (member_checked && mfCheckDuedate() !== "") {
+                alert($("#mf_duedate_problem").text() + " Bitte einen Bankarbeitstag wählen.");
+                checkbox.prop("checked", false);
+                return false;
+            }
 
             // change data in database
             $.post("' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/duedates.php', array(
@@ -239,10 +366,14 @@ if ($getMode == 'assign') {
     )) . '&datum_neu=" + datum + "&sequencetype=" + sequencetype + "&usr_id=" + userid,
                 function(data){
                     // check if error occurs
-                    if(data == "success") {
+                    if(data.indexOf("success") === 0) {
                         if(member_checked){
                             $("input[type=checkbox]#member_"+userid).prop("checked", true);
-                            $("#duedate_"+userid).text(datum);
+                            $("#duedate_"+userid).text(mfFormatDate(datum));
+                            if(sequencetype == "AUTO") {
+                                // vom Server ermittelter Sequenztyp (success:FRST bzw. success:RCUR)
+                                sequencetype = data.split(":")[1] || "";
+                            }
 
                             if(sequencetype == "FRST") {
                                 $("#lastschrifttyp_"+userid).text("");
@@ -263,6 +394,7 @@ if ($getMode == 'assign') {
                         }
                     }
                     else {
+                        checkbox.prop("checked", !member_checked);
                         alert(data);
                         return false;
                     }
@@ -282,7 +414,8 @@ if ($getMode == 'assign') {
         'setFocus' => false
     ));
 
-    $datumtemp = \DateTime::createFromFormat('Y-m-d', DATE_NOW);
+    // Vorschlag: naechster Bankarbeitstag ab heute (kein Wochenende, kein Feiertag)
+    $datumtemp = \DateTime::createFromFormat('Y-m-d', mf_next_valid_duedate(DATE_NOW));
     $datum = $datumtemp->format($gSettingsManager->getString('system_date'));
     $form->addInput('datum', $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), $datum, array(
         'type' => 'date',
@@ -290,6 +423,7 @@ if ($getMode == 'assign') {
     ));
 
     $selectBoxEntries = array(
+        'AUTO' => $gL10n->get('PLG_MEMBERSHIPFEE_AUTO_DIRECT_DEBIT'),
         'RCUR' => $gL10n->get('PLG_MEMBERSHIPFEE_FOLLOW_DIRECT_DEBIT'),
         'FNAL' => $gL10n->get('PLG_MEMBERSHIPFEE_FINAL_DIRECT_DEBIT'),
         'OOFF' => $gL10n->get('PLG_MEMBERSHIPFEE_ONETIMES_DIRECT_DEBIT'),
@@ -297,6 +431,7 @@ if ($getMode == 'assign') {
     );
     $form->addSelectBox('lastschrifttyp', $gL10n->get('PLG_MEMBERSHIPFEE_SEQUENCETYPE'), $selectBoxEntries, array(
         'helpTextId' => 'PLG_MEMBERSHIPFEE_SEQUENCETYPE_SELECT_DESC',
+        'defaultValue' => 'AUTO',
         'showContextDependentFirstEntry' => false,
         'firstEntry' => $gL10n->get('PLG_MEMBERSHIPFEE_NOT_CHANGE')
     ));
@@ -313,6 +448,14 @@ if ($getMode == 'assign') {
     ));
 
     $page->addHtml($form->show(false));
+    $page->addHtml('<div class="mb-3">'
+        . '<button type="button" class="btn btn-primary me-2 mb-2 mf-duedate-bulk" data-bulk="set">'
+        . '<span class="spinner-border spinner-border-sm d-none me-1" role="status"></span><i class="bi bi-calendar-check"></i> Fälligkeit bei allen angezeigten Mitgliedern setzen</button>'
+        . '<button type="button" class="btn btn-outline-secondary mb-2 mf-duedate-bulk" data-bulk="remove">'
+        . '<span class="spinner-border spinner-border-sm d-none me-1" role="status"></span><i class="bi bi-calendar-x"></i> Fälligkeit bei allen entfernen</button>'
+        . '<div class="form-text">Gesetzt wird das oben gewählte Datum mit dem gewählten Sequenztyp, nur bei Mitgliedern ohne Fälligkeit. '
+        . 'Es zählen alle Mitglieder der Liste (Filter oben beachten), nicht nur die der aktuellen Seite.</div>'
+        . '</div>');
 
     // create table object
     $table = new HtmlTable('tbl_duedates', $page, true, true, 'table table-condensed');

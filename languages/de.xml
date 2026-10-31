@@ -153,7 +153,7 @@
     <string name="PLG_MEMBERSHIPFEE_DUE_ON">Fällig am</string>
     <string name="PLG_MEMBERSHIPFEE_DUEDATE">Fälligkeitsdatum</string>
     <string name="PLG_MEMBERSHIPFEE_DUEDATE_CHANGE_ALL_DESC">Hiermit wird bei allen angezeigten Benutzern (! filterabhängig ! ) das Fälligkeitsdatum geändert. -> ein nicht vorhandenes Datum wird gesetzt -> ein vorhandenes Datum wird entfernt </string>
-    <string name="PLG_MEMBERSHIPFEE_DUEDATE_DESC">Das hier gewählte Fälligkeitsdatum wird bei einem Benutzer beim Setzen eines Hakens eingetragen.</string>
+    <string name="PLG_MEMBERSHIPFEE_DUEDATE_DESC">Das hier gewählte Fälligkeitsdatum wird bei einem Benutzer beim Setzen eines Hakens eingetragen. Samstage, Sonntage und Bankfeiertage (bundesweit, Baden-Württemberg, 24.12. und 31.12.) sind nicht möglich.</string>
     <string name="PLG_MEMBERSHIPFEE_DUEDATE_EDIT">Fälligkeitsdatum bearbeiten</string>
     <string name="PLG_MEMBERSHIPFEE_DUEDATE_EDIT_DESC">Hiermit kann ein Fälligkeitsdatum gesetzt oder gelöscht werden.</string>
     <string name="PLG_MEMBERSHIPFEE_DUEDATE_FOR_ALL">Fälligkeitsdatum für alle</string>
@@ -191,6 +191,7 @@
     <string name="PLG_MEMBERSHIPFEE_FILTER_DESC">Filterauswahl für die Anzeige.</string>
     <string name="PLG_MEMBERSHIPFEE_FINAL_DIRECT_DEBIT">Letzte Lastschrift (FNAL)</string>
     <string name="PLG_MEMBERSHIPFEE_FIRST_DIRECT_DEBIT">Erstlastschrift (FRST)</string>
+    <string name="PLG_MEMBERSHIPFEE_AUTO_DIRECT_DEBIT">automatisch (erste Lastschrift FRST, sonst RCUR)</string>
     <string name="PLG_MEMBERSHIPFEE_FOLLOW_DIRECT_DEBIT">Folgelastschrift (RCUR)</string>
     <string name="PLG_MEMBERSHIPFEE_IBAN">IBAN</string>    
     <string name="PLG_MEMBERSHIPFEE_IBAN_OBFUSCATED">Verschleierte IBAN des Zahlungspflichtigen</string>
@@ -382,7 +383,7 @@
     <string name="PLG_MEMBERSHIPFEE_SEPA_EXPORT_NO_DATA">Es sind nicht genügend Daten für den Export vorhanden.</string>
     <string name="PLG_MEMBERSHIPFEE_SEQUENCETYPE">Sequenztyp</string>
     <string name="PLG_MEMBERSHIPFEE_SEQUENCETYPE_DESC">Sequenztyp: leer=Erstlastschrift(FRST) R=Folgelastschrift(RCUR) F=letzte Lastschrift (FNAL) O=Einmallastschrift (OOFF)</string>
-    <string name="PLG_MEMBERSHIPFEE_SEQUENCETYPE_SELECT_DESC">Der hier eingestellte Sequenztyp wird gleichzeitig mit dem Setzen eines Fälligkeitsdatum gesetzt.</string>
+    <string name="PLG_MEMBERSHIPFEE_SEQUENCETYPE_SELECT_DESC">Der hier eingestellte Sequenztyp wird gleichzeitig mit dem Setzen eines Fälligkeitsdatum gesetzt. „automatisch“ setzt FRST, wenn für das Mitglied noch nie per SEPA eingezogen wurde (mit dem aktuellen Mandat), sonst RCUR.</string>
     <string name="PLG_MEMBERSHIPFEE_SERIAL_NUMBER">Lfd. Nummer</string>
     <string name="PLG_MEMBERSHIPFEE_SETUP">Einstellungen</string>
     <string name="PLG_MEMBERSHIPFEE_SHALL">SOLL</string>
