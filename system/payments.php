@@ -28,6 +28,7 @@ use Admidio\Infrastructure\Utils\SecurityUtils;
 use Admidio\Infrastructure\Exception;
 use Admidio\Roles\Entity\Role;
 use Admidio\Users\Entity\User;
+use Plugins\MembershipFee\classes\Bookings\BookingService;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
 require_once(__DIR__ . '/../../../system/common.php');
@@ -44,6 +45,8 @@ $pPreferences->read();
 
 $user = new User($gDb, $gProfileFields);
 $userField = new Entity($gDb, TBL_USER_FIELDS, 'usf'); 
+$bookingService = new BookingService($pPreferences->config);
+$revertMessages = array();
 
 if(isset($_GET['mode']) && ($_GET['mode'] == 'assign_date' || $_GET['mode'] == 'delete_date' || $_GET['mode'] == 'prepare'))
 {
@@ -57,6 +60,10 @@ $getUserId      = admFuncVariableIsValid($_GET, 'usr_id', 'numeric', array('defa
 $getDatumNeu    = admFuncVariableIsValid($_GET, 'datum_neu', 'date');
 $getChecked     = admFuncVariableIsValid($_GET, 'checked', 'string');
 $getMembersShow = admFuncVariableIsValid($_GET, 'mem_show_choice', 'numeric', array('defaultValue' => 0));
+$paidDate       = ($getDatumNeu !== '') ? mf_parse_date($getDatumNeu) : '';
+if ($paidDate === '') {
+    $paidDate = $getDatumNeu;
+}
 
 // write role selection in session
 if (strpos($gNavigation->getUrl(), 'membership_fee.php') !== false)
@@ -72,6 +79,14 @@ if (strpos($gNavigation->getUrl(), 'membership_fee.php') !== false)
 	{
 		unset($_SESSION['pMembershipFee']['payments_rol_sel']);
 	}
+}
+
+// Seite direkt (z. B. per Lesezeichen oder nach Sitzungsablauf) aufgerufen: Auswahl initialisieren
+if (!isset($_SESSION['pMembershipFee']['checkedArray']) || !is_array($_SESSION['pMembershipFee']['checkedArray'])) {
+    $_SESSION['pMembershipFee']['checkedArray'] = array();
+}
+if (!isset($_SESSION['pMembershipFee']['selectAll'])) {
+    $_SESSION['pMembershipFee']['selectAll'] = true;
 }
 
 if ($getMode == 'assign_date')
@@ -92,42 +107,8 @@ if ($getMode == 'assign_date')
             {
                 $user->readDataById($userId);
             
-                //zuerst mal sehen, ob bei diesem user bereits ein BEZAHLT-Datum vorhanden ist
-                if (strlen($user->getValue('PAID'.$gCurrentOrgId)) === 0)
-                {
-                    //da kein BEZAHLT-Datum vorhanden ist, ein neues eintragen
-                    $user->setValue('PAID'.$gCurrentOrgId, $getDatumNeu);
-                
-                    // wenn Lastschrifttyp noch nicht gesetzt ist: als Folgelastschrift kennzeichnen
-                    // BEZAHLT bedeutet, es hat bereits eine Zahlung stattgefunden
-                    // die naechste Zahlung kann nur eine Folgelastschrift sein
-                    // Lastschrifttyp darf aber nur geaendert werden, wenn der Einzug per SEPA stattfand, also ein Faelligkeitsdatum vorhanden ist
-                    if (strlen($user->getValue('SEQUENCETYPE'.$gCurrentOrgId)) === 0  && strlen($user->getValue('DUEDATE'.$gCurrentOrgId)) !== 0)
-                    {
-                        $user->setValue('SEQUENCETYPE'.$gCurrentOrgId, 'RCUR');
-                    }
-                
-                    //falls Daten von einer Mandatsaenderung vorhanden sind, diese loeschen
-                    if (strlen($user->getValue('ORIG_MANDATEID'.$gCurrentOrgId)) !== 0)
-                    {
-                        $user->setValue('ORIG_MANDATEID'.$gCurrentOrgId, '');
-                    }
-                    if (strlen($user->getValue('ORIG_IBAN')) !== 0)
-                    {
-                        $user->setValue('ORIG_IBAN', '');
-                    }
-                    if (strlen($user->getValue('ORIG_DEBTOR_AGENT')) !== 0)
-                    {
-                        $user->setValue('ORIG_DEBTOR_AGENT', '');
-                    }
-                
-                    //das Faelligkeitsdatum loeschen (wird nicht mehr gebraucht, da ja bezahlt)
-                    if (strlen($user->getValue('DUEDATE'.$gCurrentOrgId)) !== 0)
-                    {
-                        $user->setValue('DUEDATE'.$gCurrentOrgId, '');
-                    }
-                    $user->save();
-                }
+                // Bezahlt-Datum setzen und die Positionen der Buchungshistorie auf "eingezogen" setzen
+                $bookingService->markPaid($user, $paidDate);
                 unset($_SESSION['pMembershipFee']['checkedArray'][$userId]);
             }
             $_SESSION['pMembershipFee']['selectAll'] = true;
@@ -160,14 +141,21 @@ elseif ($getMode == 'delete_date')
             
                 if (strlen($user->getValue('PAID'.$gCurrentOrgId)) > 0)
                 {
-                    //er hat bereits ein BEZAHLT-Datum, deshalb das vorhandene loeschen
-                    $user->setValue('PAID'.$gCurrentOrgId, '');
-                    $user->save();
+                    // Bezahlt-Datum loeschen, eingezogene Positionen zuruecksetzen und Profilfelder wiederherstellen
+                    $notReverted = $bookingService->revertPaid($user);
+                    if (count($notReverted) > 0)
+                    {
+                        $revertMessages[] = $user->getValue('LAST_NAME').', '.$user->getValue('FIRST_NAME').': '.implode(', ', $notReverted);
+                    }
                 }
                 unset($_SESSION['pMembershipFee']['checkedArray'][$userId]);
             }
             $_SESSION['pMembershipFee']['selectAll'] = true;
             $ret_text = 'success';
+            if (count($revertMessages) > 0)
+            {
+                $ret_text = $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_NOT_REVERTED')."\n".implode("\n", $revertMessages);
+            }
         }
         catch(AdmException $e)
         {
@@ -310,6 +298,8 @@ else
                     }
                     else {
                         alert(data);
+                        var mem_show = $("#mem_show").val();
+                        window.location.replace("'. SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER .'/system/payments.php').'?mem_show_choice=" + mem_show);
                         return false;
                     }
                     return true;
@@ -385,6 +375,8 @@ else
         $form->addButton('btn_save_date', $gL10n->get('PLG_MEMBERSHIPFEE_SAVE_DATE'), array('icon' => 'bi-check-lg', 'link' => 'javascript:assign_date()', 'class' => 'btn-primary'));
         $form->addDescription('&nbsp');
         $form->addButton('btn_delete_date', $gL10n->get('PLG_MEMBERSHIPFEE_DELETE_DATE'), array('icon' => 'bi-trash', 'link' => 'javascript:delete_date()', 'class' => 'btn-primary'));
+        $form->addDescription('&nbsp');
+        $form->addButton('btn_add_position', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_ADD'), array('icon' => 'bi-plus-circle', 'link' => SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER .'/system/booking_edit.php', array('mode' => 'add', 'scope' => 'payments')), 'class' => 'btn-secondary'));
  
         $page->addHtml($form->show(false));
 
@@ -429,6 +421,8 @@ else
             break;							// Abbruch nach dem ersten Mitglied, da nur die usfIds eines Mitglieds benoetigt werden um die headlines zu erzeugen
         }
    
+        $columnAlign[] = 'center';
+        $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_HISTORY');
         $table->setColumnAlignByArray($columnAlign);
         $table->addRowHeadingByArray($columnValues);
         $table->disableDatatablesColumnsSort(array(1));
@@ -483,6 +477,7 @@ else
                     $columnValues[] = $htmlValue;
                 }
             }
+            $columnValues[] = '<a class="admidio-icon-link" href="'.SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER .'/system/bookings.php', array('user_uuid' => $user->getValue('usr_uuid'))).'"><i class="bi bi-clock-history" title="'.$gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_HISTORY').'"></i></a>';
             $table->addRowByArray($columnValues, 'userid_'.$member, array('nobr' => 'true'));
         }  // end foreach user
 

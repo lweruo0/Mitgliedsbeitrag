@@ -128,6 +128,19 @@ if ($getMode == 'assign') {
 
     $membersListFields = array_filter($pPreferences->config['columnconfig']['duedates_fields']); // array_filter: löschen leerer Eintr�ge, falls das Setup fehlgeschlagen ist
 
+    // Fälligkeitsdatum, Sequenztyp und Beitrag gehören immer in diese Tabelle (die Spalten Fälligkeit und
+    // Sequenztyp werden beim Anklicken per JavaScript aktualisiert); fehlen sie in der Spaltenkonfiguration,
+    // werden sie vorne ergänzt
+    $requiredFields = array();
+    foreach (array('DUEDATE', 'SEQUENCETYPE', 'FEE') as $fieldName) {
+        $usfIdRequired = (int) $gProfileFields->getProperty($fieldName . $gCurrentOrgId, 'usf_id');
+        if ($usfIdRequired > 0 && !in_array('p' . $usfIdRequired, $membersListFields, true)
+            && !in_array($fieldName . $gCurrentOrgId, $membersListFields, true)) {
+            $requiredFields[] = 'p' . $usfIdRequired;
+        }
+    }
+    $membersListFields = array_merge($requiredFields, $membersListFields);
+
     $membersListSqlCondition = 'AND mem_usr_id IN (SELECT DISTINCT usr_id
         FROM ' . TBL_USERS . '
         LEFT JOIN ' . TBL_USER_DATA . ' AS mandateid
@@ -148,11 +161,6 @@ if ($getMode == 'assign') {
         LEFT JOIN ' . TBL_USER_DATA . ' AS iban
           ON iban.usd_usr_id = usr_id
          AND iban.usd_usf_id = ' . $gProfileFields->getProperty('IBAN', 'usf_id') . '
-         		
-        LEFT JOIN ' . TBL_MEMBERS . ' AS mem
-          ON ' . getContributionYearCondition('mem.') . '
-         AND mem.mem_usr_id  = usr_id
-         		
        WHERE paid.usd_value IS NULL
          AND fee.usd_value IS NOT NULL
     ';
@@ -346,8 +354,24 @@ if ($getMode == 'assign') {
         1
     ));
 
+    // usr_uuid aller angezeigten Benutzer in einer Abfrage lesen (statt den Benutzer je Feld neu zu laden)
+    $userUuids = array();
+    $memberIds = array_map('intval', array_keys($membersList));
+    foreach (array_chunk($memberIds, 500) as $chunk) {
+        $statement = $gDb->queryPrepared('SELECT usr_id, usr_uuid FROM ' . TBL_USERS . ' WHERE usr_id IN (' . implode(',', array_fill(0, count($chunk), '?')) . ')', $chunk);
+        while ($row = $statement->fetch()) {
+            $userUuids[(int) $row['usr_id']] = (string) $row['usr_uuid'];
+        }
+    }
+    $usfIdCountry = (int) $gProfileFields->getProperty('COUNTRY', 'usf_id');
+    $usfIdLastName = (int) $gProfileFields->getProperty('LAST_NAME', 'usf_id');
+    $usfIdFirstName = (int) $gProfileFields->getProperty('FIRST_NAME', 'usf_id');
+    $usfIdSequenceType = (int) $gProfileFields->getProperty('SEQUENCETYPE' . $gCurrentOrgId, 'usf_id');
+    $usfIdDuedate = (int) $gProfileFields->getProperty('DUEDATE' . $gCurrentOrgId, 'usf_id');
+
     // user data
     foreach ($membersList as $member => $memberData) {
+        $memberUuid = $userUuids[(int) $member] ?? '';
         if (isset($memberData[$gProfileFields->getProperty('DUEDATE' . $gCurrentOrgId, 'usf_id')]) && strlen($memberData[$gProfileFields->getProperty('DUEDATE' . $gCurrentOrgId, 'usf_id')]) > 0) {
             $content = '<input type="checkbox" id="member_' . $member . '" name="member_' . $member . '" checked="checked" class="memlist_checkbox memlist_member" /><b id="loadindicator_member_' . $member . '"></b>';
         } else {
@@ -370,20 +394,19 @@ if ($getMode == 'assign') {
             /**
              * **************************************************************
              */
-            if ($usfId === (int) $gProfileFields->getProperty('COUNTRY', 'usf_id')) {
+            if ($usfId === $usfIdCountry) {
                 $content = $gL10n->getCountryName($content);
             }
 
-            $htmlValue = $gProfileFields->getHtmlValue($gProfileFields->getPropertyById($usfId, 'usf_name_intern'), $content, $user->getValue('usr_uuid'));
-            $user->readDataById($member);
+            $htmlValue = $gProfileFields->getHtmlValue($gProfileFields->getPropertyById($usfId, 'usf_name_intern'), $content, $memberUuid);
 
-            if (($usfId === (int) $gProfileFields->getProperty('LAST_NAME', 'usf_id') || $usfId === (int) $gProfileFields->getProperty('FIRST_NAME', 'usf_id'))) {
+            if ($usfId === $usfIdLastName || $usfId === $usfIdFirstName) {
                 $columnValues[] = '<a href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_MODULES . '/profile/profile.php', array(
-                    'user_uuid' => $user->getValue('usr_uuid')
+                    'user_uuid' => $memberUuid
                 )) . '">' . $htmlValue . '</a>';
-            } elseif ($usfId == $gProfileFields->getProperty('SEQUENCETYPE' . $gCurrentOrgId, 'usf_id')) {
+            } elseif ($usfId === $usfIdSequenceType) {
                 $columnValues[] = '<div class="lastschrifttyp_' . $member . '" id="lastschrifttyp_' . $member . '">' . $htmlValue . '</div>';
-            } elseif ($usfId == $gProfileFields->getProperty('DUEDATE' . $gCurrentOrgId, 'usf_id')) {
+            } elseif ($usfId === $usfIdDuedate) {
                 $columnValues[] = '<div class="duedate_' . $member . '" id="duedate_' . $member . '">' . $htmlValue . '</div>';
             } else {
                 $columnValues[] = $htmlValue;

@@ -22,6 +22,8 @@
 use Admidio\Infrastructure\Utils\SecurityUtils;
 use Admidio\Infrastructure\Exception;
 use Admidio\Users\Entity\User;
+use Plugins\MembershipFee\classes\Bookings\BookingService;
+use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
 require_once(__DIR__ . '/../../../system/common.php');
@@ -40,6 +42,28 @@ $pPreferences = new ConfigTable();
 $pPreferences->read();
 
 $user = new User($gDb, $gProfileFields);
+$bookingService = new BookingService($pPreferences->config);
+
+/**
+ * Beschreibt die geplanten Aenderungen der Individualbeitraege eines Mitglieds.
+ *
+ * @param array<int, array<string, mixed>> $ops
+ * @return string
+ */
+function describeIndividualOps(array $ops): string
+{
+    $lines = array();
+    foreach ($ops as $op) {
+        if ($op['op'] === 'insert') {
+            $lines[] = '<span class="text-success"><i class="bi bi-plus-circle"></i> '.SecurityUtils::encodeHTML($op['data']['mfb_rol_name']).': '.mf_format_amount($op['data']['mfb_amount']).'</span>';
+        } elseif ($op['op'] === 'update') {
+            $lines[] = '<span class="text-primary"><i class="bi bi-arrow-repeat"></i> '.SecurityUtils::encodeHTML($op['data']['mfb_rol_name']).': '.mf_format_amount($op['before']['mfb_amount']).' &rarr; '.mf_format_amount($op['data']['mfb_amount']).'</span>';
+        } elseif ($op['op'] === 'delete') {
+            $lines[] = '<span class="text-danger"><i class="bi bi-dash-circle"></i> '.SecurityUtils::encodeHTML($op['before']['mfb_rol_name']).': '.mf_format_amount($op['before']['mfb_amount']).'</span>';
+        }
+    }
+    return implode('<br />', $lines);
+}
 
 // set headline of the script
 $headline = $gL10n->get('PLG_MEMBERSHIPFEE_INDIVIDUAL_CONTRIBUTIONS');
@@ -57,118 +81,107 @@ for ($i = 0; $i < count($pPreferences->config['individual_contributions']['desc'
 if ($getMode == 'preview')     //Default
 {
     $page = new HtmlPage('plg-mitgliedsbeitrag-individualcontributions-preview', $headline);
-    $page->setContentFullWidth(); 
-    
-	$members = array();
-	$message = '';
-
-	// alle Mitglieder einlesen (auch inzwischen ausgetretene; massgeblich ist die Mitgliedschaft im Beitragsjahr)
-	$members = list_members(array('FIRST_NAME', 'LAST_NAME', 'FEE'.$gCurrentOrgId, 'CONTRIBUTORY_TEXT'.$gCurrentOrgId), 2);
+    $page->setContentFullWidth();
 
 	// Mitglieder der Rollen der Individualbeitraege im Beitragsjahr
 	$roleMembers = array();
+	$memberIds = array();
 	foreach ($pPreferences->config['individual_contributions']['role'] as $roleId)
 	{
 	    if (!isset($roleMembers[$roleId]))
 	    {
 	        $roleMembers[$roleId] = list_members_in_year((int) $roleId, getContributionYear());
+	        $memberIds += $roleMembers[$roleId];
 	    }
 	}
 
- 	foreach ($members as $member => $memberdata)
+	$configuredKeys = array();
+	for ($i = 0; $i < count($pPreferences->config['individual_contributions']['desc']); $i++)
 	{
-        $members[$member]['FEE_NEW'] = 0;
-		$members[$member]['CONTRIBUTORY_TEXT_NEW'] = '';   
+	    $configuredKeys[] = trim($pPreferences->config['individual_contributions']['desc'][$i]);
+	}
 
+	// auch Mitglieder mit offenen Positionen aus Individualbeitraegen (Rollenmitgliedschaft evtl. beendet)
+	foreach (BookingStore::getByUsers(array(), array(BookingStore::STATUS_OPEN), getContributionYear()) as $usrId => $positions)
+	{
+	    foreach ($positions as $position)
+	    {
+	        if ($position['mfb_source'] === BookingStore::SOURCE_INDIVIDUAL)
+	        {
+	            $memberIds[$usrId] = $usrId;
+	        }
+	    }
+	}
+
+	$plans = array();
+	foreach ($memberIds as $member => $dummy)
+	{
  	    $user->readDataById($member);
-        
-        for ($i = 0; $i < count($pPreferences->config['individual_contributions']['desc']); $i++)
-     	{
-     	   
-			if (!isset($roleMembers[$pPreferences->config['individual_contributions']['role'][$i]][$member]))
-     		{
-     			 continue;
-     		}
-            
-            $multiplikator = 1;
-            if ($pPreferences->config['individual_contributions']['profilefield'][$i] <> '')
-     		{
-     		    $usfid = $pPreferences->config['individual_contributions']['profilefield'][$i];
-     		    $multiplikator = $user->getValue($gProfileFields->getPropertyById((int) $usfid, 'usf_name_intern'));
-     		    
-     		    //wenn das Profilfeld leer ist, dann wäre $multiplikator = ""; mit "" kann aber nicht multipliziert werden
-     		    $multiplikator = ($multiplikator === "") ?  0 : $multiplikator;
-     		} 
-            
-            $amount =   $pPreferences->config['individual_contributions']['amount'][$i] * $multiplikator;
-            
-            // Einzelbeträge auf 2 Nachkommastellen runden
-			$amount = round($amount, 2);
- 
-			$members[$member]['FEE_NEW'] += $amount;
-			if ($pPreferences->config['individual_contributions']['short_desc'][$i] != '')
-			{
-				$members[$member]['CONTRIBUTORY_TEXT_NEW'] .= ' '.$pPreferences->config['individual_contributions']['short_desc'][$i].' '.$amount.' ';
-			}            
-		}  
+	    $desired = array();
 
-		// Gesamtbetrag auf 2 Nachkommastellen runden
-		$members[$member]['FEE_NEW'] = round($members[$member]['FEE_NEW'], 2);
-		
-		//ggf. abrunden
-		if ($pPreferences->config['Beitrag']['beitrag_abrunden'] == true)
-		{
-		    $members[$member]['FEE_NEW'] = floor($members[$member]['FEE_NEW']);
-		}
-	
-		// letzte Datenaufbereitung
-		if ($members[$member]['FEE_NEW'] > $pPreferences->config['Beitrag']['beitrag_mindestbetrag'])
-		{
-		    $members[$member]['FEE_NEW'] += (float) $members[$member]['FEE'.$gCurrentOrgId];
-            $members[$member]['CONTRIBUTORY_TEXT_NEW'] = $members[$member]['CONTRIBUTORY_TEXT'.$gCurrentOrgId].' '.$members[$member]['CONTRIBUTORY_TEXT_NEW'];
-		
-		    //fuehrende und nachfolgene Leerstellen im Beitragstext loeschen
-		    $members[$member]['CONTRIBUTORY_TEXT_NEW'] = trim($members[$member]['CONTRIBUTORY_TEXT_NEW']);
-		    //zwei aufeinanderfolgende Leerzeichen durch ein Leerzeichen ersetzen
-		    $members[$member]['CONTRIBUTORY_TEXT_NEW'] = str_replace('  ', ' ', $members[$member]['CONTRIBUTORY_TEXT_NEW']);
-		}
-		else
-		{
-		    unset($members[$member]);        //wenn kein neuer Beitrag errechnet wurde, dann dieses Mitglied in der Liste loeschen
-		}
- 	}
-	
-	if (sizeof($members) > 0)
+	    for ($i = 0; $i < count($pPreferences->config['individual_contributions']['desc']); $i++)
+	    {
+	        if (!isset($roleMembers[$pPreferences->config['individual_contributions']['role'][$i]][$member]))
+	        {
+	            continue;
+	        }
+
+	        $multiplikator = 1;
+	        if ($pPreferences->config['individual_contributions']['profilefield'][$i] <> '')
+	        {
+	            $usfid = $pPreferences->config['individual_contributions']['profilefield'][$i];
+	            $multiplikator = $user->getValue($gProfileFields->getPropertyById((int) $usfid, 'usf_name_intern'));
+
+	            //wenn das Profilfeld leer ist, dann wäre $multiplikator = ""; mit "" kann aber nicht multipliziert werden
+	            $multiplikator = ($multiplikator === "") ?  0 : (float) str_replace(',', '.', $multiplikator);
+	        }
+
+	        // Einzelbeträge auf 2 Nachkommastellen runden, ggf. abrunden
+	        $amount = round((float) str_replace(',', '.', $pPreferences->config['individual_contributions']['amount'][$i]) * $multiplikator, 2);
+	        if ($pPreferences->config['Beitrag']['beitrag_abrunden'] == true)
+	        {
+	            $amount = floor($amount);
+	        }
+
+	        $key = trim($pPreferences->config['individual_contributions']['desc'][$i]);
+	        $shortDesc = trim($pPreferences->config['individual_contributions']['short_desc'][$i]);
+	        $desired[$key] = array(
+	            'amount' => $amount,
+	            'text' => trim($bookingService->getPrefix().' '.($shortDesc !== '' ? $shortDesc.' '.$amount : $key)),
+	            'rol_id' => (int) $pPreferences->config['individual_contributions']['role'][$i]
+	        );
+	    }
+
+	    $ops = $bookingService->planIndividual((int) $member, $desired, $configuredKeys);
+	    if (count($ops) > 0)
+	    {
+	        $plans[$member] = array(
+	            'LAST_NAME' => $user->getValue('LAST_NAME'),
+	            'FIRST_NAME' => $user->getValue('FIRST_NAME'),
+	            'ops' => $ops
+	        );
+	    }
+	}
+
+	// save plan in session (for mode write and mode print)
+	$_SESSION['pMembershipFee']['individualcontributions_user'] = $plans;
+
+	if (sizeof($plans) > 0)
 	{
-		// save members in session (for mode write and mode print)
-		$_SESSION['pMembershipFee']['individualcontributions_user'] = $members;
-	
-		$datatable = true;
-		$hoverRows = true;
-		$classTable  = 'table table-condensed';
-		$table = new HtmlTable('table_new_individualcontributions', $page, $hoverRows, $datatable, $classTable);
+		$table = new HtmlTable('table_new_individualcontributions', $page, true, true, 'table table-condensed');
         $table->setDatatablesRowsPerPage($gSettingsManager->getInt('groups_roles_members_per_page'));
-		$table->setColumnAlignByArray(array('left', 'left', 'center', 'center', 'center','center'));
-		$columnValues = array($gL10n->get('SYS_LASTNAME'), 
-							  $gL10n->get('SYS_FIRSTNAME'), 
-							  $gL10n->get('PLG_MEMBERSHIPFEE_FEE_NEW'),
-							  $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTORY_TEXT_NEW'),
-							  $gL10n->get('PLG_MEMBERSHIPFEE_FEE_PREVIOUS'),
-							  $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTORY_TEXT_PREVIOUS'));
-		$table->addRowHeadingByArray($columnValues);
+		$table->setColumnAlignByArray(array('left', 'left', 'left'));
+		$table->addRowHeadingByArray(array($gL10n->get('SYS_LASTNAME'), $gL10n->get('SYS_FIRSTNAME'), $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_CHANGES')));
 
-		foreach ($members as $member => $data)
+		foreach ($plans as $member => $data)
 		{
          	$user->readDataById($member);
-                
-			$columnValues = array();
-			$columnValues[] = '<a href="'.SecurityUtils::encodeUrl(ADMIDIO_URL.FOLDER_MODULES.'/profile/profile.php', array('user_uuid' => $user->getValue('usr_uuid'))).'">'.$data['LAST_NAME'].'</a>';
-			$columnValues[] = '<a href="'.SecurityUtils::encodeUrl(ADMIDIO_URL.FOLDER_MODULES.'/profile/profile.php', array('user_uuid' => $user->getValue('usr_uuid'))).'">'.$data['FIRST_NAME'].'</a>';
-			$columnValues[] = $data['FEE_NEW'];
-			$columnValues[] = $data['CONTRIBUTORY_TEXT_NEW'];
-			$columnValues[] = $data['FEE'.$gCurrentOrgId];
-			$columnValues[] = $data['CONTRIBUTORY_TEXT'.$gCurrentOrgId];
-			$table->addRowByArray($columnValues);
+			$profileUrl = SecurityUtils::encodeUrl(ADMIDIO_URL.FOLDER_MODULES.'/profile/profile.php', array('user_uuid' => $user->getValue('usr_uuid')));
+			$table->addRowByArray(array(
+			    '<a href="'.$profileUrl.'">'.SecurityUtils::encodeHTML($data['LAST_NAME']).'</a>',
+			    '<a href="'.$profileUrl.'">'.SecurityUtils::encodeHTML($data['FIRST_NAME']).'</a>',
+			    describeIndividualOps($data['ops'])
+			));
 		}
 
 		$page->addHtml($table->show(false));
@@ -176,26 +189,21 @@ if ($getMode == 'preview')     //Default
         $form = new HtmlForm('individualcontributions_preview_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER .'/system/individualcontributions.php', array('mode' => 'write')), $page);
 		$form->addSubmitButton('btn_next_page', $gL10n->get('SYS_SAVE'), array('icon' => 'bi-check-lg', 'class' => 'btn btn-primary'));
 		$form->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_INDIVIDUAL_CONTRIBUTIONS_PREVIEW'));
-        
+
         $page->addHtml($form->show(false));
 	}
-	else 
+	else
 	{
         $page->addHtml($gL10n->get('PLG_MEMBERSHIPFEE_INDIVIDUAL_CONTRIBUTIONS_NO_DATA').'<br/>');
-	}
-	
-	if (!empty($message))
-	{
-        $page->addHtml($message);
 	}
 }
 elseif ($getMode == 'write')
 {
     $page = new HtmlPage('plg-mitgliedsbeitrag-individualcontributions-write', $headline);
-    $page->setContentFullWidth(); 
-    
+    $page->setContentFullWidth();
+
  	$page->addPageFunctionsMenuItem('menu_item_print_view', $gL10n->get('SYS_PRINT_PREVIEW'), 'javascript:void(0);', 'bi-printer');
-        
+
 	$page->addJavascript('
     	$("#menu_item_print_view").click(function() {
             window.open("'. SecurityUtils::encodeUrl(ADMIDIO_URL. FOLDER_PLUGINS . PLUGIN_FOLDER .'/system/individualcontributions.php', array('mode' => 'print')). '", "_blank");
@@ -203,64 +211,41 @@ elseif ($getMode == 'write')
 		true
 	);
 
-	$datatable = true;
-	$hoverRows = true;
-	$classTable  = 'table table-condensed';
-    
-	$table = new HtmlTable('table_saved_individualcontributions', $page, $hoverRows, $datatable, $classTable);
+	$table = new HtmlTable('table_saved_individualcontributions', $page, true, true, 'table table-condensed');
     $table->setDatatablesRowsPerPage($gSettingsManager->getInt('groups_roles_members_per_page'));
-	$table->setColumnAlignByArray(array('left', 'left', 'center', 'center'));
-	$columnValues = array($gL10n->get('SYS_LASTNAME'),
-						  $gL10n->get('SYS_FIRSTNAME'),
-						  $gL10n->get('PLG_MEMBERSHIPFEE_FEE_NEW'),
-						  $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTORY_TEXT_NEW'));
-	$table->addRowHeadingByArray($columnValues);
-	
-	foreach ($_SESSION['pMembershipFee']['individualcontributions_user'] as $member => $data)
+	$table->setColumnAlignByArray(array('left', 'left', 'left'));
+	$table->addRowHeadingByArray(array($gL10n->get('SYS_LASTNAME'), $gL10n->get('SYS_FIRSTNAME'), $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_CHANGES')));
+
+	$gDb->startTransaction();
+	foreach ($_SESSION['pMembershipFee']['individualcontributions_user'] ?? array() as $member => $data)
 	{
+	    $bookingService->applyOps((int) $member, $data['ops']);
+
     	$user->readDataById($member);
-            
-		$columnValues = array();
-		$columnValues[] = '<a href="'.SecurityUtils::encodeUrl(ADMIDIO_URL.FOLDER_MODULES.'/profile/profile.php', array('user_uuid' => $user->getValue('usr_uuid'))).'">'.$data['LAST_NAME'].'</a>';
-		$columnValues[] = '<a href="'.SecurityUtils::encodeUrl(ADMIDIO_URL.FOLDER_MODULES.'/profile/profile.php', array('user_uuid' => $user->getValue('usr_uuid'))).'">'.$data['FIRST_NAME'].'</a>';
-		$columnValues[] = $data['FEE_NEW'];
-		$columnValues[] = $data['CONTRIBUTORY_TEXT_NEW'];
-		$table->addRowByArray($columnValues);
-		
-		$user->setValue('FEE'.$gCurrentOrgId, $data['FEE_NEW']);
-		$user->setValue('CONTRIBUTORY_TEXT'.$gCurrentOrgId, $data['CONTRIBUTORY_TEXT_NEW']);
-		$user->save();         
+		$profileUrl = SecurityUtils::encodeUrl(ADMIDIO_URL.FOLDER_MODULES.'/profile/profile.php', array('user_uuid' => $user->getValue('usr_uuid')));
+		$table->addRowByArray(array(
+		    '<a href="'.$profileUrl.'">'.SecurityUtils::encodeHTML($data['LAST_NAME']).'</a>',
+		    '<a href="'.$profileUrl.'">'.SecurityUtils::encodeHTML($data['FIRST_NAME']).'</a>',
+		    describeIndividualOps($data['ops'])
+		));
 	}
+	$gDb->endTransaction();
 
 	$page->addHtml($table->show(false));
 	$page->addHtml('<strong>'.$gL10n->get('PLG_MEMBERSHIPFEE_INDIVIDUAL_CONTRIBUTIONS_SAVED').'</strong><br/><br/>');
 }
 elseif ($getMode == 'print')
 {
-	// create html page object without the custom theme files
-	$hoverRows = false;
-	$datatable = false;
-	$classTable  = 'table table-condensed table-striped';
-
 	$page = new HtmlPage('plg-mitgliedsbeitrag-individualcontributions-print', $gL10n->get('PLG_MEMBERSHIPFEE_INDIVIDUAL_CONTRIBUTIONS_NEW'));
 	$page->setPrintMode();
-	
-	$table = new HtmlTable('table_print_individualcontributions', $page, $hoverRows, $datatable, $classTable);
-	$table->setColumnAlignByArray(array('left', 'left', 'center', 'center'));
-	$columnValues = array($gL10n->get('SYS_LASTNAME'),
-						  $gL10n->get('SYS_FIRSTNAME'),
-						  $gL10n->get('PLG_MEMBERSHIPFEE_FEE_NEW'),
-						  $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTORY_TEXT_NEW'));
-	$table->addRowHeadingByArray($columnValues);
-	
-	foreach ($_SESSION['pMembershipFee']['individualcontributions_user'] as $data)
+
+	$table = new HtmlTable('table_print_individualcontributions', $page, false, false, 'table table-condensed table-striped');
+	$table->setColumnAlignByArray(array('left', 'left', 'left'));
+	$table->addRowHeadingByArray(array($gL10n->get('SYS_LASTNAME'), $gL10n->get('SYS_FIRSTNAME'), $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_CHANGES')));
+
+	foreach ($_SESSION['pMembershipFee']['individualcontributions_user'] ?? array() as $data)
 	{
-		$columnValues = array();
-		$columnValues[] = $data['LAST_NAME'];
-		$columnValues[] = $data['FIRST_NAME'];
-		$columnValues[] = $data['FEE_NEW'];
-		$columnValues[] = $data['CONTRIBUTORY_TEXT_NEW'];
-		$table->addRowByArray($columnValues);
+		$table->addRowByArray(array(SecurityUtils::encodeHTML($data['LAST_NAME']), SecurityUtils::encodeHTML($data['FIRST_NAME']), describeIndividualOps($data['ops'])));
 	}
 	$page->addHtml($table->show(false));
 }

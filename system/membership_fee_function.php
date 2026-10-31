@@ -91,6 +91,9 @@ try {
             $pPreferences->config['SEPA']['duedate_for_all'] = isset($_POST['duedate_for_all']) ? 1 : 0;
             $pPreferences->config['Rechnungs-Export']['rechnung_dateiname'] = $_POST['rechnung_dateiname'];
             $pPreferences->config['Rechnungs-Export']['rechnung_dateityp'] = $_POST['rechnung_dateityp'];
+            $pPreferences->config['SEPA-Freigabe']['email'] = trim((string) ($_POST['share_email'] ?? ''));
+            $shareDays = (int) ($_POST['share_days'] ?? 14);
+            $pPreferences->config['SEPA-Freigabe']['tage'] = ($shareDays >= 1 && $shareDays <= 365) ? $shareDays : 14;
             $ret = 'success_export';
             break;
 
@@ -182,6 +185,70 @@ try {
             }
             break;
 
+        case 'contributiongroups':
+            $names = array();
+            $roleLists = array();
+            $usedRoles = array();
+            for ($conf = 0; isset($_POST['group_name' . $conf]); $conf ++) {
+                $name = trim((string) $_POST['group_name' . $conf]);
+                if ($name === '') {
+                    continue;
+                }
+                $roles = array();
+                if (isset($_POST['group_roles' . $conf]) && is_array($_POST['group_roles' . $conf])) {
+                    foreach ($_POST['group_roles' . $conf] as $rolId) {
+                        $rolId = (int) $rolId;
+                        if ($rolId <= 0) {
+                            continue;
+                        }
+                        if (isset($usedRoles[$rolId])) {
+                            $ret = $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP_DUPLICATE_ROLE', array($usedRoles[$rolId], $name));
+                            break 3;
+                        }
+                        $usedRoles[$rolId] = $name;
+                        $roles[] = $rolId;
+                    }
+                }
+                $names[] = str_replace(array('((', '))', '#_#'), '', $name);
+                $roleLists[] = implode(',', $roles);
+            }
+            if (count($names) === 0) {
+                $names = array(' ');
+                $roleLists = array(' ');
+            }
+            $pPreferences->config['Beitragsgruppen']['name'] = $names;
+            $pPreferences->config['Beitragsgruppen']['roles'] = $roleLists;
+            break;
+
+        case 'manualtemplates':
+            $names = array();
+            $amounts = array();
+            $texts = array();
+            for ($conf = 0; isset($_POST['template_name' . $conf]); $conf ++) {
+                $name = trim((string) $_POST['template_name' . $conf]);
+                if ($name === '') {
+                    continue;
+                }
+                $amount = trim((string) ($_POST['template_amount' . $conf] ?? ''));
+                if ($amount !== '' && mf_parse_amount($amount) === null) {
+                    $ret = $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_AMOUNT_INVALID');
+                    break 2;
+                }
+                $names[] = str_replace(array('((', '))', '#_#'), '', $name);
+                $amounts[] = ($amount === '') ? ' ' : (string) mf_parse_amount($amount);
+                $text = trim(str_replace(array('((', '))', '#_#'), '', (string) ($_POST['template_text' . $conf] ?? '')));
+                $texts[] = ($text === '') ? ' ' : mb_substr($text, 0, 140);
+            }
+            if (count($names) === 0) {
+                $names = array(' ');
+                $amounts = array(' ');
+                $texts = array(' ');
+            }
+            $pPreferences->config['Positionsvorlagen']['name'] = $names;
+            $pPreferences->config['Positionsvorlagen']['amount'] = $amounts;
+            $pPreferences->config['Positionsvorlagen']['text'] = $texts;
+            break;
+
         case 'access_preferences':
             if (isset($_POST['access_preferences'])) {
                 $pPreferences->config['access']['preferences'] = array_filter($_POST['access_preferences']);
@@ -224,6 +291,8 @@ try {
     $e->showText();
 }
 
-$pPreferences->save();
+if (strpos($ret, 'success') === 0) {
+    $pPreferences->save();
+}
 
 echo $ret;

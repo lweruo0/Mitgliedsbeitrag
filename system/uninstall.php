@@ -23,6 +23,8 @@ use Admidio\Roles\Entity\Role;
 use Admidio\UI\Presenter\FormPresenter;
 use Admidio\UI\Presenter\PagePresenter;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
+use Plugins\MembershipFee\classes\Bookings\BookingStore;
+use Plugins\MembershipFee\classes\Bookings\ProfileAddin;
 
 try {
     require_once (__DIR__ . '/../../../system/common.php');
@@ -144,6 +146,15 @@ try {
 
             $result .= ($result_data ? $gL10n->get('PLG_MEMBERSHIPFEE_UNINST_DATA_DELETE_SUCCESS') : $gL10n->get('PLG_MEMBERSHIPFEE_UNINST_DATA_DELETE_ERROR'));
             $result .= ($result_db ? $gL10n->get('PLG_MEMBERSHIPFEE_UNINST_TABLE_DELETE_SUCCESS') : $gL10n->get('PLG_MEMBERSHIPFEE_UNINST_TABLE_DELETE_ERROR'));
+
+            // Buchungshistorie: Daten dieser Organisation loeschen, leere Tabellen entfernen,
+            // Registerkarte im Profil ausbauen
+            $result_bookings = BookingStore::removeDataOfCurrentOrganization();
+            $result .= ($result_bookings ? $gL10n->get('PLG_MEMBERSHIPFEE_UNINST_BOOKINGS_TABLE_DELETED') : $gL10n->get('PLG_MEMBERSHIPFEE_UNINST_BOOKINGS_DATA_DELETED'));
+            $addinError = ProfileAddin::uninstall();
+            if ($addinError !== '') {
+                $result .= '<br/>' . $addinError;
+            }
 
             // Profilfelder löschen
 

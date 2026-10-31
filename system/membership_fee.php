@@ -12,6 +12,7 @@ use Admidio\Infrastructure\Exception;
 use Admidio\Infrastructure\Entity\Text;
 use Admidio\Infrastructure\Utils\SecurityUtils;
 use Admidio\Roles\Entity\Role;
+use Plugins\MembershipFee\classes\Bookings\ProfileAddin;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
 try {
@@ -119,6 +120,30 @@ try {
     }
 
     $num_individualcontributions = count($pPreferences->config['individual_contributions']['desc']);
+
+    // Beitragsgruppen und Vorlagen fuer manuelle Positionen (fehlen evtl. noch vor dem ersten Init)
+    foreach (array('Beitragsgruppen' => array('name', 'roles'), 'Positionsvorlagen' => array('name', 'amount', 'text')) as $section => $keys) {
+        foreach ($keys as $key) {
+            if (!isset($pPreferences->config[$section][$key]) || !is_array($pPreferences->config[$section][$key])) {
+                $pPreferences->config[$section][$key] = $pPreferences->config_default[$section][$key] ?? array(' ');
+            }
+        }
+    }
+    foreach (array('contributiongroups' => array('Beitragsgruppen', array('name', 'roles')), 'manualtemplates' => array('Positionsvorlagen', array('name', 'amount', 'text'))) as $choice => $sectionData) {
+        if ($getChoice !== $choice || !isset($_GET['conf'])) {
+            continue;
+        }
+        list($section, $keys) = $sectionData;
+        foreach ($keys as $key) {
+            if ($getConf == - 1) {
+                $pPreferences->config[$section][$key][] = ' ';
+            } elseif (isset($pPreferences->config[$section][$key][$getConf])) {
+                array_splice($pPreferences->config[$section][$key], $getConf, 1);
+            }
+        }
+    }
+    $num_contributiongroups = count($pPreferences->config['Beitragsgruppen']['name']);
+    $num_manualtemplates = count($pPreferences->config['Positionsvorlagen']['name']);
 
     $fixrollen = beitragsrollen_einlesen('fix');
     $alt_fix_rollen = $fixrollen;
@@ -352,16 +377,13 @@ try {
         $page->addHtml('
     <ul id="preferences_tabs" class="nav nav-tabs" role="tablist">
         <li class="nav-item">
-            <a id="tabs_nav_fees" class="nav-link" href="#tabs-fees" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_FEES') . '</a>
+            <a id="tabs_nav_fees" class="nav-link" href="#tabs-fees" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_TAB_COLLECTION') . '</a>
         </li>
         <li class="nav-item">
             <a id="tabs_nav_mandatemanagement" class="nav-link" href="#tabs-mandatemanagement" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_MANDATE_MANAGEMENT') . '</a>
         </li>
         <li class="nav-item">
             <a id="tabs_nav_export" class="nav-link" href="#tabs-export" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_EXPORT') . '</a>
-        </li>
-        <li class="nav-item">
-            <a id="tabs_nav_options" class="nav-link" href="#tabs-options" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_OPTIONS') . '</a>
         </li>
     ');
 
@@ -387,8 +409,24 @@ try {
     <div class="tab-content">
     ');
 
-        // TAB: FEES
+        // TAB: FEES (Panels in der Reihenfolge des Ablaufs eines Beitragseinzugs, nummeriert)
         $page->addHtml(openMenueTab('fees', 'accordion_fees'));
+        $workflowStep = 0;
+
+        // PANEL: TESTS
+
+        // Panel Tests nur anzeigen, wenn mindestens ein Einzeltest aktiviert ist
+        if (in_array(1, $pPreferences->config['tests_enable'])) {
+            $formTests = new HtmlForm('tests_form', '', $page);
+            $formTests->addButton('btn_tests', $gL10n->get('PLG_MEMBERSHIPFEE_TESTS'), array(
+                'icon' => 'bi-heart-pulse',
+                'link' => 'tests.php',
+                'class' => 'btn-primary offset-sm-3'
+            ));
+            $formTests->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_TESTS_DESC'));
+
+            $page->addHtml(getMenuePanel('fees', 'tests', 'accordion_fees', (++$workflowStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_TESTS'), 'bi bi-heart-pulse', $formTests->show()));
+        }
 
         // PANEL: RECALCULATION
 
@@ -402,25 +440,13 @@ try {
             'helpTextId' => 'PLG_MEMBERSHIPFEE_RECALCULATION_ROLLQUERY_DESC',
             'multiselect' => true
         ));
-        $formRecalculation->addCheckbox('recalculation_notpaid', $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_NOT_PAID'), false, array(
-            'helpTextId' => 'PLG_MEMBERSHIPFEE_RECALCULATION_NOT_PAID_DESC'
-        ));
-        $radioButtonEntries = array(
-            'standard' => $gL10n->get('PLG_MEMBERSHIPFEE_DEFAULT'),
-            'overwrite' => $gL10n->get('PLG_MEMBERSHIPFEE_OVERWRITE'),
-            'summation' => $gL10n->get('PLG_MEMBERSHIPFEE_SUMMATION')
-        );
-        $formRecalculation->addRadioButton('recalculation_modus', '', $radioButtonEntries, array(
-            'defaultValue' => 'standard',
-            'helpTextId' => 'PLG_MEMBERSHIPFEE_RECALCULATION_MODUS_DESC'
-        ));
         $formRecalculation->addSubmitButton('btn_recalculation', $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION'), array(
             'icon' => 'bi-calculator',
             'class' => 'offset-sm-3'
         ));
-        $formRecalculation->addCustomContent('', '<strong>' . $gL10n->get('SYS_NOTE') . ':</strong> ' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_MODUS_NOTE'));
+        $formRecalculation->addCustomContent('', '<strong>' . $gL10n->get('SYS_NOTE') . ':</strong> ' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_BOOKINGS_NOTE'));
 
-        $page->addHtml(getMenuePanel('fees', 'recalculation', 'accordion_fees', $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION'), 'bi bi-calculator', $formRecalculation->show()));
+        $page->addHtml(getMenuePanel('fees', 'recalculation', 'accordion_fees', (++$workflowStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION'), 'bi bi-calculator', $formRecalculation->show()));
 
         // PANEL: INDIVIDUAL_CONTRIBUTIONS
 
@@ -437,96 +463,7 @@ try {
             $page->addHtml(getMenuePanel('fees', 'individualcontributions', 'accordion_fees', $gL10n->get('PLG_MEMBERSHIPFEE_INDIVIDUAL_CONTRIBUTIONS'), 'bi bi-house-gear', $formIndividualContributions->show()));
         }
 
-        // PANEL: PAYMENTS
-
-        $formPayments = new HtmlForm('payments_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/payments.php', $page);
-
-        $formPayments->addSelectBox('payments_roleselection', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_SELECTION'), $selectBoxEntriesBeitragsrollen, array(
-            'defaultValue' => (isset($_SESSION['pMembershipFee']['payments_rol_sel']) ? $_SESSION['pMembershipFee']['payments_rol_sel'] : ''),
-            'showContextDependentFirstEntry' => false,
-            'helpTextId' => 'PLG_MEMBERSHIPFEE_PAYMENTS_ROLLQUERY_DESC',
-            'multiselect' => true
-        ));
-        $formPayments->addSubmitButton('btn_payments', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS_EDIT'), array(
-            'icon' => 'bi-cash-coin',
-            'class' => 'offset-sm-3'
-        ));
-        $formPayments->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS_DESC'));
-
-        $page->addHtml(getMenuePanel('fees', 'payments', 'accordion_fees', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS'), 'bi bi-cash-coin', $formPayments->show()));
-
-        // PANEL: ANALYSIS
-
-        $formAnalysis = new HtmlForm('analysis_form', '', $page);
-
-        $formAnalysis->addButton('btn_analysis', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ANALYSIS'), array(
-            'icon' => 'bi-bar-chart',
-            'link' => 'analysis.php',
-            'class' => 'btn-primary offset-sm-3'
-        ));
-        $formAnalysis->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ANALYSIS_DESC'));
-
-        $page->addHtml(getMenuePanel('fees', 'analysis', 'accordion_fees', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ANALYSIS'), 'bi bi-bar-chart', $formAnalysis->show()));
-
-        // PANEL: HISTORY
-
-        /*
-         * $formHistory = new HtmlForm('history_form', '', $page);
-         *
-         * $formHistory->addButton('btn_history', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_HISTORY_SHOW'), array(
-         * 'icon' => 'bi-clock-history',
-         * 'link' => 'history.php',
-         * 'class' => 'btn-primary offset-sm-3'
-         * ));
-         * $formHistory->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_HISTORY_DESC'));
-         *
-         * $page->addHtml(getMenuePanel('fees', 'history', 'accordion_fees', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_HISTORY'), 'bi bi-clock-history', $formHistory->show()));
-         */
-
-        $page->addHtml(closeMenueTab());
-
-        // TAB: MANDATEMANAGEMENT
-        $page->addHtml(openMenueTab('mandatemanagement', 'accordion_mandatemanagement'));
-
-        // PANEL: CREATEMANDATEID
-
-        unset($_SESSION['pMembershipFee']['createmandateid_user']);
-
-        $formCreateMandateID = new HtmlForm('createmandateid_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/create_mandate_id.php', $page);
-
-        $formCreateMandateID->addSelectBoxFromSql('createmandateid_roleselection', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_SELECTION'), $gDb, $selectBoxEntriesAlleRollen, array(
-            'defaultValue' => (isset($_SESSION['pMembershipFee']['createmandateid_rol_sel']) ? $_SESSION['pMembershipFee']['createmandateid_rol_sel'] : ''),
-            'showContextDependentFirstEntry' => false,
-            'helpTextId' => 'PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID_DESC',
-            'multiselect' => true
-        ));
-        $formCreateMandateID->addSubmitButton('btn_createmandateid', $gL10n->get('PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID'), array(
-            'icon' => 'bi-list-ol',
-            'class' => 'offset-sm-3'
-        ));
-
-        $page->addHtml(getMenuePanel('mandatemanagement', 'createmandateid', 'accordion_mandatemanagement', $gL10n->get('PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID'), 'bi bi-list-ol', $formCreateMandateID->show()));
-
-        // PANEL: MANDATES
-
-        $formMandates = new HtmlForm('mandates_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/mandates.php', $page);
-
-        $formMandates->addSubmitButton('btn_mandates', $gL10n->get('PLG_MEMBERSHIPFEE_MANDATE_EDIT'), array(
-            'icon' => 'bi-pen',
-            'class' => 'offset-sm-3'
-        ));
-        $formMandates->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_MANDATE_EDIT_DESC'));
-
-        $page->addHtml(getMenuePanel('mandatemanagement', 'mandates', 'accordion_mandatemanagement', $gL10n->get('PLG_MEMBERSHIPFEE_MANDATE_EDIT'), 'bi bi-pen', $formMandates->show()));
-
-        $page->addHtml(closeMenueTab());
-
-        // TAB: EXPORT
-        $page->addHtml(openMenueTab('export', 'accordion_export'));
-
-        // PANEL: SEPA
-
-        $page->addHtml(getMenuePanelHeaderOnly('export', 'sepa', 'accordion_export', $gL10n->get('PLG_MEMBERSHIPFEE_SEPA'), 'bi bi-file-earmark'));
+        // PANEL: DUEDATES (Faelligkeitsdatum)
 
         $formDuedates = new HtmlForm('duedates_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/duedates.php', $page);
 
@@ -541,9 +478,27 @@ try {
             'class' => 'offset-sm-3'
         ));
         $formDuedates->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE_EDIT_DESC'));
-        $formDuedates->addLine();
-        $page->addHtml($formDuedates->show(false));
+        $page->addHtml(getMenuePanel('fees', 'duedates', 'accordion_fees', (++$workflowStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), 'bi bi-calendar-check', $formDuedates->show()));
 
+
+        // PANEL: PRE_NOTIFICATION (Vorabinformation)
+
+        $formPreNotification = new HtmlForm('pre_notification_form', '', $page);
+        if (! $directdebittype) {
+            $formPreNotification->addCustomContent('', '<div class="alert alert-warning alert-small" role="alert"><i class="bi bi-exclamation-triangle"></i>' . $gL10n->get('PLG_MEMBERSHIPFEE_NO_DUEDATES_EXIST') . '</div>');
+        } else {
+            $formPreNotification->addButton('btn_pre_notification', $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'), array(
+                'icon' => 'bi-filetype-xlsx',
+                'link' => 'pre_notification.php',
+                'class' => 'btn-primary offset-sm-3'
+            ));
+            $formPreNotification->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION_DESC'));
+        }
+        $page->addHtml(getMenuePanel('fees', 'prenotification', 'accordion_fees', (++$workflowStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'), 'bi bi-envelope-paper', $formPreNotification->show()));
+
+        // PANEL: SEPA (SEPA-Datei erzeugen)
+
+        $sepaStep = ++$workflowStep;
         $exportActionFile = 'sepa_export.php';
         if ($pPreferences->config['SEPA']['direct_debit_format'] === 'v8') {
             $exportActionFile = 'sepa_export_pain.008.001.08.php';
@@ -621,49 +576,53 @@ try {
             ));
             $html = '<div class="alert alert-warning alert-small" role="alert"><i class="bi bi-exclamation-triangle"></i>' . $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_EXPORT_INFO') . '</div>';
             $formSepa->addStaticControl('', '', $html);
-            $formSepa->addLine();
-            $formSepa->addButton('btn_pre_notification', $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'), array(
-                'icon' => 'bi-filetype-xlsx',
-                'link' => 'pre_notification.php',
-                'class' => 'btn-primary offset-sm-3'
-            ));
-            $formSepa->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION_DESC'));
         }
 
-        $page->addHtml($formSepa->show(false));
+        $page->addHtml(getMenuePanel('fees', 'sepa', 'accordion_fees', $sepaStep . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILE'), 'bi bi-filetype-xml', $formSepa->show()));
 
-        $page->addHtml(getMenuePanelFooterOnly());
 
-        // PANEL: BILL
+        // PANEL: RUNS (Einzugsuebersicht)
 
-        $formBillExport = new HtmlForm('billexport_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/bill.php', $page);
-        $formBillExport->addSubmitButton('btn_bill', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT'), array(
-            'icon' => 'bi-file-earmark-spreadsheet',
+        $formRuns = new HtmlForm('runs_form', '', $page);
+        $formRuns->addButton('btn_runs', $gL10n->get('PLG_MEMBERSHIPFEE_RUNS'), array(
+            'icon' => 'bi-bank',
+            'link' => 'runs.php',
+            'class' => 'btn-primary offset-sm-3'
+        ));
+        $formRuns->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_RUNS_DESC'));
+
+        $page->addHtml(getMenuePanel('fees', 'runs', 'accordion_fees', (++$workflowStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_RUNS'), 'bi bi-bank', $formRuns->show()));
+
+        // PANEL: PAYMENTS
+
+        $formPayments = new HtmlForm('payments_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/payments.php', $page);
+
+        $formPayments->addSelectBox('payments_roleselection', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_SELECTION'), $selectBoxEntriesBeitragsrollen, array(
+            'defaultValue' => (isset($_SESSION['pMembershipFee']['payments_rol_sel']) ? $_SESSION['pMembershipFee']['payments_rol_sel'] : ''),
+            'showContextDependentFirstEntry' => false,
+            'helpTextId' => 'PLG_MEMBERSHIPFEE_PAYMENTS_ROLLQUERY_DESC',
+            'multiselect' => true
+        ));
+        $formPayments->addSubmitButton('btn_payments', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS_EDIT'), array(
+            'icon' => 'bi-cash-coin',
             'class' => 'offset-sm-3'
         ));
-        $formBillExport->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT_DESC'));
+        $formPayments->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS_DESC'));
 
-        $page->addHtml(getMenuePanel('export', 'bill', 'accordion_export', $gL10n->get('PLG_MEMBERSHIPFEE_BILL'), 'bi bi-file-earmark-spreadsheet', $formBillExport->show()));
+        $page->addHtml(getMenuePanel('fees', 'payments', 'accordion_fees', (++$workflowStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS'), 'bi bi-cash-coin', $formPayments->show()));
 
-        $page->addHtml(closeMenueTab());
+        // PANEL: ANALYSIS
 
-        // TAB: OPTIONS
-        $page->addHtml(openMenueTab('options', 'accordion_options'));
+        $formAnalysis = new HtmlForm('analysis_form', '', $page);
 
-        // PANEL: TESTS
+        $formAnalysis->addButton('btn_analysis', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ANALYSIS'), array(
+            'icon' => 'bi-bar-chart',
+            'link' => 'analysis.php',
+            'class' => 'btn-primary offset-sm-3'
+        ));
+        $formAnalysis->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ANALYSIS_DESC'));
 
-        // Panel Tests nur anzeigen, wenn mindestens ein Einzeltest aktiviert ist
-        if (in_array(1, $pPreferences->config['tests_enable'])) {
-            $formTests = new HtmlForm('tests_form', '', $page);
-            $formTests->addButton('btn_tests', $gL10n->get('PLG_MEMBERSHIPFEE_TESTS'), array(
-                'icon' => 'bi-heart-pulse',
-                'link' => 'tests.php',
-                'class' => 'btn-primary offset-sm-3'
-            ));
-            $formTests->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_TESTS_DESC'));
-
-            $page->addHtml(getMenuePanel('options', 'tests', 'accordion_options', $gL10n->get('PLG_MEMBERSHIPFEE_TESTS'), 'bi bi-heart-pulse', $formTests->show()));
-        }
+        $page->addHtml(getMenuePanel('fees', 'analysis', 'accordion_fees', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ANALYSIS'), 'bi bi-bar-chart', $formAnalysis->show()));
 
         // PANEL: ROLEOVERVIEW
 
@@ -675,23 +634,71 @@ try {
         ));
         $formRoleOverview->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_OVERVIEW_DESC'));
 
-        $page->addHtml(getMenuePanel('options', 'roleoverview', 'accordion_options', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_OVERVIEW'), 'bi bi-list-columns-reverse', $formRoleOverview->show()));
+        $page->addHtml(getMenuePanel('fees', 'roleoverview', 'accordion_fees', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_OVERVIEW'), 'bi bi-list-columns-reverse', $formRoleOverview->show()));
 
-        // PANEL: PLUGIN_INFORMATION
+        // PANEL: BOOKING_OVERVIEW (Buchungshistorie aller Mitglieder)
 
-        $formPluginInformations = new HtmlForm('plugin_informations_form', '', $page);
-        $formPluginInformations->addStaticControl('plg_name', $gL10n->get('PLG_MEMBERSHIPFEE_PLUGIN_NAME'), $gL10n->get('PLG_MEMBERSHIPFEE_MEMBERSHIP_FEE'));
-        $formPluginInformations->addStaticControl('plg_version', $gL10n->get('PLG_MEMBERSHIPFEE_PLUGIN_VERSION'), $pPreferences->config['Plugininformationen']['version']);
-        $formPluginInformations->addStaticControl('plg_date', $gL10n->get('PLG_MEMBERSHIPFEE_PLUGIN_DATE'), $pPreferences->config['Plugininformationen']['stand']);
+        $formBookingOverview = new HtmlForm('booking_overview_form', '', $page);
+        $formBookingOverview->addButton('btn_booking_overview', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_OVERVIEW'), array(
+            'icon' => 'bi-clock-history',
+            'link' => 'booking_overview.php',
+            'class' => 'btn-primary offset-sm-3'
+        ));
+        $formBookingOverview->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_OVERVIEW_DESC'));
 
-        $docfile = 'documentation-en.pdf';
-        if ($gSettingsManager->getString('system_language') === 'de' || $gSettingsManager->getString('system_language') === 'de-DE') {
-            $docfile = 'documentation-de.pdf';
-        }
-        $html = '<a class="icon-text-link" href="' . ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/docs/' . $docfile . '" target="_blank"><i class="bi bi-file-earmark-pdf"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_DOCUMENTATION_OPEN') . '</a>';
-        $formPluginInformations->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_DOCUMENTATION'), $html);
+        $page->addHtml(getMenuePanel('fees', 'bookingoverview', 'accordion_fees', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_OVERVIEW'), 'bi bi-clock-history', $formBookingOverview->show()));
 
-        $page->addHtml(getMenuePanel('options', 'plugin_informations', 'accordion_options', $gL10n->get('PLG_MEMBERSHIPFEE_PLUGIN_INFORMATION'), 'bi bi-info-circle', $formPluginInformations->show()));
+        $page->addHtml(closeMenueTab());
+
+        // TAB: MANDATEMANAGEMENT
+        $page->addHtml(openMenueTab('mandatemanagement', 'accordion_mandatemanagement'));
+
+        // PANEL: CREATEMANDATEID
+
+        unset($_SESSION['pMembershipFee']['createmandateid_user']);
+
+        $formCreateMandateID = new HtmlForm('createmandateid_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/create_mandate_id.php', $page);
+
+        $formCreateMandateID->addSelectBoxFromSql('createmandateid_roleselection', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_SELECTION'), $gDb, $selectBoxEntriesAlleRollen, array(
+            'defaultValue' => (isset($_SESSION['pMembershipFee']['createmandateid_rol_sel']) ? $_SESSION['pMembershipFee']['createmandateid_rol_sel'] : ''),
+            'showContextDependentFirstEntry' => false,
+            'helpTextId' => 'PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID_DESC',
+            'multiselect' => true
+        ));
+        $formCreateMandateID->addSubmitButton('btn_createmandateid', $gL10n->get('PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID'), array(
+            'icon' => 'bi-list-ol',
+            'class' => 'offset-sm-3'
+        ));
+
+        $page->addHtml(getMenuePanel('mandatemanagement', 'createmandateid', 'accordion_mandatemanagement', $gL10n->get('PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID'), 'bi bi-list-ol', $formCreateMandateID->show()));
+
+        // PANEL: MANDATES
+
+        $formMandates = new HtmlForm('mandates_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/mandates.php', $page);
+
+        $formMandates->addSubmitButton('btn_mandates', $gL10n->get('PLG_MEMBERSHIPFEE_MANDATE_EDIT'), array(
+            'icon' => 'bi-pen',
+            'class' => 'offset-sm-3'
+        ));
+        $formMandates->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_MANDATE_EDIT_DESC'));
+
+        $page->addHtml(getMenuePanel('mandatemanagement', 'mandates', 'accordion_mandatemanagement', $gL10n->get('PLG_MEMBERSHIPFEE_MANDATE_EDIT'), 'bi bi-pen', $formMandates->show()));
+
+        $page->addHtml(closeMenueTab());
+
+        // TAB: EXPORT
+        $page->addHtml(openMenueTab('export', 'accordion_export'));
+
+        // PANEL: BILL
+
+        $formBillExport = new HtmlForm('billexport_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/bill.php', $page);
+        $formBillExport->addSubmitButton('btn_bill', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT'), array(
+            'icon' => 'bi-file-earmark-spreadsheet',
+            'class' => 'offset-sm-3'
+        ));
+        $formBillExport->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT_DESC'));
+
+        $page->addHtml(getMenuePanel('export', 'bill', 'accordion_export', $gL10n->get('PLG_MEMBERSHIPFEE_BILL'), 'bi bi-file-earmark-spreadsheet', $formBillExport->show()));
 
         $page->addHtml(closeMenueTab());
 
@@ -885,6 +892,104 @@ try {
             ));
 
             $page->addHtml(getMenuePanel('preferences', 'individualcontributions', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_INDIVIDUAL_CONTRIBUTIONS'), 'bi bi-house-gear', $formIndividualContributionsSetup->show()));
+
+            // PANEL: CONTRIBUTION_GROUPS (Beitragsgruppen mit Differenzberechnung)
+
+            $formContributionGroups = new HtmlForm('contributiongroups_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee_function.php', array(
+                'form' => 'contributiongroups'
+            )), $page, array(
+                'class' => 'form-preferences'
+            ));
+            $formContributionGroups->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUPS_DESC'));
+            $formContributionGroups->addLine();
+
+            for ($conf = 0; $conf < $num_contributiongroups; $conf ++) {
+                $formContributionGroups->openGroupBox('contributiongroups_group' . $conf, ($conf + 1) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP'));
+                $formContributionGroups->addInput('group_name' . $conf, $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP_NAME'), trim((string) $pPreferences->config['Beitragsgruppen']['name'][$conf]), array(
+                    'helpTextId' => 'PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP_NAME_DESC'
+                ));
+                $groupRoles = array_values(array_filter(array_map('intval', explode(',', (string) ($pPreferences->config['Beitragsgruppen']['roles'][$conf] ?? '')))));
+                $formContributionGroups->addSelectBox('group_roles' . $conf, $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP_ROLES'), $selectBoxEntriesBeitragsrollen, array(
+                    'defaultValue' => $groupRoles,
+                    'showContextDependentFirstEntry' => false,
+                    'multiselect' => true,
+                    'helpTextId' => 'PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP_ROLES_DESC'
+                ));
+                $html = '<a class="icon-text-link" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', array(
+                    'choice' => 'contributiongroups',
+                    'conf' => $conf
+                )) . '"><i class="bi bi-trash"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_DELETE_CONFIG') . '</a>';
+                $formContributionGroups->addCustomContent('', $html);
+                $formContributionGroups->closeGroupBox();
+            }
+            $html = '<a class="icon-text-link" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', array(
+                'choice' => 'contributiongroups',
+                'conf' => - 1
+            )) . '"><i class="bi bi-plus-circle"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP_ADD') . '</a>';
+            $htmlDesc = '<div class="alert alert-warning alert-small" role="alert"><i class="bi bi-exclamation-triangle"></i>' . $gL10n->get('PLG_MEMBERSHIPFEE_NOT_SAVED_SETTINGS_LOST') . '</div>';
+            $formContributionGroups->addCustomContent('', $html, array(
+                'helpTextId' => $htmlDesc
+            ));
+            $formContributionGroups->addSubmitButton('btn_save_configurations', $gL10n->get('SYS_SAVE'), array(
+                'icon' => 'bi-check-lg',
+                'class' => ' offset-sm-3'
+            ));
+
+            $page->addHtml(getMenuePanel('preferences', 'contributiongroups', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUPS'), 'bi bi-diagram-3', $formContributionGroups->show()));
+
+            // PANEL: MANUAL_TEMPLATES (Vorlagen fuer manuelle Positionen)
+
+            $formManualTemplates = new HtmlForm('manualtemplates_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee_function.php', array(
+                'form' => 'manualtemplates'
+            )), $page, array(
+                'class' => 'form-preferences'
+            ));
+            $formManualTemplates->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_MANUAL_TEMPLATES_DESC'));
+            $formManualTemplates->addLine();
+
+            for ($conf = 0; $conf < $num_manualtemplates; $conf ++) {
+                $formManualTemplates->openGroupBox('manualtemplates_group' . $conf, ($conf + 1) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_MANUAL_TEMPLATE'));
+                $formManualTemplates->addInput('template_name' . $conf, $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_LABEL'), trim((string) $pPreferences->config['Positionsvorlagen']['name'][$conf]));
+                $formManualTemplates->addInput('template_amount' . $conf, $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_AMOUNT') . ' ' . $gSettingsManager->getString('system_currency'), trim((string) ($pPreferences->config['Positionsvorlagen']['amount'][$conf] ?? '')));
+                $formManualTemplates->addInput('template_text' . $conf, $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_TEXT'), trim((string) ($pPreferences->config['Positionsvorlagen']['text'][$conf] ?? '')), array(
+                    'maxLength' => 140
+                ));
+                $html = '<a class="icon-text-link" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', array(
+                    'choice' => 'manualtemplates',
+                    'conf' => $conf
+                )) . '"><i class="bi bi-trash"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_DELETE_CONFIG') . '</a>';
+                $formManualTemplates->addCustomContent('', $html);
+                $formManualTemplates->closeGroupBox();
+            }
+            $html = '<a class="icon-text-link" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', array(
+                'choice' => 'manualtemplates',
+                'conf' => - 1
+            )) . '"><i class="bi bi-plus-circle"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_MANUAL_TEMPLATE_ADD') . '</a>';
+            $formManualTemplates->addCustomContent('', $html, array(
+                'helpTextId' => $htmlDesc
+            ));
+            $formManualTemplates->addSubmitButton('btn_save_configurations', $gL10n->get('SYS_SAVE'), array(
+                'icon' => 'bi-check-lg',
+                'class' => ' offset-sm-3'
+            ));
+
+            $page->addHtml(getMenuePanel('preferences', 'manualtemplates', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_MANUAL_TEMPLATES'), 'bi bi-receipt', $formManualTemplates->show()));
+
+            // PANEL: PROFILE_ADDIN (Registerkarte "Beitraege" im Mitgliedsprofil)
+
+            if ($gCurrentUser->isAdministrator()) {
+                $addinInstalled = ProfileAddin::isInstalled();
+                $formProfileAddin = new HtmlForm('profileaddin_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/profile_addin_install.php', array(
+                    'mode' => $addinInstalled ? 'uninstall' : 'install'
+                )), $page);
+                $formProfileAddin->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_PROFILE_ADDIN_DESC'));
+                $formProfileAddin->addStaticControl('profileaddin_status', $gL10n->get('PLG_MEMBERSHIPFEE_STATUS'), $gL10n->get($addinInstalled ? 'PLG_MEMBERSHIPFEE_PROFILE_ADDIN_ACTIVE' : 'PLG_MEMBERSHIPFEE_PROFILE_ADDIN_INACTIVE'));
+                $formProfileAddin->addSubmitButton('btn_profileaddin', $gL10n->get($addinInstalled ? 'PLG_MEMBERSHIPFEE_PROFILE_ADDIN_REMOVE' : 'PLG_MEMBERSHIPFEE_PROFILE_ADDIN_INSTALL'), array(
+                    'icon' => $addinInstalled ? 'bi-x-circle' : 'bi-plus-circle',
+                    'class' => ' offset-sm-3'
+                ));
+                $page->addHtml(getMenuePanel('preferences', 'profileaddin', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_PROFILE_ADDIN'), 'bi bi-person-vcard', $formProfileAddin->show()));
+            }
 
             // PANEL: ACCOUNT_DATA
 
@@ -1105,6 +1210,19 @@ try {
             ));
             $formExport->addCheckbox('duedate_for_all', $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE_FOR_ALL'), $pPreferences->config['SEPA']['duedate_for_all'], array(
                 'helpTextId' => 'PLG_MEMBERSHIPFEE_DUEDATE_FOR_ALL_DESC'
+            ));
+            $formExport->closeGroupBox();
+
+            $formExport->openGroupBox('sepa_share', $headline = $gL10n->get('PLG_MEMBERSHIPFEE_SHARE_SETTINGS'));
+            $formExport->addInput('share_email', $gL10n->get('PLG_MEMBERSHIPFEE_SHARE_RECIPIENTS'), (string) ($pPreferences->config['SEPA-Freigabe']['email'] ?? ''), array(
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_SHARE_RECIPIENTS_SETTINGS_DESC'
+            ));
+            $formExport->addInput('share_days', $gL10n->get('PLG_MEMBERSHIPFEE_SHARE_DAYS'), (string) ($pPreferences->config['SEPA-Freigabe']['tage'] ?? 14), array(
+                'type' => 'number',
+                'minNumber' => 1,
+                'maxNumber' => 365,
+                'step' => 1,
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_SHARE_DAYS_DESC'
             ));
             $formExport->closeGroupBox();
 
@@ -1340,6 +1458,22 @@ try {
             $formUninstallation->addCustomContent('', '<br/>' . $gL10n->get('PLG_MEMBERSHIPFEE_UNINSTALLATION_DESC'));
 
             $page->addHtml(getMenuePanel('preferences', 'uninstallation', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_UNINSTALLATION'), 'bi bi-trash', $formUninstallation->show()));
+
+            // PANEL: PLUGIN_INFORMATION
+
+            $formPluginInformations = new HtmlForm('plugin_informations_form', '', $page);
+            $formPluginInformations->addStaticControl('plg_name', $gL10n->get('PLG_MEMBERSHIPFEE_PLUGIN_NAME'), $gL10n->get('PLG_MEMBERSHIPFEE_MEMBERSHIP_FEE'));
+            $formPluginInformations->addStaticControl('plg_version', $gL10n->get('PLG_MEMBERSHIPFEE_PLUGIN_VERSION'), $pPreferences->config['Plugininformationen']['version']);
+            $formPluginInformations->addStaticControl('plg_date', $gL10n->get('PLG_MEMBERSHIPFEE_PLUGIN_DATE'), $pPreferences->config['Plugininformationen']['stand']);
+
+            $docfile = 'documentation-en.pdf';
+            if ($gSettingsManager->getString('system_language') === 'de' || $gSettingsManager->getString('system_language') === 'de-DE') {
+                $docfile = 'documentation-de.pdf';
+            }
+            $html = '<a class="icon-text-link" href="' . ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/docs/' . $docfile . '" target="_blank"><i class="bi bi-file-earmark-pdf"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_DOCUMENTATION_OPEN') . '</a>';
+            $formPluginInformations->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_DOCUMENTATION'), $html);
+
+            $page->addHtml(getMenuePanel('preferences', 'plugin_informations', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_PLUGIN_INFORMATION'), 'bi bi-info-circle', $formPluginInformations->show()));
 
             $page->addHtml(closeMenueTab());
         }

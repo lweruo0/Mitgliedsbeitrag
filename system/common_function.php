@@ -174,7 +174,6 @@ function isUserAuthorizedForPreferences()
  */
 function beitragsrollen_einlesen($rollenwahl = '', $with_members = array())
 {
-    global $pPreferences;
     $rollen = array();
 
     // alle Rollen einlesen
@@ -200,35 +199,17 @@ function beitragsrollen_einlesen($rollenwahl = '', $with_members = array())
             'rol_cost_period' => $row['rol_cost_period'],
             'rol_timestamp_create' => $row['rol_timestamp_create'],
             'rol_description' => (empty($row['rol_description']) ? '' : $row['rol_description']),
-            'rollentyp' => ''
+            // alle Beitragsrollen sind Fixbeitragsrollen
+            'rollentyp' => 'fix'
         );
     }
 
-    foreach ($rollen as $key => $data) {
-        foreach ($pPreferences->config['Familienrollen']['familienrollen_prefix'] as $legacyFamilyPrefix) {
-            if ($legacyFamilyPrefix !== '' && substr($data['rolle'], 0, strlen($legacyFamilyPrefix)) === $legacyFamilyPrefix) {
-                $rollen[$key]['rollentyp'] = 'excluded';
-            }
-        }
-
-        // wenn der Rollentyp jetzt immer noch leer ist, dann kann es nur eine Fixrolle sein
-        if ($rollen[$key]['rollentyp'] == '') {
-            $rollen[$key]['rollentyp'] = 'fix';
-        }
-    }
-
-    // alle nicht benoetigten Rollen loeschen
-    foreach ($rollen as $key => $data) {
-        if ($rollen[$key]['rollentyp'] == 'excluded') {
-            unset($rollen[$key]);
-        } elseif (($rollenwahl == 'fix') && ($rollen[$key]['rollentyp'] != 'fix')) {
-            unset($rollen[$key]);
-        } else {
-            if (is_array($with_members) && count($with_members) > 0) {
-                $rollen[$key]['members'] = list_members($with_members, array(
-                    $data['rolle'] => 0
-                ));
-            }
+    // ggf. die Mitglieder der Rollen einlesen
+    if (is_array($with_members) && count($with_members) > 0) {
+        foreach ($rollen as $key => $data) {
+            $rollen[$key]['members'] = list_members($with_members, array(
+                $data['rolle'] => 0
+            ));
         }
     }
     return $rollen;
@@ -1661,3 +1642,174 @@ function showTestResultWithScrollbar($testResult)
     }
     return $html;
 }
+
+/**
+ * Formatiert einen Betrag fuer die Anzeige, z.B. 1.234,50 EUR
+ *
+ * @param float|string|null $amount
+ * @return string
+ */
+function mf_format_amount($amount): string
+{
+    global $gSettingsManager;
+
+    if ($amount === null || $amount === '') {
+        return '';
+    }
+    return number_format((float) $amount, 2, ',', '.') . ' ' . $gSettingsManager->getString('system_currency');
+}
+
+/**
+ * Formatiert ein Datum (Y-m-d) im Datumsformat von Admidio
+ *
+ * @param string|null $date
+ * @return string
+ */
+function mf_format_date(?string $date): string
+{
+    global $gSettingsManager;
+
+    if ($date === null || $date === '') {
+        return '';
+    }
+    $dateTime = \DateTime::createFromFormat('Y-m-d', substr($date, 0, 10));
+    return $dateTime ? $dateTime->format($gSettingsManager->getString('system_date')) : $date;
+}
+
+/**
+ * Formatiert einen Zeitstempel (Y-m-d H:i:s) im Systemformat, z. B. 13.11.2026 20:15
+ *
+ * @param string|null $dateTime
+ * @return string
+ */
+function mf_format_datetime(?string $dateTime): string
+{
+    global $gSettingsManager;
+
+    if ($dateTime === null || $dateTime === '') {
+        return '';
+    }
+    $value = \DateTime::createFromFormat('Y-m-d H:i:s', substr($dateTime, 0, 19));
+    return $value ? $value->format($gSettingsManager->getString('system_date') . ' ' . $gSettingsManager->getString('system_time')) : $dateTime;
+}
+
+/**
+ * Liefert einen Sprachtext als reinen Text (z. B. fuer E-Mails): Zeilenumbrueche statt <br />,
+ * HTML-Entities aufgeloest
+ *
+ * @param string $textId
+ * @param array<int, mixed> $params
+ * @return string
+ */
+function mf_language_plain_text(string $textId, array $params = array()): string
+{
+    global $gL10n;
+
+    $text = str_replace(array('<br />', '<br/>', '<br>'), "\n", $gL10n->get($textId, $params));
+    return html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+}
+
+/**
+ * Liefert eine gespeicherte Datei eines Einzugs (SEPA-Datei oder Kontrolldatei) als Download aus und beendet das Skript
+ *
+ * @param array<string, mixed> $file Zeile aus BookingStore::getRunFile() (Inhalt dekodiert)
+ * @return void
+ */
+function mf_send_stored_file(array $file): void
+{
+    $fileName = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $file['mff_file_name']);
+    $content = (string) $file['mff_content'];
+    switch (strtolower(pathinfo($fileName, PATHINFO_EXTENSION))) {
+        case 'xlsx':
+            $mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+            break;
+        case 'csv':
+            $mime = 'text/comma-separated-values';
+            break;
+        default:
+            $mime = 'text/xml; charset=utf-8';
+            break;
+    }
+    header('Content-Type: ' . $mime);
+    header('Content-Disposition: attachment; filename="' . $fileName . '"');
+    header('Content-Length: ' . strlen($content));
+    header('Cache-Control: private, no-store, max-age=0');
+    header('X-Robots-Tag: noindex, nofollow');
+    echo $content;
+    exit();
+}
+
+/**
+ * Prueft, ob fuer eine gespeicherte SEPA-Datei ein gueltiger geteilter Link besteht
+ *
+ * @param array<string, mixed> $fileMeta Zeile aus BookingStore::findRunFileMeta()
+ * @return bool
+ */
+function mf_share_active(array $fileMeta): bool
+{
+    if (empty($fileMeta['mff_share_hash']) || empty($fileMeta['mff_share_expires'])) {
+        return false;
+    }
+    $expires = strtotime((string) $fileMeta['mff_share_expires']);
+    return $expires !== false && $expires >= time();
+}
+
+/**
+ * Wandelt eine Datumseingabe (Systemformat oder Y-m-d) in Y-m-d um
+ *
+ * @param string $input
+ * @return string leer bei ungueltiger Eingabe
+ */
+function mf_parse_date(string $input): string
+{
+    global $gSettingsManager;
+
+    $input = trim($input);
+    foreach (array('Y-m-d', $gSettingsManager->getString('system_date')) as $format) {
+        $dateTime = \DateTime::createFromFormat('!' . $format, $input);
+        if ($dateTime !== false && $dateTime->format($format) === $input) {
+            return $dateTime->format('Y-m-d');
+        }
+    }
+    return '';
+}
+
+/**
+ * Wandelt eine Betragseingabe (Komma oder Punkt) in eine Zahl um
+ *
+ * @param string $input
+ * @return float|null null bei ungueltiger Eingabe
+ */
+function mf_parse_amount(string $input): ?float
+{
+    $input = trim(str_replace(' ', '', $input));
+    if ($input === '') {
+        return null;
+    }
+    if (strpos($input, ',') !== false) {
+        $input = str_replace(array('.', ','), array('', '.'), $input);
+    }
+    return is_numeric($input) ? round((float) $input, 2) : null;
+}
+
+/**
+ * Uebersetzt einen Status oder eine Quelle der Buchungshistorie
+ *
+ * @param string $value
+ * @return string
+ */
+function mf_booking_label(string $value): string
+{
+    global $gL10n;
+
+    $map = array(
+        'offen' => 'PLG_MEMBERSHIPFEE_BOOKING_STATUS_OPEN',
+        'exportiert' => 'PLG_MEMBERSHIPFEE_BOOKING_STATUS_EXPORTED',
+        'eingezogen' => 'PLG_MEMBERSHIPFEE_BOOKING_STATUS_COLLECTED',
+        'storniert' => 'PLG_MEMBERSHIPFEE_BOOKING_STATUS_CANCELLED',
+        'erstellt' => 'PLG_MEMBERSHIPFEE_RUN_STATUS_CREATED',
+        'verworfen' => 'PLG_MEMBERSHIPFEE_RUN_STATUS_DISCARDED'
+    );
+    return isset($map[$value]) ? $gL10n->get($map[$value]) : $value;
+}
+

@@ -15,6 +15,7 @@
  */
 
 use Admidio\Users\Entity\User;
+use Plugins\MembershipFee\classes\Bookings\BookingStore;
 
 require_once(__DIR__ . '/../../../system/common.php');
 require_once(__DIR__ . '/common_function.php');
@@ -65,6 +66,13 @@ try
                         || isset($_POST['delete_all'])))
                 {
                     $user->setValue('FEE'.$gCurrentOrgId, '');
+
+                    // Buchungshistorie: offene (noch nicht exportierte) Positionen entfallen mit dem Beitrag;
+                    // exportierte, eingezogene und stornierte Positionen bleiben als Historie erhalten
+                    foreach (BookingStore::getByUser((int) $key, array(BookingStore::STATUS_OPEN)) as $position)
+                    {
+                        BookingStore::delete((int) $position['mfb_id']);
+                    }
                 }
 
                 if (!empty($data['CONTRIBUTORY_TEXT'.$gCurrentOrgId])

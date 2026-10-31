@@ -15,13 +15,6 @@ $config_default = array();
 
 // Standardwerte einer Neuinstallation
 
-// Existing prefixes are retained so legacy family roles remain excluded from contribution calculations.
-$config_default['Familienrollen'] = array(
-    'familienrollen_prefix' => array(
-        'Familie'
-    )
-);
-
 // Beitrag
 $config_default['Beitrag'] = array(
     'beitrag_prefix' => 'Mitgliedsbeitrag 2026',
@@ -31,6 +24,29 @@ $config_default['Beitrag'] = array(
     'beitrag_abrunden' => 1,
     'beitrag_mindestbetrag' => 0,
     'beitrag_jahr' => 0
+);
+
+// Beitragsgruppen mit Differenzberechnung (je Gruppe die rol_ids, durch Komma getrennt)
+$config_default['Beitragsgruppen'] = array(
+    'name' => array(
+        ' '
+    ),
+    'roles' => array(
+        ' '
+    )
+);
+
+// Vorlagen fuer manuelle Positionen (z. B. Ruecklastschriftgebuehr)
+$config_default['Positionsvorlagen'] = array(
+    'name' => array(
+        'Rücklastschriftgebühr'
+    ),
+    'amount' => array(
+        ' '
+    ),
+    'text' => array(
+        'Rücklastschriftgebühr'
+    )
 );
 
 // Kontodaten
@@ -88,6 +104,12 @@ $config_default['SEPA'] = array(
     'vorabinformation_dateiname' => 'export',
     'vorabinformation_dateityp' => 'xlsx',
     'duedate_for_all' => 0
+);
+
+// Teilen einer SEPA-Datei per Download-Link (Einzugsuebersicht)
+$config_default['SEPA-Freigabe'] = array(
+    'email' => '',
+    'tage' => 14
 );
 
 // Plugininformationen

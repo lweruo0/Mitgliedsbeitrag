@@ -15,6 +15,7 @@
 use Admidio\Infrastructure\Utils\SecurityUtils;
 use Admidio\Infrastructure\Exception;
 use Admidio\Roles\Entity\Role;
+use Plugins\MembershipFee\classes\Bookings\BookingService;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
 require_once(__DIR__ . '/../../../system/common.php');
@@ -42,11 +43,21 @@ $classTable  = 'table table-condensed';
 
 $table = new HtmlTable('table_role_overview', $page, $hoverRows, $datatable, $classTable);
 
-$columnAlign  = array('left', 'right', 'right');
+$columnAlign  = array('left', 'right', 'right', 'left', 'right');
 $table->setColumnAlignByArray($columnAlign);
 
-$columnValues = array($gL10n->get('PLG_MEMBERSHIPFEE_ROLE_NAME'), 'dummy', $gL10n->get('PLG_MEMBERSHIPFEE_MEMBER_ACCOUNT'));
+$columnValues = array($gL10n->get('PLG_MEMBERSHIPFEE_ROLE_NAME'), 'dummy', $gL10n->get('PLG_MEMBERSHIPFEE_MEMBER_ACCOUNT'), $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP'), $gL10n->get('SYS_CONTRIBUTION'));
 $table->addRowHeadingByArray($columnValues);
+
+$bookingService = new BookingService($pPreferences->config);
+$groupNames = array();
+foreach ($bookingService->getGroups() as $group)
+{
+    foreach ($group['roles'] as $groupRoleId)
+    {
+        $groupNames[$groupRoleId] = $group['name'];
+    }
+}
 
 $rollen = beitragsrollen_einlesen();
 foreach ($rollen as $rol_id => $data)
@@ -58,6 +69,8 @@ foreach ($rollen as $rol_id => $data)
     $columnValues[] = '<a href="'. SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_MODULES . '/groups-roles/groups_roles.php', array('mode' => 'edit', 'role_uuid' => $role->getValue('rol_uuid'))). '">'.$data['rolle']. '</a>';
     $columnValues[] = expand_rollentyp($data['rollentyp']);
     $columnValues[] = count($data['members']);
+    $columnValues[] = SecurityUtils::encodeHTML($groupNames[(int) $rol_id] ?? '');
+    $columnValues[] = mf_format_amount($data['rol_cost']);
     $table->addRowByArray($columnValues);
 }
 $table->setDatatablesGroupColumn(2);

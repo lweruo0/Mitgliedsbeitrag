@@ -3,6 +3,11 @@
  ***********************************************************************************************
  * Neuberechnung der Mitgliedsbeitraege
  *
+ * Die Neuberechnung legt Buchungspositionen je Mitglied, Beitragsrolle und Beitragsjahr an.
+ * Rollen, fuer die im Beitragsjahr schon ein Einzug erfolgt ist, werden uebersprungen;
+ * bei Beitragsgruppen wird nur die Differenz berechnet. Danach wird das Profilfeld Beitrag
+ * auf die Summe der offenen Positionen gesetzt.
+ *
  * @copyright The Admidio Team
  * @see https://www.admidio.org/
  * @license https://www.gnu.org/licenses/gpl-2.0.html GNU General Public License v2.0 only
@@ -22,8 +27,9 @@
  */
 use Admidio\Infrastructure\Utils\SecurityUtils;
 use Admidio\Infrastructure\Exception;
-use Admidio\Roles\Entity\Role;
 use Admidio\Users\Entity\User;
+use Plugins\MembershipFee\classes\Bookings\BookingService;
+use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
 require_once (__DIR__ . '/../../../system/common.php');
@@ -47,6 +53,7 @@ $getMode = admFuncVariableIsValid($_GET, 'mode', 'string', array(
 $pPreferences = new ConfigTable();
 $pPreferences->read();
 
+$bookingService = new BookingService($pPreferences->config);
 $user = new User($gDb, $gProfileFields);
 
 // set headline of the script
@@ -54,190 +61,177 @@ $headline = $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION');
 
 $gNavigation->addUrl(CURRENT_URL, $headline);
 
+/**
+ * Beschreibt die geplanten Aenderungen eines Mitglieds als HTML-Liste.
+ *
+ * @param array<string, mixed> $plan
+ * @return string
+ */
+function describePlan(array $plan): string
+{
+    global $gL10n;
+
+    $lines = array();
+    foreach ($plan['ops'] as $op) {
+        switch ($op['op']) {
+            case 'insert':
+                $lines[] = '<span class="text-success"><i class="bi bi-plus-circle"></i> ' . SecurityUtils::encodeHTML($op['data']['mfb_rol_name']) . ': ' . mf_format_amount($op['data']['mfb_amount']) . '</span>'
+                    . (strpos($op['data']['mfb_text'], '(') !== false ? ' <small>' . SecurityUtils::encodeHTML($op['data']['mfb_text']) . '</small>' : '');
+                break;
+            case 'update':
+                $lines[] = '<span class="text-primary"><i class="bi bi-arrow-repeat"></i> ' . SecurityUtils::encodeHTML($op['data']['mfb_rol_name']) . ': '
+                    . mf_format_amount($op['before']['mfb_amount']) . ' &rarr; ' . mf_format_amount($op['data']['mfb_amount']) . '</span>';
+                break;
+            case 'delete':
+                $lines[] = '<span class="text-danger"><i class="bi bi-dash-circle"></i> ' . SecurityUtils::encodeHTML($op['before']['mfb_rol_name']) . ': ' . mf_format_amount($op['before']['mfb_amount']) . '</span>';
+                break;
+        }
+    }
+    foreach ($plan['info'] as $info) {
+        if ($info['type'] === 'collected') {
+            $lines[] = '<span class="text-muted"><i class="bi bi-check2-circle"></i> ' . SecurityUtils::encodeHTML($info['role']) . ': ' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_ALREADY_COLLECTED') . '</span>';
+        } elseif ($info['type'] === 'revoked') {
+            $lines[] = '<span class="text-muted"><i class="bi bi-slash-circle"></i> ' . SecurityUtils::encodeHTML($info['role']) . ': ' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_ROLE_REVOKED') . '</span>';
+        } elseif ($info['type'] === 'minimum') {
+            $lines[] = '<span class="text-muted"><i class="bi bi-info-circle"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_BELOW_MINIMUM') . '</span>';
+        }
+    }
+    return implode('<br />', $lines);
+}
+
+/**
+ * Berechnet den Beitrag nach Ausfuehrung des Plans (Summe der offenen Positionen).
+ *
+ * @param array<int, array<string, mixed>> $positions
+ * @param array<string, mixed> $plan
+ * @return float
+ */
+function feeAfterPlan(array $positions, array $plan): float
+{
+    $open = array();
+    foreach ($positions as $position) {
+        if ($position['mfb_status'] === BookingStore::STATUS_OPEN) {
+            $open[$position['mfb_id']] = (float) $position['mfb_amount'];
+        }
+    }
+    $newIndex = 0;
+    foreach ($plan['ops'] as $op) {
+        if ($op['op'] === 'insert') {
+            $open['new' . $newIndex++] = (float) $op['data']['mfb_amount'];
+        } elseif ($op['op'] === 'update') {
+            $open[$op['id']] = (float) $op['data']['mfb_amount'];
+        } elseif ($op['op'] === 'delete') {
+            unset($open[$op['id']]);
+        }
+    }
+    return round(array_sum($open), 2);
+}
+
 if ($getMode == 'preview') // Default
 {
-    $members = array();
     $message = '';
-
-    // anstelle eines Leerzeichens ist ein # in der $pPreferences->config gespeichert; # wird hier wieder ersetzt
-    $text_token = ($pPreferences->config['Beitrag']['beitrag_text_token'] == '#') ? ' ' : $pPreferences->config['Beitrag']['beitrag_text_token'];
-
-    $role_separator = ($pPreferences->config['Beitrag']['beitrag_role_separator'] != '') ? $pPreferences->config['Beitrag']['beitrag_role_separator'] : ' ';
-
-    // alle Beitragsrollen einlesen (die Mitglieder werden anhand des Beitragsjahres bestimmt)
-    $contributingRolls = beitragsrollen_einlesen();
-
-    // Beitragsjahr: ohne Angabe das aktuelle Jahr
-    $contributionYear = getContributionYear();
+    $selectedRoleIds = null;
 
     // pruefen, ob Eintraege in der Rollenauswahl bestehen
-    if (isset($_POST['recalculation_roleselection'])) {
+    if (isset($_POST['recalculation_roleselection']) && is_array($_POST['recalculation_roleselection'])) {
         $_SESSION['pMembershipFee']['recalculation_rol_sel'] = $_POST['recalculation_roleselection'];
+        $selectedRoleIds = array_map('intval', $_POST['recalculation_roleselection']);
 
-        // nicht gewaehlte Beitragsrollen im Array $contributingRolls loeschen
-        $message .= '<strong>' . $gL10n->get('SYS_NOTE') . ':</strong> ' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_ROLLQUERY_INFO') . '</strong><br/><br/>';
-        foreach ($contributingRolls as $rol => $roldata) {
-            if (! in_array($rol, $_POST['recalculation_roleselection'])) {
-                unset($contributingRolls[$rol]);
-            } else {
-                $message .= '- ' . $roldata['rolle'] . '<br/>';
+        $message .= '<strong>' . $gL10n->get('SYS_NOTE') . ':</strong> ' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_ROLLQUERY_INFO') . '<br/><br/>';
+        foreach (beitragsrollen_einlesen() as $rol => $roldata) {
+            if (in_array((int) $rol, $selectedRoleIds, true)) {
+                $message .= '- ' . SecurityUtils::encodeHTML($roldata['rolle']) . '<br/>';
             }
         }
     } else {
         unset($_SESSION['pMembershipFee']['recalculation_rol_sel']);
     }
 
-    // wenn $_SESSION['pMembershipFee']['recalculation_user'] vorhanden ist, dann wurde bereits eine Berechnung durchgeführt
-    if (! isset($_SESSION['pMembershipFee']['recalculation_user'])) {
+    $plans = $bookingService->planRecalculation($selectedRoleIds);
 
-        // Mitglieder der Beitragsrollen: Mitgliedschaft im Beitragsjahr
-        $memberIds = array();
-        foreach ($contributingRolls as $rol => $roldata) {
-            $contributingRolls[$rol]['members'] = list_members_in_year($rol, $contributionYear);
-            $memberIds += $contributingRolls[$rol]['members'];
-        }
-
-        // alle betroffenen Mitglieder einlesen (auch inzwischen ausgetretene)
-        $members = array();
-        if (count($memberIds) > 0) {
-            $members = list_members(array(
-                'FIRST_NAME',
-                'LAST_NAME',
-                'FEE' . $gCurrentOrgId,
-                'CONTRIBUTORY_TEXT' . $gCurrentOrgId,
-                'PAID' . $gCurrentOrgId,
-                'DEBTOR'
-            ), 2, 'AND mem_usr_id IN (' . implode(',', array_map('intval', array_keys($memberIds))) . ')');
-        }
-
-        // alle Mitglieder durchlaufen und aufgrund von Rollenzugehoerigkeiten die Beitraege bestimmen
-        foreach ($members as $member => $memberdata) {
-            $members[$member]['FEE_NEW'] = 0;
-            $members[$member]['CONTRIBUTORY_TEXT_NEW'] = '';
-
-            foreach ($contributingRolls as $rol => $roldata) {
-                $rolDescription = ' ';
-                if ($roldata['rol_description'] != '') {
-                    $rolDescription = $role_separator . $roldata['rol_description'] . ' ';
-                }
-
-                if (array_key_exists($member, $roldata['members'])) {
-                    $members[$member]['FEE_NEW'] += $roldata['rol_cost'];
-                    $members[$member]['CONTRIBUTORY_TEXT_NEW'] .= $rolDescription;
-                }
-            }
-
-            // wenn definiert: Beitragstext mit dem Namen des Benutzers
-            if (($pPreferences->config['Beitrag']['beitrag_textmitnam'] == true) && ($members[$member]['FEE_NEW'] != 0) && ! (($members[$member]['LAST_NAME'] . ' ' . $members[$member]['FIRST_NAME'] == $members[$member]['DEBTOR']) || ($members[$member]['FIRST_NAME'] . ' ' . $members[$member]['LAST_NAME'] == $members[$member]['DEBTOR']) || (empty($members[$member]['DEBTOR'])))) {
-                $members[$member]['CONTRIBUTORY_TEXT_NEW'] .= $text_token . $members[$member]['LAST_NAME'] . ' ' . $members[$member]['FIRST_NAME'] . $text_token;
-            }
-        }
-
-        foreach ($members as $member => $memberdata) {
-            // letzte Datenaufbereitung (aufsummieren, ueberschreiben, runden...)
-            if ((empty($members[$member]['FEE' . $gCurrentOrgId]) || (! (empty($members[$member]['FEE' . $gCurrentOrgId])) && (isset($_POST['recalculation_modus']) && (($_POST['recalculation_modus'] == 'overwrite') || ($_POST['recalculation_modus'] == 'summation'))))) && (! isset($_POST['recalculation_notpaid']) || (isset($_POST['recalculation_notpaid']) && $members[$member]['PAID' . $gCurrentOrgId] == '')) && ($members[$member]['FEE_NEW'] > $pPreferences->config['Beitrag']['beitrag_mindestbetrag'])) {
-                // wenn vorhanden, dann das erste $role_separator entfernen
-                // Bsp: SV Musterverein +Jahresbeitrag+Spartenbeitrag soll sein SV Musterverein Jahresbeitrag+Spartenbeitrag
-                if (substr($members[$member]['CONTRIBUTORY_TEXT_NEW'], 0, strlen($role_separator)) == $role_separator) {
-                    $members[$member]['CONTRIBUTORY_TEXT_NEW'] = substr($members[$member]['CONTRIBUTORY_TEXT_NEW'], strlen($role_separator));
-                }
-
-                $members[$member]['CONTRIBUTORY_TEXT_NEW'] = $pPreferences->config['Beitrag']['beitrag_prefix'] . ' ' . $members[$member]['CONTRIBUTORY_TEXT_NEW'] . ' ';
-
-                // alle Beitraege auf 2 Nachkommastellen runden
-                $members[$member]['FEE_NEW'] = round($members[$member]['FEE_NEW'], 2);
-
-                // ggf. abrunden
-                if ($pPreferences->config['Beitrag']['beitrag_abrunden'] == true) {
-                    $members[$member]['FEE_NEW'] = floor($members[$member]['FEE_NEW']);
-                }
-
-                if (isset($_POST['recalculation_modus']) && $_POST['recalculation_modus'] == 'summation') {
-                    $members[$member]['FEE_NEW'] += (float) $members[$member]['FEE' . $gCurrentOrgId];
-                    $members[$member]['CONTRIBUTORY_TEXT_NEW'] .= ' ' . $members[$member]['CONTRIBUTORY_TEXT' . $gCurrentOrgId] . ' ';
-                }
-
-                // fuehrende und nachfolgene Leerstellen im Beitragstext loeschen
-                $members[$member]['CONTRIBUTORY_TEXT_NEW'] = trim($members[$member]['CONTRIBUTORY_TEXT_NEW']);
-                // zwei aufeinanderfolgende Leerzeichen durch ein Leerzeichen ersetzen
-                $members[$member]['CONTRIBUTORY_TEXT_NEW'] = str_replace('  ', ' ', $members[$member]['CONTRIBUTORY_TEXT_NEW']);
-            } else {
-                unset($members[$member]); // wenn kein neuer Beitrag errechnet wurde, dann dieses Mitglied in der Liste loeschen
-            }
-        }
-        // save members in session (for mode write and mode print)
-        $_SESSION['pMembershipFee']['recalculation_user'] = $members;
+    $members = array();
+    if (count($plans) > 0) {
+        $members = list_members(array(
+            'FIRST_NAME',
+            'LAST_NAME',
+            'FEE' . $gCurrentOrgId
+        ), 2, 'AND mem_usr_id IN (' . implode(',', array_map('intval', array_keys($plans))) . ')');
     }
+
+    $positionsByUser = BookingStore::getByUsers(array_keys($plans));
+
+    $changes = array();
+    $waiting = array();
+    foreach ($plans as $usrId => $plan) {
+        $name = isset($members[$usrId]) ? $members[$usrId]['LAST_NAME'] . ', ' . $members[$usrId]['FIRST_NAME'] : '#' . $usrId;
+        if ($plan['waiting']) {
+            $waiting[$usrId] = $name;
+            continue;
+        }
+        $changes[$usrId] = array(
+            'name' => $name,
+            'LAST_NAME' => $members[$usrId]['LAST_NAME'] ?? '',
+            'FIRST_NAME' => $members[$usrId]['FIRST_NAME'] ?? '',
+            'fee_before' => $members[$usrId]['FEE' . $gCurrentOrgId] ?? '',
+            'fee_after' => feeAfterPlan($positionsByUser[$usrId] ?? array(), $plan),
+            'plan' => $plan
+        );
+    }
+
+    // save plan in session (for mode write and mode print)
+    $_SESSION['pMembershipFee']['recalculation_plan'] = $changes;
 
     $page = new HtmlPage('plg-mitgliedsbeitrag-recalculation-preview', $headline);
     $page->setContentFullWidth();
 
-    if (sizeof($_SESSION['pMembershipFee']['recalculation_user']) > 0) {
-        $datatable = true;
-        $hoverRows = true;
-        $classTable = 'table table-condensed';
-        $table = new HtmlTable('table_new_recalculation', $page, $hoverRows, $datatable, $classTable);
+    $page->addHtml('<p>' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_YEAR_INFO', array(getContributionYear())) . '</p>');
+
+    if (count($changes) > 0) {
+        $table = new HtmlTable('table_new_recalculation', $page, true, true, 'table table-condensed');
         $table->setDatatablesRowsPerPage($gSettingsManager->getInt('groups_roles_members_per_page'));
-        $table->setColumnAlignByArray(array(
-            'left',
-            'left',
-            'center',
-            'center',
-            'center',
-            'center'
-        ));
-        $columnValues = array(
+        $table->setColumnAlignByArray(array('left', 'left', 'left', 'right', 'right', 'center'));
+        $table->addRowHeadingByArray(array(
             $gL10n->get('SYS_LASTNAME'),
             $gL10n->get('SYS_FIRSTNAME'),
+            $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_CHANGES'),
             $gL10n->get('PLG_MEMBERSHIPFEE_FEE_NEW'),
-            $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTORY_TEXT_NEW'),
             $gL10n->get('PLG_MEMBERSHIPFEE_FEE_PREVIOUS'),
-            $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTORY_TEXT_PREVIOUS')
-        );
-        $table->addRowHeadingByArray($columnValues);
+            $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_HISTORY')
+        ));
 
-        foreach ($_SESSION['pMembershipFee']['recalculation_user'] as $member => $data) {
-            $user->readDataById($member);
-
-            $columnValues = array();
-            $columnValues[] = '<a href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_MODULES . '/profile/profile.php', array(
-                'user_uuid' => $user->getValue('usr_uuid')
-            )) . '">' . $data['LAST_NAME'] . '</a>';
-            $columnValues[] = '<a href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_MODULES . '/profile/profile.php', array(
-                'user_uuid' => $user->getValue('usr_uuid')
-            )) . '">' . $data['FIRST_NAME'] . '</a>';
-            $columnValues[] = '
-                <a class="admidio-icon-link openPopup" href="javascript:void(0);" data-href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/recalculation_edit.php', array(
-                'user_id' => $member
-            )) . '">' . '
-                    ' . $data['FEE_NEW'] . '
-                </a>';
-            $columnValues[] = '
-                <a class="admidio-icon-link openPopup" href="javascript:void(0);" data-href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/recalculation_edit.php', array(
-                'user_id' => $member
-            )) . '">' . '
-                    ' . $data['CONTRIBUTORY_TEXT_NEW'] . '
-                </a>';
-            $columnValues[] = $data['FEE' . $gCurrentOrgId];
-            $columnValues[] = $data['CONTRIBUTORY_TEXT' . $gCurrentOrgId];
-            $table->addRowByArray($columnValues);
+        foreach ($changes as $usrId => $data) {
+            $user->readDataById($usrId);
+            $profileUrl = SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_MODULES . '/profile/profile.php', array('user_uuid' => $user->getValue('usr_uuid')));
+            $historyUrl = SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/bookings.php', array('user_uuid' => $user->getValue('usr_uuid')));
+            $table->addRowByArray(array(
+                '<a href="' . $profileUrl . '">' . SecurityUtils::encodeHTML($data['LAST_NAME']) . '</a>',
+                '<a href="' . $profileUrl . '">' . SecurityUtils::encodeHTML($data['FIRST_NAME']) . '</a>',
+                describePlan($data['plan']),
+                mf_format_amount($data['fee_after']),
+                ((string) $data['fee_before'] === '' || $data['fee_before'] === null) ? '' : mf_format_amount(str_replace(',', '.', (string) $data['fee_before'])),
+                '<a class="admidio-icon-link" href="' . $historyUrl . '"><i class="bi bi-clock-history" title="' . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_HISTORY') . '"></i></a>'
+            ));
         }
-
         $page->addHtml($table->show(false));
 
         $form = new HtmlForm('recalculation_preview_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/recalculation.php', array(
             'mode' => 'write'
         )), $page);
-
         $form->addSubmitButton('btn_next_page', $gL10n->get('SYS_SAVE'), array(
             'icon' => 'bi-check-lg',
             'class' => 'btn btn-primary'
         ));
         $form->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_PREVIEW'));
-
         $page->addHtml($form->show(false));
     } else {
         $page->addHtml($gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_NO_DATA') . '<br/>');
+    }
+
+    if (count($waiting) > 0) {
+        asort($waiting);
+        $page->addHtml('<div class="alert alert-info mt-3" role="alert"><i class="bi bi-hourglass-split"></i> <strong>'
+            . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_WAITING') . '</strong><br/>'
+            . SecurityUtils::encodeHTML(implode('; ', $waiting)) . '</div>');
     }
 
     if (! empty($message)) {
@@ -245,6 +239,11 @@ if ($getMode == 'preview') // Default
     }
     $page->show();
 } elseif ($getMode == 'write') {
+    if (!isset($_SESSION['pMembershipFee']['recalculation_plan'])) {
+        $gMessage->show($gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_NO_DATA'));
+        // => EXIT
+    }
+
     $page = new HtmlPage('plg-mitgliedsbeitrag-recalculation-write', $headline);
     $page->setContentFullWidth();
 
@@ -257,81 +256,58 @@ if ($getMode == 'preview') // Default
     )) . '", "_blank");
         });', true);
 
-    $datatable = true;
-    $hoverRows = true;
-    $classTable = 'table table-condensed';
-
-    $table = new HtmlTable('table_saved_recalculation', $page, $hoverRows, $datatable, $classTable);
+    $table = new HtmlTable('table_saved_recalculation', $page, true, true, 'table table-condensed');
     $table->setDatatablesRowsPerPage($gSettingsManager->getInt('groups_roles_members_per_page'));
-    $table->setColumnAlignByArray(array(
-        'left',
-        'left',
-        'center',
-        'center'
-    ));
-    $columnValues = array(
+    $table->setColumnAlignByArray(array('left', 'left', 'left', 'right'));
+    $table->addRowHeadingByArray(array(
         $gL10n->get('SYS_LASTNAME'),
         $gL10n->get('SYS_FIRSTNAME'),
-        $gL10n->get('PLG_MEMBERSHIPFEE_FEE_NEW'),
-        $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTORY_TEXT_NEW')
-    );
-    $table->addRowHeadingByArray($columnValues);
+        $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_CHANGES'),
+        $gL10n->get('PLG_MEMBERSHIPFEE_FEE_NEW')
+    ));
 
-    foreach ($_SESSION['pMembershipFee']['recalculation_user'] as $member => $data) {
-        $user->readDataById($member);
+    $gDb->startTransaction();
+    foreach ($_SESSION['pMembershipFee']['recalculation_plan'] as $usrId => $data) {
+        $bookingService->applyOps((int) $usrId, $data['plan']['ops']);
 
-        $columnValues = array();
-        $columnValues[] = '<a href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_MODULES . '/profile/profile.php', array(
-            'user_uuid' => $user->getValue('usr_uuid')
-        )) . '">' . $data['LAST_NAME'] . '</a>';
-        $columnValues[] = '<a href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_MODULES . '/profile/profile.php', array(
-            'user_uuid' => $user->getValue('usr_uuid')
-        )) . '">' . $data['FIRST_NAME'] . '</a>';
-        $columnValues[] = $data['FEE_NEW'];
-        $columnValues[] = $data['CONTRIBUTORY_TEXT_NEW'];
-        $table->addRowByArray($columnValues);
-
-        $user->setValue('FEE' . $gCurrentOrgId, $data['FEE_NEW']);
-        $user->setValue('CONTRIBUTORY_TEXT' . $gCurrentOrgId, $data['CONTRIBUTORY_TEXT_NEW']);
-        $user->save();
+        $user->readDataById((int) $usrId);
+        $profileUrl = SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_MODULES . '/profile/profile.php', array('user_uuid' => $user->getValue('usr_uuid')));
+        $table->addRowByArray(array(
+            '<a href="' . $profileUrl . '">' . SecurityUtils::encodeHTML($data['LAST_NAME']) . '</a>',
+            '<a href="' . $profileUrl . '">' . SecurityUtils::encodeHTML($data['FIRST_NAME']) . '</a>',
+            describePlan($data['plan']),
+            mf_format_amount($data['fee_after'])
+        ));
     }
+    $gDb->endTransaction();
 
-    $page->addHtml('<div style="width:100%; height: 500px; overflow:auto; border:20px;">');
+    $_SESSION['pMembershipFee']['recalculation_saved'] = $_SESSION['pMembershipFee']['recalculation_plan'];
+    unset($_SESSION['pMembershipFee']['recalculation_plan']);
+
     $page->addHtml($table->show(false));
-    $page->addHtml('</div><br/>');
-    $page->addHtml('<strong>' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_SAVED') . '</strong><br/><br/>');
+    $page->addHtml('<br/><strong>' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_SAVED') . '</strong><br/><br/>');
     $page->show();
 } elseif ($getMode == 'print') {
-    // create html page object without the custom theme files
-    $hoverRows = false;
-    $datatable = false;
-    $classTable = 'table table-condensed table-striped';
-
     $page = new HtmlPage('plg-mitgliedsbeitrag-recalculation-print', $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_NEW'));
     $page->setPrintMode();
 
-    $table = new HtmlTable('table_print_recalculation', $page, $hoverRows, $datatable, $classTable);
-    $table->setColumnAlignByArray(array(
-        'left',
-        'left',
-        'center',
-        'center'
-    ));
-    $columnValues = array(
+    $table = new HtmlTable('table_print_recalculation', $page, false, false, 'table table-condensed table-striped');
+    $table->setColumnAlignByArray(array('left', 'left', 'left', 'right'));
+    $table->addRowHeadingByArray(array(
         $gL10n->get('SYS_LASTNAME'),
         $gL10n->get('SYS_FIRSTNAME'),
-        $gL10n->get('PLG_MEMBERSHIPFEE_FEE_NEW'),
-        $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTORY_TEXT_NEW')
-    );
-    $table->addRowHeadingByArray($columnValues);
+        $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_CHANGES'),
+        $gL10n->get('PLG_MEMBERSHIPFEE_FEE_NEW')
+    ));
 
-    foreach ($_SESSION['pMembershipFee']['recalculation_user'] as $data) {
-        $columnValues = array();
-        $columnValues[] = $data['LAST_NAME'];
-        $columnValues[] = $data['FIRST_NAME'];
-        $columnValues[] = $data['FEE_NEW'];
-        $columnValues[] = $data['CONTRIBUTORY_TEXT_NEW'];
-        $table->addRowByArray($columnValues);
+    $printData = $_SESSION['pMembershipFee']['recalculation_saved'] ?? $_SESSION['pMembershipFee']['recalculation_plan'] ?? array();
+    foreach ($printData as $data) {
+        $table->addRowByArray(array(
+            SecurityUtils::encodeHTML($data['LAST_NAME']),
+            SecurityUtils::encodeHTML($data['FIRST_NAME']),
+            describePlan($data['plan']),
+            mf_format_amount($data['fee_after'])
+        ));
     }
     $page->addHtml($table->show(false));
     $page->show();

@@ -22,9 +22,12 @@ use Admidio\Infrastructure\Exception;
 use Admidio\Infrastructure\Utils\FileSystemUtils;
 use Admidio\Infrastructure\Utils\SecurityUtils;
 use Admidio\Users\Entity\User;
+use Plugins\MembershipFee\classes\Bookings\BookingService;
+use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
 require_once (__DIR__ . '/common_function.php');
+require_once (__DIR__ . '/sepa_control_file.php');
 
 // only authorized user are allowed to start this module
 if (! isUserAuthorized()) {
@@ -171,7 +174,7 @@ foreach ($members as $member => $memberdata) {
         $dueDateArr[$dueDateMember]['ctrlSum_PmtInf'] += $zpflgt[$member]['betrag'];
         $ctrlSum_Msg += $zpflgt[$member]['betrag'];
 
-        $zpflgt[$member]['end2end_id'] = substr(replace_sepadaten($gCurrentOrganization->getValue('org_shortname')) . '-' . $member . '-' . date($format1, $now), 0, 35); // SEPA End2End-ID (max. 35)
+        $zpflgt[$member]['end2end_id'] = BookingService::endToEndId(replace_sepadaten($gCurrentOrganization->getValue('org_shortname')), (int) $member, $dueDateMember); // SEPA End2End-ID (max. 35)
     }
 }
 
@@ -182,6 +185,15 @@ if ($nbOfTxs_Msg == 0) {
 }
 
 $message_id = substr('Message-ID-' . replace_sepadaten($gCurrentOrganization->getValue('org_shortname')), 0, 35); // SEPA Message-ID (max. 35)
+
+// Buchungshistorie: beim Erzeugen der XML-Datei einen Einzug anlegen und die Positionen auf "exportiert" setzen;
+// die Message-ID ist damit je Datei eindeutig
+if ($postExportFileMode === 'xml_file') {
+    $bookingService = new BookingService($pPreferences->config);
+    $gDb->startTransaction();
+    $message_id = $bookingService->registerSepaExport($zpflgt, $pPreferences->config['SEPA']['dateiname'] . $filename_ext . '.xml', 'pain.008.001.08', replace_sepadaten($gCurrentOrganization->getValue('org_shortname')));
+    $gDb->endTransaction();
+}
 $message_datum = date($format1, $now) . 'T' . date($format2, $now) . '.000Z'; // SEPA Message-Datum z.B.: 2010-11-21T09:30:47.000Z
 $message_initiator_name = substr(replace_sepadaten($pPreferences->config['Kontodaten']['inhaber']), 0, 70); // SEPA Message Initiator Name
 
@@ -426,12 +438,6 @@ if ($postExportFileMode === 'xml_file') {
      * ***************************************************************************
      */
 
-    header('content-type: text/xml');
-    header('Cache-Control: private'); // noetig fuer IE, da ansonsten der Download mit SSL nicht funktioniert
-    header('Content-Transfer-Encoding: binary'); // Im Grunde ueberfluessig, hat sich anscheinend bewaehrt
-    header('Cache-Control: post-check=0, pre-check=0'); // Zwischenspeichern auf Proxies verhindern
-    header('Content-Disposition: attachment; filename="' . $pPreferences->config['SEPA']['dateiname'] . $filename_ext . '.xml"');
-
     // diese Anweisung erzeugt zwar einen wohlgeformten XML-String, er ist aber schlecht lesbar, da er in einer einzigen Zeile geschrieben ist
     // echo $xml->asXML();
 
@@ -440,227 +446,36 @@ if ($postExportFileMode === 'xml_file') {
     $dom->preserveWhiteSpace = false;
     $dom->formatOutput = true;
     $dom->loadXML($xml->asXML());
-    echo $dom->saveXML();
+    $xmlContent = $dom->saveXML();
+
+    // Buchungshistorie: Datei beim Einzug speichern (erneuter Download und Teilen in der Einzugsuebersicht)
+    try {
+        $bookingService->storeExportFile($pPreferences->config['SEPA']['dateiname'] . $filename_ext . '.xml', $xmlContent);
+        $controlFile = mf_build_sepa_control_file($pPreferences->config['SEPA']['kontroll_dateiname'] . $filename_ext, $message_id, $message_datum, $message_initiator_name, $nbOfTxs_Msg, $ctrlSum_Msg, $payment_id, $zempf, $zpflgt);
+        $bookingService->storeExportFile($controlFile['name'], $controlFile['content'], BookingStore::FILE_CONTROL);
+    } catch (\Throwable $e) {
+        $gLogger->error('MembershipFee: SEPA-Datei konnte nicht gespeichert werden: ' . $e->getMessage());
+    }
+
+    header('content-type: text/xml');
+    header('Cache-Control: private'); // noetig fuer IE, da ansonsten der Download mit SSL nicht funktioniert
+    header('Content-Transfer-Encoding: binary'); // Im Grunde ueberfluessig, hat sich anscheinend bewaehrt
+    header('Cache-Control: post-check=0, pre-check=0'); // Zwischenspeichern auf Proxies verhindern
+    header('Content-Disposition: attachment; filename="' . $pPreferences->config['SEPA']['dateiname'] . $filename_ext . '.xml"');
+
+    echo $xmlContent;
 
     die();
 } elseif ($postExportFileMode === 'ctl_file') {
-    // initialize some special mode parameters
-    $separator = '';
-    $valueQuotes = '';
-    $charset = '';
-    $csvStr = '';
-    $header = array(); // 'xlsx'
-    $rows = array(); // 'xlsx'
-    $filename = $pPreferences->config['SEPA']['kontroll_dateiname'] . $filename_ext;
-    $exportMode = $pPreferences->config['SEPA']['kontroll_dateityp'];
+    // Kontrolldatei (Excel bzw. CSV), siehe sepa_control_file.php
+    $controlFile = mf_build_sepa_control_file($pPreferences->config['SEPA']['kontroll_dateiname'] . $filename_ext, $message_id, $message_datum, $message_initiator_name, $nbOfTxs_Msg, $ctrlSum_Msg, $payment_id, $zempf, $zpflgt);
 
-    switch ($exportMode) {
-        case 'csv-ms':
-            $separator = ';'; // Microsoft Excel 2007 or new needs a semicolon
-            $valueQuotes = '"'; // all values should be set with quotes
-            $exportMode = 'csv';
-            $charset = 'iso-8859-1';
-            break;
-        case 'csv-oo':
-            $separator = ','; // a CSV file should have a comma
-            $valueQuotes = '"'; // all values should be set with quotes
-            $exportMode = 'csv';
-            $charset = 'utf-8';
-            break;
-        case 'xlsx':
-            include_once (__DIR__ . '/../libs/PHP_XLSXWriter/xlsxwriter.class.php');
-            $exportMode = 'xlsx';
-            break;
-        default:
-            break;
-    }
-
-    $filename = FileSystemUtils::getSanitizedPathEntry($filename) . '.' . $exportMode;
-
-    $rows[] = array(
-        'SEPA-' . $gL10n->get('PLG_MEMBERSHIPFEE_CONTROL_FILE')
-    );
-    $rows[] = array(
-        ''
-    );
-    $rows[] = array(
-        $gL10n->get('PLG_MEMBERSHIPFEE_CONTROL_FILE_NAME'),
-        $filename
-    );
-    $rows[] = array(
-        ''
-    );
-    $rows[] = array(
-        $gL10n->get('PLG_MEMBERSHIPFEE_MESSAGE_ID'),
-        $message_id
-    );
-    $rows[] = array(
-        $gL10n->get('PLG_MEMBERSHIPFEE_MESSAGE_DATE'),
-        $message_datum
-    );
-    $rows[] = array(
-        $gL10n->get('PLG_MEMBERSHIPFEE_MESSAGE_INITIATOR_NAME'),
-        $message_initiator_name
-    );
-    $rows[] = array(
-        $gL10n->get('PLG_MEMBERSHIPFEE_NUMBER_TRANSACTIONS'),
-        $nbOfTxs_Msg
-    );
-    $rows[] = array(
-        $gL10n->get('PLG_MEMBERSHIPFEE_CONTROL_SUM'),
-        $ctrlSum_Msg
-    );
-    $rows[] = array(
-        ''
-    );
-    $rows[] = array(
-        $gL10n->get('PLG_MEMBERSHIPFEE_PAYMENT_ID'),
-        $payment_id
-    );
-    $rows[] = array(
-        ''
-    );
-    $rows[] = array(
-        $gL10n->get('PLG_MEMBERSHIPFEE_CREDITOR'),
-        $zempf['name']
-    );
-    $rows[] = array(
-        $gL10n->get('PLG_MEMBERSHIPFEE_CI'),
-        $zempf['ci']
-    );
-    $rows[] = array(
-        $gL10n->get('PLG_MEMBERSHIPFEE_IBAN'),
-        $zempf['iban']
-    );
-    $rows[] = array(
-        $gL10n->get('PLG_MEMBERSHIPFEE_BIC'),
-        $zempf['bic']
-    );
-    $rows[] = array(
-        ''
-    );
-    $rows[] = array(
-        $gL10n->get('PLG_MEMBERSHIPFEE_ORIG_CI'),
-        $zempf['orig_cdtr_id']
-    );
-    $rows[] = array(
-        $gL10n->get('PLG_MEMBERSHIPFEE_ORIG_CREDITOR'),
-        $zempf['orig_cdtr_name']
-    );
-    $rows[] = array(
-        ''
-    );
-
-    $columnValues = array();
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_SERIAL_NUMBER');
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_ACCOUNT_HOLDER');
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_IBAN');
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_BIC');
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE');
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_SEQUENCETYPE');
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_FEE');
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTORY_TEXT');
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_MANDATEID');
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_MANDATEDATE');
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_ULTIMATE_DEBTOR');
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_ORIG_MANDATEID');
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_ORIG_IBAN');
-    $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_ORIG_DEBTOR_AGENT');
-    $columnValues[] = $gL10n->get('SYS_COUNTRY');
-    $columnValues[] = $gL10n->get('SYS_STREET');
-    $columnValues[] = $gL10n->get('SYS_POSTCODE');
-    $columnValues[] = $gL10n->get('SYS_CITY');
-    $rows[] = $columnValues;
-
-    if ($exportMode === 'csv') {
-        foreach ($rows as $row => $cols) {
-            for ($i = 0; $i < (sizeof($cols)); $i ++) {
-                if ($i !== 0) {
-                    $csvStr .= $separator;
-                }
-                $csvStr .= $valueQuotes . $cols[$i] . $valueQuotes;
-            }
-            $csvStr .= "\n";
-        }
-        $csvStr .= "\n";
-    }
-
-    $nr = 1;
-    foreach ($zpflgt as $dummy => $zpflgtdata) {
-        $datumDueDate = \DateTime::createFromFormat('Y-m-d', $zpflgtdata['duedate']);
-        $datumMandate = \DateTime::createFromFormat('Y-m-d', $zpflgtdata['mandat_datum']);
-
-        $columnValues = array();
-        $columnValues[] = $nr;
-        $columnValues[] = $zpflgtdata['name'];
-        $columnValues[] = $zpflgtdata['iban'];
-        $columnValues[] = $zpflgtdata['bic'];
-        $columnValues[] = $datumDueDate->format($gSettingsManager->getString('system_date'));
-        $columnValues[] = $zpflgtdata['sequencetype'];
-        $columnValues[] = $zpflgtdata['betrag'];
-        $columnValues[] = $zpflgtdata['text'];
-        $columnValues[] = $zpflgtdata['mandat_id'];
-        $columnValues[] = $datumMandate->format($gSettingsManager->getString('system_date'));
-        $columnValues[] = $zpflgtdata['alt_name'];
-        $columnValues[] = $zpflgtdata['orig_mandat_id'];
-        $columnValues[] = $zpflgtdata['orig_iban'];
-        $columnValues[] = $zpflgtdata['orig_dbtr_agent'];
-        $columnValues[] = $zpflgtdata['land'];
-        $columnValues[] = $zpflgtdata['street'];
-        $columnValues[] = $zpflgtdata['postcode'];
-        $columnValues[] = $zpflgtdata['ort'];
-
-        if ($exportMode === 'csv') {
-            for ($i = 0; $i < (sizeof($columnValues)); $i ++) {
-                if ($i !== 0) {
-                    $csvStr .= $separator;
-                }
-                $csvStr .= $valueQuotes . $columnValues[$i] . $valueQuotes;
-            }
-            $csvStr .= "\n";
-        } elseif ($exportMode === 'xlsx') {
-            $rows[] = $columnValues;
-        }
-        $nr += 1;
-    }
-
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-
-    // neccessary for IE6 to 8, because without it the download with SSL has problems
-    header('Cache-Control: private');
+    header('Content-Disposition: attachment; filename="' . $controlFile['name'] . '"');
+    header('Content-Type: ' . $controlFile['mime']);
+    header('Content-Transfer-Encoding: binary');
+    header('Cache-Control: private, must-revalidate');
     header('Pragma: public');
-
-    if ($exportMode === 'csv') {
-        // download CSV file
-        header('Content-Type: text/comma-separated-values; charset=' . $charset);
-
-        if ($charset === 'iso-8859-1') {
-            echo utf8_decode($csvStr);
-        } else {
-            echo $csvStr;
-        }
-    } elseif ($exportMode === 'xlsx') {
-        header('Content-disposition: attachment; filename="' . XLSXWriter::sanitize_filename($filename) . '"');
-        header("Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        header('Content-Transfer-Encoding: binary');
-        header('Cache-Control: must-revalidate');
-        header('Pragma: public');
-
-        $writer = new XLSXWriter();
-        $writer->setAuthor($gCurrentUser->getValue('FIRST_NAME') . ' ' . $gCurrentUser->getValue('LAST_NAME'));
-        $writer->setTitle($filename);
-        $writer->setSubject($gL10n->get('PLG_MEMBERSHIPFEE_MEMBERSHIP_FEE'));
-        $writer->setCompany($gCurrentOrganization->getValue('org_longname'));
-        $writer->setKeywords(array(
-            $gL10n->get('PLG_MEMBERSHIPFEE_MEMBERSHIP_FEE'),
-            $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS'),
-            $gL10n->get('PLG_MEMBERSHIPFEE_SEPA')
-        ));
-        $writer->setDescription($gL10n->get('PLG_MEMBERSHIPFEE_CREATED_WITH'));
-        $writer->writeSheet($rows, '', $header);
-        $writer->writeToStdOut();
-    }
-
+    echo $controlFile['content'];
     exit();
 } else {
     $gMessage->show($gL10n->get('SYS_INVALID_PAGE_VIEW'));

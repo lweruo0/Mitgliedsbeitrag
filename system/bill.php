@@ -26,6 +26,7 @@ use Admidio\Infrastructure\Exception;
 use Admidio\Infrastructure\Entity\Entity;
 use Admidio\Infrastructure\Utils\SecurityUtils;
 use Admidio\Users\Entity\User;
+use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
 require_once (__DIR__ . '/../../../system/common.php');
@@ -38,6 +39,7 @@ if (! isUserAuthorized()) {
 
 $pPreferences = new ConfigTable();
 $pPreferences->read();
+BookingStore::ensureTables();
 
 $user = new User($gDb, $gProfileFields);
 $userField = new Entity($gDb, TBL_USER_FIELDS, 'usf');
@@ -102,7 +104,12 @@ if ($getMode == 'mail' || $getMode == 'export') {
           ON ' . getContributionYearCondition('mem.') . '
          AND mem.mem_usr_id  = usr_id
              
-       WHERE iban.usd_value IS NULL
+       WHERE ' . (($getMembersShow == 3)
+            ? 'usr_id IN (SELECT mfb_usr_id FROM ' . BookingStore::bookingsTable() . '
+                           WHERE mfb_org_id = ' . (int) $gCurrentOrgId . '
+                             AND mfb_status = \'' . BookingStore::STATUS_OPEN . '\'
+                             AND mfb_source = \'' . BookingStore::SOURCE_MANUAL . '\')'
+            : 'iban.usd_value IS NULL') . '
          AND paid.usd_value IS NULL
          AND fee.usd_value IS NOT NULL
                     ';
@@ -258,7 +265,8 @@ if ($getMode == 'mail' || $getMode == 'export') {
         $selectBoxEntries = array(
             '0' => $gL10n->get('SYS_SHOW_ALL_CONTACTS'),
             '1' => $gL10n->get('PLG_MEMBERSHIPFEE_WITH_EMAIL'),
-            '2' => $gL10n->get('PLG_MEMBERSHIPFEE_WITHOUT_EMAIL')
+            '2' => $gL10n->get('PLG_MEMBERSHIPFEE_WITHOUT_EMAIL'),
+            '3' => $gL10n->get('PLG_MEMBERSHIPFEE_BILL_OPEN_MANUAL')
         );
         $form->addSelectBox('mem_show', $gL10n->get('PLG_MEMBERSHIPFEE_FILTER'), $selectBoxEntries, array(
             'defaultValue' => $getMembersShow,

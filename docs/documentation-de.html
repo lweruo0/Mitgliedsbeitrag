@@ -30,10 +30,11 @@
     <li><a href="#doc-rollen">Beitragsrollen</a></li>
     <li><a href="#doc-individual">Individualbeitr&auml;ge</a></li>
     <li><a href="#doc-berechnung">Beitragsberechnung</a></li>
+    <li><a href="#doc-buchungen">Buchungshistorie und Einz&uuml;ge</a></li>
     <li><a href="#doc-zahlungen">Beitragszahlungen und Analyse</a></li>
     <li><a href="#doc-export">Export</a></li>
     <li><a href="#doc-mandate">Mandatsverwaltung</a></li>
-    <li><a href="#doc-optionen">Optionen</a></li>
+    <li><a href="#doc-optionen">Pr&uuml;fungen und Rollen&uuml;bersicht</a></li>
     <li><a href="#doc-einstellungen">Einstellungen</a></li>
     <li><a href="#doc-konfiguration">Speicherung der Konfiguration</a></li>
     <li><a href="#doc-overview">Informationen auf der &Uuml;bersichtsseite</a></li>
@@ -125,12 +126,12 @@
 <p>Mehrere Module zeigen nur dann Daten an, wenn bestimmte Voraussetzungen erf&uuml;llt sind: Beitragszahlungen, Rechnung, F&auml;lligkeitsdatum und Vorabinformation.</p>
 <ol>
     <li>Im Profil eines Mitglieds unter <em>Beitrag</em> die Zahl 99 eintragen. In der &Uuml;bersicht wird bei <em>Gesamtsumme</em> jetzt 99 angezeigt.
-        In den Modulen <em>Beitragszahlungen</em> (&rarr; Beitr&auml;ge &ndash; Beitragszahlungen) und <em>Rechnung</em> (&rarr; Export &ndash; Rechnung &ndash; Rechnungsdaten bearbeiten)
+        In den Modulen <em>Beitragszahlungen</em> (&rarr; Beitragseinzug &ndash; Beitragszahlungen) und <em>Rechnung</em> (&rarr; Export &ndash; Rechnung &ndash; Rechnungsdaten bearbeiten)
         wird genau dieses Mitglied angezeigt (diese Module zeigen nur Mitglieder, bei denen der Beitrag <em>nicht leer</em> ist).</li>
     <li>Das Modul <em>F&auml;lligkeitsdatum</em> ben&ouml;tigt: Beitrag, Mandatsreferenz, Mandatsdatum, IBAN und ein <em>leeres</em> Bezahlt-Datum.
-        Diese Werte im Profil erg&auml;nzen und danach &rarr; Export &ndash; SEPA &ndash; F&auml;lligkeitsdatum &ouml;ffnen.</li>
+        Diese Werte im Profil erg&auml;nzen und danach &rarr; Beitragseinzug &ndash; F&auml;lligkeitsdatum &ouml;ffnen.</li>
     <li>Die Checkbox in der ersten Spalte anklicken (als F&auml;lligkeitsdatum wird das aktuelle Datum eingetragen) und mit &bdquo;Zur&uuml;ck&ldquo; zur&uuml;ckgehen.
-        Unter &rarr; Export &ndash; SEPA erscheint eine neue Zeile mit Checkboxen. <em>FRST</em> anklicken, zuerst <em>XML-Datei</em>, dann <em>Kontrolldatei</em> erzeugen.
+        Unter &rarr; Beitragseinzug &ndash; SEPA-Datei erzeugen erscheint eine neue Zeile mit Checkboxen. <em>FRST</em> anklicken, zuerst <em>XML-Datei</em>, dann <em>Kontrolldatei</em> erzeugen.
         Die Kontrolldatei enth&auml;lt dieselben Daten wie die XML-Datei, nur besser lesbar aufbereitet.</li>
 </ol>
 
@@ -138,7 +139,7 @@
 <ol>
     <li>Die zuvor eingetragenen Daten (Beitrag, Mandatsreferenz, Mandatsdatum, F&auml;lligkeitsdatum usw.) wieder l&ouml;schen.</li>
     <li>Eine Rolle mit Beitrag 99 und Beitragszeitraum &bdquo;j&auml;hrlich&ldquo; anlegen und ein Mitglied aufnehmen.</li>
-    <li>&rarr; Beitr&auml;ge &ndash; Neuberechnung ausf&uuml;hren. Wird der Beitrag unter <em>Beitragszahlungen</em> richtig angezeigt, funktionieren alle Grundfunktionen.</li>
+    <li>&rarr; Beitragseinzug &ndash; Neuberechnung ausf&uuml;hren. Wird der Beitrag unter <em>Beitragszahlungen</em> richtig angezeigt, funktionieren alle Grundfunktionen.</li>
     <li>Die Testrolle kann gel&ouml;scht werden; der berechnete Beitrag wird &uuml;ber &rarr; Einstellungen &ndash; L&ouml;schen &ndash; &bdquo;Alles l&ouml;schen&ldquo; entfernt.</li>
 </ol>
 
@@ -157,11 +158,10 @@
 <table class="table table-bordered table-sm">
     <thead><tr><th>Reiter</th><th>Inhalt</th></tr></thead>
     <tbody>
-        <tr><td>Beitr&auml;ge</td><td>Hauptfunktionen: Neuberechnung, Individualbeitr&auml;ge, Beitragszahlungen, Beitragsanalyse</td></tr>
+        <tr><td>Beitragseinzug</td><td>Der Ablauf in nummerierten Schritten: 1. Pr&uuml;fungen, 2. Neuberechnung (danach ggf. Individualbeitr&auml;ge), 3. F&auml;lligkeitsdatum, 4. Vorabinformation, 5. SEPA-Datei erzeugen, 6. Einzugs&uuml;bersicht (Teilen, als eingezogen markieren), 7. Beitragszahlungen; danach Beitragsanalyse, Rollen&uuml;bersicht, Buchungs&uuml;bersicht</td></tr>
         <tr><td>Mandatsverwaltung</td><td>Mandatsreferenzen erzeugen, Mandate bearbeiten</td></tr>
-        <tr><td>Export</td><td>SEPA (F&auml;lligkeitsdatum, XML-Datei, Kontrolldatei, Vorabinformation), Rechnung</td></tr>
-        <tr><td>Optionen</td><td>Pr&uuml;fungen, Rollen&uuml;bersicht, Plugininformationen</td></tr>
-        <tr><td>Einstellungen</td><td>Alle Grundeinstellungen (standardm&auml;&szlig;ig nur f&uuml;r Administratoren sichtbar)</td></tr>
+        <tr><td>Export</td><td>Rechnung</td></tr>
+        <tr><td>Einstellungen</td><td>Alle Grundeinstellungen, zuunterst die Plugininformationen (standardm&auml;&szlig;ig nur f&uuml;r Administratoren sichtbar)</td></tr>
         <tr><td>Dokumentation</td><td>Diese Dokumentation</td></tr>
     </tbody>
 </table>
@@ -191,7 +191,7 @@
 
 <h3>Anwendung</h3>
 <p>&Uuml;ber &bdquo;Gruppen &amp; Rollen&ldquo; eine oder mehrere Rollen anlegen und f&uuml;r jede Rolle Beitrag und Beitragszeitraum festlegen. Anschlie&szlig;end beliebig viele
-    Mitglieder aufnehmen. Danach &uuml;ber &rarr; Optionen &ndash; Rollen&uuml;bersicht pr&uuml;fen, ob alle Rollen erkannt werden.</p>
+    Mitglieder aufnehmen. Danach &uuml;ber &rarr; Beitragseinzug &ndash; Rollen&uuml;bersicht pr&uuml;fen, ob alle Rollen erkannt werden.</p>
 <div class="alert alert-info" role="alert">Dezimalwerte und negative Beitr&auml;ge sind in Admidio beim Bearbeiten einer Rolle nicht eingebbar. Daf&uuml;r gibt es
     unter &rarr; Einstellungen &ndash; Erweiterte Rollenbearbeitung die M&ouml;glichkeit, Beitrag, Beitragszeitraum und Beschreibung zu bearbeiten.</div>
 
@@ -221,22 +221,22 @@
 <h2 id="doc-berechnung">9. Beitragsberechnung</h2>
 
 <h3>Neuberechnung</h3>
-<p>&rarr; Beitr&auml;ge &ndash; Neuberechnung berechnet die Mitgliedsbeitr&auml;ge neu. Nach dem Klick auf &bdquo;Neuberechnung&ldquo; erscheint zun&auml;chst eine <strong>Voransicht</strong>;
-    erst nach &bdquo;Speichern&ldquo; werden die neuen Beitr&auml;ge gespeichert. Gespeichert werden pro Mitglied der Gesamtbeitrag und der Beitragstext.</p>
-<p>Einstellm&ouml;glichkeiten der Neuberechnung:</p>
+<p>&rarr; Beitragseinzug &ndash; Neuberechnung legt <strong>Buchungspositionen</strong> je Mitglied, Beitragsrolle und Beitragsjahr an (siehe <a href="#doc-buchungen">Buchungshistorie</a>).
+    Nach dem Klick auf &bdquo;Neuberechnung&ldquo; erscheint zun&auml;chst eine <strong>Voransicht</strong> mit allen &Auml;nderungen je Mitglied; erst nach &bdquo;Speichern&ldquo; werden sie &uuml;bernommen.
+    Danach ist das Profilfeld <em>Beitrag</em> die Summe der offenen Positionen, der <em>Beitragstext</em> setzt sich aus dem Pr&auml;fix und den Positionen zusammen.</p>
 <ul>
-    <li><strong>Berechnungsmodus:</strong>
-        <ul>
-            <li><em>Standard:</em> Ein vorhandener Beitrag (au&szlig;er 0 &euro;) wird nicht ver&auml;ndert.</li>
-            <li><em>&Uuml;berschreiben:</em> Existierende Eintr&auml;ge werden gel&ouml;scht und durch neue ersetzt.</li>
-            <li><em>Aufsummieren:</em> Beitr&auml;ge werden aufsummiert und der Beitragstext erg&auml;nzt.</li>
-        </ul>
-    </li>
-    <li><strong>nicht bezahlt:</strong> Die Neuberechnung wird nur f&uuml;r Mitglieder durchgef&uuml;hrt, bei denen noch kein Bezahlt-Datum vorhanden ist.</li>
-    <li><strong>Rollenauswahl:</strong> Standardm&auml;&szlig;ig werden alle Beitragsrollen betrachtet. Mit der Rollenauswahl wird die Berechnung auf die gew&auml;hlten Rollen
-        und deren Mitglieder beschr&auml;nkt (auch der Berechnungsmodus wirkt dann nur f&uuml;r diese Rollen; nicht abgedeckte vorhandene Beitr&auml;ge bleiben unver&auml;ndert).</li>
+    <li>Rollen, f&uuml;r die im Beitragsjahr schon <strong>exportiert oder eingezogen</strong> wurde, werden &uuml;bersprungen. Kommt ein Mitglied unterj&auml;hrig in eine weitere Rolle, wird nur diese berechnet.</li>
+    <li>Offene Positionen werden auf den aktuellen Rollenbeitrag gebracht; offene Positionen ohne Rollenmitgliedschaft im Beitragsjahr entfallen.</li>
+    <li>Mitglieder mit einem <strong>laufenden Einzug</strong> (exportierte SEPA-Datei, noch nicht als eingezogen markiert) werden &uuml;bersprungen und in der Voransicht aufgef&uuml;hrt.</li>
+    <li><strong>Beitragsgruppen:</strong> Bei Rollen einer Beitragsgruppe (&rarr; Einstellungen &ndash; Beitragsgruppen mit Differenzberechnung) wird nur die Differenz zwischen dem h&ouml;chsten Rollenbeitrag
+        und dem in der Gruppe bereits Exportierten bzw. Eingezogenen berechnet (z.B. Passiv 50 &euro; bezahlt, Wechsel nach Aktiv 310 &euro;: offene Position 260 &euro;). Eine negative Differenz wird nicht erstattet.</li>
+    <li>Wurde eine Position mit <em>Rollenentzug</em> storniert, legt die Neuberechnung f&uuml;r diese Rolle im Beitragsjahr keine Position mehr an.</li>
+    <li>Manuelle Positionen und Individualbeitr&auml;ge werden von der Neuberechnung nicht ver&auml;ndert.</li>
+    <li>Bekommt ein Mitglied, das schon ein Bezahlt-Datum hat, neue offene Positionen, wird das Bezahlt-Datum geleert, damit wieder ein F&auml;lligkeitsdatum gesetzt werden kann.</li>
+    <li><strong>Rollenauswahl:</strong> Standardm&auml;&szlig;ig werden alle Beitragsrollen betrachtet. Mit der Rollenauswahl wird die Berechnung auf die gew&auml;hlten Rollen beschr&auml;nkt.</li>
 </ul>
-<p>Ma&szlig;geblich ist das Beitragsjahr: Ein Mitglied muss im Beitragsjahr Mitglied der Rolle gewesen sein.</p>
+<p>Die fr&uuml;heren Berechnungsmodi &bdquo;&Uuml;berschreiben&ldquo; und &bdquo;Aufsummieren&ldquo; gibt es nicht mehr; abweichende Betr&auml;ge werden als manuelle Position erfasst.
+    Ma&szlig;geblich ist das Beitragsjahr: Ein Mitglied muss im Beitragsjahr mindestens einen Tag Mitglied der Rolle gewesen sein.</p>
 
 <h3>Beitragseinstellungen mit Einfluss auf die Berechnung</h3>
 <ul>
@@ -252,9 +252,43 @@
 </ul>
 
 <h3>Individualbeitr&auml;ge berechnen</h3>
-<p>Im Reiter <em>Beitr&auml;ge</em> erscheint (nach Aktivierung) der Punkt <em>Individualbeitr&auml;ge</em> mit Voransicht und &bdquo;Speichern&ldquo;.</p>
-<div class="alert alert-warning" role="alert">Individualbeitr&auml;ge immer <strong>nach</strong> der Beitragsberechnung durchf&uuml;hren, da ein hierbei erzeugter Beitragstext
-    stets an einen bereits vorhandenen Text angeh&auml;ngt wird.</div>
+<p>Im Reiter <em>Beitragseinzug</em> erscheint (nach Aktivierung) der Punkt <em>Individualbeitr&auml;ge</em> mit Voransicht und &bdquo;Speichern&ldquo;.</p>
+<p>Individualbeitr&auml;ge werden als eigene Buchungspositionen (je Konfiguration) gespeichert und zum Beitrag addiert. Bereits exportierte oder eingezogene Individualbeitr&auml;ge
+    werden nicht erneut berechnet.</p>
+
+<!-- ===================================================================== -->
+<h2 id="doc-buchungen">9a. Buchungshistorie und Einz&uuml;ge</h2>
+<p>Jede Beitragsforderung wird als <strong>Buchungsposition</strong> gespeichert (Mitglied, Beitragsrolle bzw. Bezeichnung, Beitragsjahr, Betrag, Buchungstext).
+    Eine Position durchl&auml;uft die Status <em>offen</em> &rarr; <em>exportiert</em> (SEPA-Datei erzeugt) &rarr; <em>eingezogen</em>; sie kann jederzeit <em>storniert</em> werden.
+    Die Historie bleibt &uuml;ber Jahre erhalten, das L&ouml;schen am Jahresende leert nur die Profilfelder.</p>
+<ul>
+    <li><strong>Buchungshistorie eines Mitglieds:</strong> &uuml;ber das Uhr-Symbol in Neuberechnung und Beitragszahlungen oder &uuml;ber die Registerkarte <em>Beitr&auml;ge</em> im Profil.
+        Spalten: Einzugsdatum, F&auml;lligkeitsdatum, Einzug (SEPA/MAN), SEPA-Datei, Beitragsrolle, Betrag, Buchungstext, Referenz, Status.</li>
+    <li><strong>Buchungs&uuml;bersicht</strong> (&rarr; Beitragseinzug): alle Positionen mit Filter nach Beitragsjahr, Status, Einzug, Rolle und Name; Export als Excel oder CSV.</li>
+    <li><strong>SEPA-Export:</strong> Beim Erzeugen der XML-Datei wird ein <em>Einzug</em> angelegt (Dateiname, eindeutige Message-ID) und die offenen Positionen werden &bdquo;exportiert&ldquo;.
+        Die EndToEnd-ID ist <code>Vereinsk&uuml;rzel-usr_id-F&auml;lligkeitsdatum</code>; ein erneuter Download derselben Datei erzeugt keinen neuen Einzug.
+        Weicht das Profilfeld Beitrag von den offenen Positionen ab, wird automatisch eine Korrekturposition angelegt, damit die Historie genau den eingezogenen Betrag zeigt.</li>
+    <li><strong>Einzugs&uuml;bersicht</strong> (&rarr; Beitragseinzug): alle SEPA-Dateien. &bdquo;Als eingezogen markieren&ldquo; setzt alle gew&auml;hlten Lastschriften einer Datei auf eingezogen
+        (Profilfelder wie bei &bdquo;Datum speichern&ldquo; in den Beitragszahlungen); bekannte R&uuml;cklastschriften vorher abw&auml;hlen.
+        &bdquo;Einzug verwerfen&ldquo; (nur f&uuml;r nie eingereichte Dateien) setzt die Positionen wieder auf offen.</li>
+    <li><strong>SEPA-Datei erneut herunterladen und teilen:</strong> Die XML-Datei wird beim Erzeugen in der Datenbank gespeichert (nur f&uuml;r das aktuelle Beitragsjahr;
+        beim ersten Export eines neuen Beitragsjahres werden die Dateien der Vorjahre entfernt, die Einz&uuml;ge selbst bleiben).
+        Zusammen mit der XML-Datei wird die Kontrolldatei (Excel bzw. CSV) gespeichert. In der Einzugs&uuml;bersicht laden die Download-Symbole bzw. &bdquo;Herunterladen&ldquo; und &bdquo;Kontrolldatei herunterladen&ldquo; genau die urspr&uuml;nglich erzeugten Dateien.
+        &bdquo;Teilen&ldquo; erzeugt gesch&uuml;tzte Download-Links f&uuml;r SEPA-Datei und Kontrolldatei (ohne Anmeldung, nicht erratbar, standardm&auml;&szlig;ig 14 Tage g&uuml;ltig) und sendet sie per E-Mail an den Kassier.
+        Die Adresse und die G&uuml;ltigkeit werden unter &rarr; Einstellungen &ndash; Export &ndash; SEPA-Datei teilen eingestellt und k&ouml;nnen beim Teilen ge&auml;ndert werden.
+        Der Link wird nur direkt nach dem Erzeugen angezeigt; ein neuer Link macht den alten ung&uuml;ltig, &bdquo;Link widerrufen&ldquo; sperrt ihn sofort. Die Abrufe werden gez&auml;hlt.</li>
+    <li><strong>Beitragszahlungen:</strong> &bdquo;Datum speichern&ldquo; setzt die exportierten Positionen auf eingezogen; ohne SEPA-Datei werden die offenen Positionen mit Einzug MAN (&Uuml;berweisung) eingezogen.
+        &bdquo;Datum l&ouml;schen&ldquo; setzt die eingezogenen Positionen zur&uuml;ck und stellt F&auml;lligkeitsdatum, Sequenztyp und Mandats&auml;nderungsdaten wieder her.</li>
+    <li><strong>Stornieren / R&uuml;cklastschrift:</strong> In der Historie &bdquo;Stornieren&ldquo; w&auml;hlen; standardm&auml;&szlig;ig werden alle Positionen derselben Lastschrift storniert.
+        Optional wird die Rolle zum Stornodatum entzogen und eine zus&auml;tzliche Position aus einer Vorlage (z.B. R&uuml;cklastschriftgeb&uuml;hr) angelegt.
+        Ohne Rollenentzug legt die n&auml;chste Neuberechnung die Rolle wieder als offen an.</li>
+    <li><strong>Manuelle Positionen:</strong> &bdquo;Position hinzuf&uuml;gen&ldquo; in der Historie oder f&uuml;r alle markierten Mitglieder in den Beitragszahlungen (z.B. Kleinbetr&auml;ge, Gutschriften mit negativem Betrag).
+        Vorlagen unter &rarr; Einstellungen &ndash; Vorlagen f&uuml;r manuelle Positionen. Offene manuelle Positionen lassen sich bearbeiten oder l&ouml;schen.
+        In der Rechnung zeigt der Filter &bdquo;Offene manuelle Positionen&ldquo; auch Mitglieder mit IBAN.</li>
+    <li><strong>Registerkarte im Profil:</strong> &rarr; Einstellungen &ndash; Registerkarte im Mitgliedsprofil (nur Administratoren). Wie beim Plugin Awards werden dazu
+        <code>modules/profile/profile.php</code> und <code>profile.view.tpl</code> erg&auml;nzt; nach einem Admidio-Update erneut einbauen. Die Registerkarte sehen nur Mitglieder der Zugriffsrolle.</li>
+</ul>
+<p>Das ausf&uuml;hrliche Konzept steht in <code>docs/konzept-buchungshistorie.md</code>.</p>
 
 <!-- ===================================================================== -->
 <h2 id="doc-zahlungen">10. Beitragszahlungen und Analyse</h2>
@@ -296,7 +330,7 @@
     </tbody>
 </table>
 <p>Beim erstmaligen Setzen eines Bezahlt-Datums wird FRST dauerhaft in RCUR ge&auml;ndert. RCUR kann nur &uuml;ber eine Mandats&auml;nderung, &uuml;ber
-    &rarr; Export &ndash; SEPA &ndash; F&auml;lligkeitsdatum oder durch Editieren des Mitgliedsprofils ge&auml;ndert werden.</p>
+    &rarr; Beitragseinzug &ndash; F&auml;lligkeitsdatum oder durch Editieren des Mitgliedsprofils ge&auml;ndert werden.</p>
 
 <h3>F&auml;lligkeitsdatum</h3>
 <p>In der Ansicht &bdquo;F&auml;lligkeitsdatum&ldquo; kann ein F&auml;lligkeitsdatum gesetzt werden. Ein globales Zur&uuml;cksetzen ist &uuml;ber &rarr; Einstellungen &ndash; L&ouml;schen m&ouml;glich.
@@ -340,7 +374,8 @@
     Einzug ge&auml;ndert haben. Es gibt eine Mandats&auml;nderung f&uuml;r Zahlungspflichtige (Mitglieder) und eine f&uuml;r den Zahlungsempf&auml;nger (&rarr; Einstellungen &ndash; Kontodaten).</p>
 
 <!-- ===================================================================== -->
-<h2 id="doc-optionen">13. Optionen</h2>
+<h2 id="doc-optionen">13. Pr&uuml;fungen und Rollen&uuml;bersicht</h2>
+<p>Beide Punkte stehen auf dem Reiter <em>Beitragseinzug</em>: die Pr&uuml;fungen als Schritt 1 (vor der Neuberechnung), die Rollen&uuml;bersicht unter der Beitragsanalyse.</p>
 
 <h3>Pr&uuml;fungen</h3>
 <p>Pr&uuml;fungen haben keinen Einfluss auf die Beitragsberechnung, sie dienen nur der &Uuml;berpr&uuml;fung bestimmter Daten. Die Rollenpr&uuml;fungen (Pflicht, Ausschluss) beziehen sich auf das Beitragsjahr. Jede Pr&uuml;fung kann unter &rarr; Einstellungen &ndash; Pr&uuml;fungen aktiviert oder deaktiviert werden.</p>
@@ -365,8 +400,6 @@
 <h3>Rollen&uuml;bersicht</h3>
 <p>Zeigt alle erkannten Beitragsrollen mit der Anzahl ihrer Mitglieder im Beitragsjahr.</p>
 
-<h3>Plugininformationen</h3>
-<p>Zeigt Informationen zu Version und Stand des Plugins sowie einen Link zur PDF-Dokumentation.</p>
 
 <!-- ===================================================================== -->
 <h2 id="doc-einstellungen">14. Einstellungen</h2>
@@ -433,6 +466,9 @@
 </ul>
 <div class="alert alert-danger" role="alert">Gel&ouml;schte Benutzerdaten (z.B. IBAN oder Mitgliedsnummer) k&ouml;nnen nicht wiederhergestellt werden!</div>
 
+<h3>Plugininformationen</h3>
+<p>Letzter Punkt auf dem Reiter <em>Einstellungen</em>: Version und Stand des Plugins sowie ein Link zur PDF-Dokumentation.</p>
+
 <!-- ===================================================================== -->
 <h2 id="doc-konfiguration">15. Speicherung der Konfiguration</h2>
 <p>Alle Konfigurationsdaten werden in der Tabelle <code>adm_plugin_preferences</code> der Admidio-Datenbank gespeichert (sie wird angelegt, falls sie nicht existiert).
@@ -455,7 +491,7 @@
 <p>Voraussetzungen:</p>
 <ul>
     <li>Die Grundeinstellungen sind eingetragen und die Grundfunktionen wurden getestet.</li>
-    <li>Die Beitragsrollen sind definiert und werden vom Plugin erkannt (&rarr; Optionen &ndash; Rollen&uuml;bersicht).</li>
+    <li>Die Beitragsrollen sind definiert und werden vom Plugin erkannt (&rarr; Beitragseinzug &ndash; Rollen&uuml;bersicht).</li>
     <li>Unter &rarr; Einstellungen &ndash; Pr&uuml;fungen sind die Pr&uuml;fbedingungen definiert.</li>
 </ul>
 
@@ -474,10 +510,10 @@
     <li><strong>Aufnahme des neuen Mitglieds</strong> in Admidio und in die passenden Beitragsrollen (dabei kann bereits das Mandatsdatum eingetragen werden).</li>
     <li><strong>Mandatsreferenz erstellen:</strong> &rarr; Mandatsverwaltung &ndash; Mandatsreferenzen erzeugen.</li>
     <li><strong>Mandatsdatum eintragen</strong> (falls noch nicht geschehen): &rarr; Mandatsverwaltung &ndash; Mandate bearbeiten oder im Profil des Mitglieds.</li>
-    <li><strong>Beitragsberechnung:</strong> &rarr; Beitr&auml;ge &ndash; Neuberechnung.</li>
-    <li><strong>F&auml;lligkeitsdatum:</strong> &rarr; Export &ndash; SEPA &ndash; F&auml;lligkeitsdatum bearbeiten.</li>
-    <li><strong>XML-Datei:</strong> Nach Vergabe eines F&auml;lligkeitsdatums &uuml;ber &rarr; Export &ndash; SEPA &ndash; XML-Datei erzeugen.</li>
-    <li><strong>Vorabinformation:</strong> Ebenfalls erst nach Vergabe eines F&auml;lligkeitsdatums &uuml;ber &rarr; Export &ndash; SEPA &ndash; Vorabinformation.</li>
+    <li><strong>Beitragsberechnung:</strong> &rarr; Beitragseinzug &ndash; Neuberechnung.</li>
+    <li><strong>F&auml;lligkeitsdatum:</strong> &rarr; Beitragseinzug &ndash; F&auml;lligkeitsdatum bearbeiten.</li>
+    <li><strong>XML-Datei:</strong> Nach Vergabe eines F&auml;lligkeitsdatums &uuml;ber &rarr; Beitragseinzug &ndash; SEPA-Datei erzeugen.</li>
+    <li><strong>Vorabinformation:</strong> Ebenfalls erst nach Vergabe eines F&auml;lligkeitsdatums &uuml;ber &rarr; Beitragseinzug &ndash; Vorabinformation.</li>
     <li><strong>Weitergabe der XML-Datei</strong> &uuml;ber ein Homebanking-Programm (z.B. StarMoney oder Jameica/Hibiscus) an die Bank.</li>
     <li><strong>Abschluss:</strong> Bezahlt-Datum setzen. Dadurch wird der Sequenztyp FRST in RCUR ge&auml;ndert.</li>
 </ol>

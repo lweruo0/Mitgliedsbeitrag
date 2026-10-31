@@ -3,7 +3,7 @@
  ***********************************************************************************************
  * Mitgliedsbeitrag / Membership fee
  *
- * Version 6.0.3
+ * Version 6.3.0
  *
  * This plugin calculates membership fees based on role assignments.
  *
@@ -17,6 +17,7 @@
  ***********************************************************************************************
  */
 use Admidio\Infrastructure\Exception;
+use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
 try {
@@ -46,6 +47,9 @@ try {
     }
 
     $pPreferences->read();
+
+    // Tabellen der Buchungshistorie bei Bedarf anlegen
+    BookingStore::ensureTables();
     // prüfen, ob role_id und/ item_id gespeichert sind (Wichtig für eine Deinstallation; evtl. ist eine vorher durchgeführte Deinstallation fehlgeschlagen)
     if ($pPreferences->config['install']['access_role_id'] == 0 || $pPreferences->config['install']['menu_item_id'] == 0) {
         $urlInst = ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/install.php';
