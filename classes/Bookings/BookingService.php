@@ -518,7 +518,9 @@ class BookingService
 
         // Profilfelder wie bisher (payments.php)
         $user->setValue('PAID' . $orgId, $date);
-        if (strlen((string) $user->getValue('SEQUENCETYPE' . $orgId)) === 0 && strlen((string) $user->getValue('DUEDATE' . $orgId)) !== 0) {
+        // nach der Erstlastschrift (FRST, frueher als leerer Wert gespeichert) folgen Folgelastschriften
+        $currentSequenceType = (string) $user->getValue('SEQUENCETYPE' . $orgId);
+        if (($currentSequenceType === '' || $currentSequenceType === 'FRST') && strlen((string) $user->getValue('DUEDATE' . $orgId)) !== 0) {
             $user->setValue('SEQUENCETYPE' . $orgId, 'RCUR');
         }
         foreach (array('ORIG_MANDATEID' . $orgId, 'ORIG_IBAN', 'ORIG_DEBTOR_AGENT', 'DUEDATE' . $orgId) as $field) {
@@ -664,7 +666,7 @@ class BookingService
         if ($restore !== null) {
             $user->setValue('DUEDATE' . $orgId, (string) $restore['mfb_due_date']);
             $sequenceType = (string) $restore['mfb_sequence_type'];
-            $user->setValue('SEQUENCETYPE' . $orgId, $sequenceType === 'FRST' ? '' : $sequenceType);
+            $user->setValue('SEQUENCETYPE' . $orgId, $sequenceType);
             $user->setValue('ORIG_MANDATEID' . $orgId, (string) $restore['mfb_orig_mandate_id']);
             $user->setValue('ORIG_IBAN', (string) $restore['mfb_orig_iban']);
             $user->setValue('ORIG_DEBTOR_AGENT', (string) $restore['mfb_orig_debtor_agent']);
@@ -749,7 +751,7 @@ class BookingService
             }
             if (!$otherSepa) {
                 $user = new User($gDb, $gProfileFields, $usrId);
-                $user->setValue('SEQUENCETYPE' . (int) $gCurrentOrgId, '');
+                $user->setValue('SEQUENCETYPE' . (int) $gCurrentOrgId, 'FRST');
                 $user->save();
             }
         }

@@ -134,9 +134,7 @@ if ($getMode == 'assign') {
                 $user->setValue('DUEDATE' . $gCurrentOrgId, $getDatumNeu);
 
                 $sequenceType = $getSequenceType === 'AUTO' ? ($autoTypes[(int) $data] ?? 'FRST') : $getSequenceType;
-                if ($sequenceType == 'FRST') {
-                    $user->setValue('SEQUENCETYPE' . $gCurrentOrgId, '');
-                } elseif ($sequenceType != '') {
+                if ($sequenceType != '') {
                     $user->setValue('SEQUENCETYPE' . $gCurrentOrgId, $sequenceType);
                 }
                 $resultTypes[] = $sequenceType;
@@ -376,7 +374,7 @@ if ($getMode == 'assign') {
                             }
 
                             if(sequencetype == "FRST") {
-                                $("#lastschrifttyp_"+userid).text("");
+                                $("#lastschrifttyp_"+userid).text("FRST");
                             }
                             else if(sequencetype == "RCUR") {
                                 $("#lastschrifttyp_"+userid).text("RCUR");
@@ -548,6 +546,10 @@ if ($getMode == 'assign') {
                     'user_uuid' => $memberUuid
                 )) . '">' . $htmlValue . '</a>';
             } elseif ($usfId === $usfIdSequenceType) {
+                // leerer Sequenztyp bedeutet FRST (aeltere Eintraege); bei gesetzter Faelligkeit so anzeigen
+                if ($htmlValue === '' && isset($memberData[$usfIdDuedate]) && strlen((string) $memberData[$usfIdDuedate]) > 0) {
+                    $htmlValue = 'FRST';
+                }
                 $columnValues[] = '<div class="lastschrifttyp_' . $member . '" id="lastschrifttyp_' . $member . '">' . $htmlValue . '</div>';
             } elseif ($usfId === $usfIdDuedate) {
                 $columnValues[] = '<div class="duedate_' . $member . '" id="duedate_' . $member . '">' . $htmlValue . '</div>';

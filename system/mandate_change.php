@@ -129,7 +129,7 @@ if($getMode == 'assign')
             $user->setValue('IBAN', $getIBAN);
             $user->setValue('BIC', $getBIC);
             $user->setValue('BANK', $getBank);
-            $user->setValue('SEQUENCETYPE'.$gCurrentOrgId, '');
+            $user->setValue('SEQUENCETYPE'.$gCurrentOrgId, 'FRST');
             $user->setValue('ORIG_DEBTOR_AGENT', 'SMNDA');
 
             // wenn die Bank gewechselt wurde, braucht die neue Bank die urspruengliche IBAN nicht zu kennen
