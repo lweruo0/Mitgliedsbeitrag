@@ -1,7 +1,7 @@
 <?php
 /**
  ***********************************************************************************************
- * Registerkarte "Beitraege" im Mitgliedsprofil
+ * Registerkarten "Beitraege" und "Arbeitsdienst" im Mitgliedsprofil
  *
  * Admidio 5 bietet keine Schnittstelle, ueber die ein Plugin die Profilseite erweitert. Wie beim
  * Plugin Awards werden deshalb zwei Admidio-Dateien ergaenzt:
@@ -39,6 +39,15 @@ class ProfileAddin
             $file = ADMIDIO_PATH . FOLDER_THEMES . '/simple/templates/modules/profile.view.tpl';
         }
         return $file;
+    }
+
+    /**
+     * Ist die eingebaute Fassung aktuell (mit Registerkarte "Arbeitsdienst")?
+     */
+    public static function isCurrent(): bool
+    {
+        $tpl = @file_get_contents(self::templateFile());
+        return self::isInstalled() && is_string($tpl) && strpos($tpl, 'pmbWorkHtml') !== false;
     }
 
     public static function isInstalled(): bool
@@ -82,38 +91,9 @@ class ProfileAddin
             . '    ' . self::MARK_END_PHP . "\n    ";
         $php = substr_replace($php, $phpInsert, $pos, 0);
 
-        $tab = self::MARK_START_TPL . '
-            {if isset($pmbBookingsHtml)}
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="pmb_bookings_tab" data-bs-toggle="tab" data-bs-target="#pmb_bookings_pane" type="button" role="tab" aria-controls="pmb_bookings_pane" aria-selected="false">
-                        {$pmbBookingsTitle}
-                    </button>
-                </li>
-            {/if}
-            ' . self::MARK_END_TPL . "\n            ";
-        $pane = self::MARK_START_TPL . '
-            {if isset($pmbBookingsHtml)}
-                <div class="tab-pane fade" id="pmb_bookings_pane" role="tabpanel" aria-labelledby="pmb_bookings_tab">
-                    <div class="card admidio-tabbed-field-group">
-                        <div class="card-body">{$pmbBookingsHtml}</div>
-                    </div>
-                </div>
-            {/if}
-            ' . self::MARK_END_TPL . "\n            ";
-        $accordion = self::MARK_START_TPL . '
-        {if isset($pmbBookingsHtml)}
-            <div class="accordion-item">
-                <h2 class="accordion-header" id="pmb_bookings_accordion_heading">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#pmb_bookings_accordion" aria-expanded="false" aria-controls="pmb_bookings_accordion">
-                        {$pmbBookingsTitle}
-                    </button>
-                </h2>
-                <div id="pmb_bookings_accordion" class="accordion-collapse collapse" aria-labelledby="pmb_bookings_accordion_heading" data-bs-parent="#adm_profile_accordion">
-                    <div class="accordion-body">{$pmbBookingsHtml}</div>
-                </div>
-            </div>
-        {/if}
-        ' . self::MARK_END_TPL . "\n        ";
+        $tab = self::MARK_START_TPL . self::tab('pmb_bookings', 'pmbBookings') . self::tab('pmb_work', 'pmbWork') . self::MARK_END_TPL . "\n            ";
+        $pane = self::MARK_START_TPL . self::pane('pmb_bookings', 'pmbBookings') . self::pane('pmb_work', 'pmbWork') . self::MARK_END_TPL . "\n            ";
+        $accordion = self::MARK_START_TPL . self::accordion('pmb_bookings', 'pmbBookings') . self::accordion('pmb_work', 'pmbWork') . self::MARK_END_TPL . "\n        ";
 
         $needles = array(
             '{if $showRelations}' => $tab,                 // erste Fundstelle: Registerkarten-Leiste
@@ -132,6 +112,50 @@ class ProfileAddin
             return 'Die Admidio-Dateien konnten nicht geschrieben werden (Schreibrechte prüfen).';
         }
         return '';
+    }
+
+    private static function tab(string $id, string $var): string
+    {
+        return '
+            {if isset($' . $var . 'Html)}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="' . $id . '_tab" data-bs-toggle="tab" data-bs-target="#' . $id . '_pane" type="button" role="tab" aria-controls="' . $id . '_pane" aria-selected="false">
+                        {$' . $var . 'Title}
+                    </button>
+                </li>
+            {/if}
+            ';
+    }
+
+    private static function pane(string $id, string $var): string
+    {
+        return '
+            {if isset($' . $var . 'Html)}
+                <div class="tab-pane fade" id="' . $id . '_pane" role="tabpanel" aria-labelledby="' . $id . '_tab">
+                    <div class="card admidio-tabbed-field-group">
+                        <div class="card-body">{$' . $var . 'Html}</div>
+                    </div>
+                </div>
+            {/if}
+            ';
+    }
+
+    private static function accordion(string $id, string $var): string
+    {
+        return '
+        {if isset($' . $var . 'Html)}
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="' . $id . '_accordion_heading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#' . $id . '_accordion" aria-expanded="false" aria-controls="' . $id . '_accordion">
+                        {$' . $var . 'Title}
+                    </button>
+                </h2>
+                <div id="' . $id . '_accordion" class="accordion-collapse collapse" aria-labelledby="' . $id . '_accordion_heading" data-bs-parent="#adm_profile_accordion">
+                    <div class="accordion-body">{$' . $var . 'Html}</div>
+                </div>
+            </div>
+        {/if}
+        ';
     }
 
     /**

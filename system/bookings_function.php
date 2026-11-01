@@ -252,3 +252,121 @@ function mf_render_work(int $usrId): string
     $html .= '</tbody></table></div>';
     return $html;
 }
+
+/**
+ * Inhalt der Registerkarte "Arbeitsdienst" im Mitgliedsprofil: Jahresuebersicht (Soll, Ist, Fehlstunden,
+ * Ersatzbeitrag) und die Liste aller geleisteten Einsaetze, nach Leistungsjahr gruppiert.
+ * Das Soll vergangener Jahre stammt aus dem Text der abgerechneten Position ("Soll X h"), das Soll
+ * des laufenden Jahres aus dem Profilfeld.
+ *
+ * @param bool $withInputLink Link "Arbeitsdienst erfassen" anzeigen (nur fuer Berechtigte)
+ * @return string leer, wenn es fuer das Mitglied nichts anzuzeigen gibt
+ */
+function mf_render_work_tab(int $usrId, bool $withInputLink = false): string
+{
+    global $gL10n, $gProfileFields, $gDb, $gCurrentOrgId;
+
+    $orgId = (int) $gCurrentOrgId;
+    \Plugins\MembershipFee\classes\Work\WorkHoursStore::ensureTable();
+    $entries = \Plugins\MembershipFee\classes\Work\WorkHoursStore::getByUser($usrId);
+    $positions = \Plugins\MembershipFee\classes\Bookings\CollectionScope::work($orgId)->filterPositions(BookingStore::getByUser($usrId));
+
+    $target = '';
+    $targetUsfId = (int) $gProfileFields->getProperty(\Plugins\MembershipFee\classes\Work\WorkProfileFields::targetField($orgId), 'usf_id');
+    if ($targetUsfId > 0) {
+        $target = (string) $gDb->queryPrepared('SELECT usd_value FROM ' . TBL_USER_DATA . ' WHERE usd_usr_id = ? AND usd_usf_id = ?', array($usrId, $targetUsfId))->fetchColumn();
+    }
+    if (count($entries) === 0 && count($positions) === 0 && $target === '') {
+        return '';
+    }
+    $fmt = static fn (float $h): string => \Plugins\MembershipFee\classes\Work\WorkRules::formatHours($h);
+
+    $currentYear = (int) date('Y');
+    $years = array();
+    foreach ($entries as $entry) {
+        $year = (int) $entry['mfw_year'];
+        $years[$year]['hours'] = ($years[$year]['hours'] ?? 0.0) + (float) $entry['mfw_hours'];
+        $years[$year]['entries'][] = $entry;
+    }
+    foreach ($positions as $position) {
+        if ($position['mfb_status'] === BookingStore::STATUS_CANCELLED) {
+            continue;
+        }
+        $year = (int) $position['mfb_year'];
+        $years[$year]['positions'][] = $position;
+        if (!isset($years[$year]['target']) && preg_match('/Soll ([0-9]+(?:,[0-9]+)?) h/', (string) $position['mfb_text'], $m)) {
+            $years[$year]['target'] = (float) str_replace(',', '.', $m[1]);
+        }
+    }
+    if ($target !== '') {
+        $years[$currentYear]['target'] = (float) str_replace(',', '.', $target);
+    }
+    krsort($years);
+
+    $html = '';
+    if ($withInputLink) {
+        $html .= '<p><a class="btn btn-secondary" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/work_input.php', array('year' => $currentYear)) . '">'
+            . '<i class="bi bi-plus-circle"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_INPUT') . '</a></p>';
+    }
+    if (isset($years[$currentYear]['target'])) {
+        $done = (float) ($years[$currentYear]['hours'] ?? 0.0);
+        $missing = max(0.0, $years[$currentYear]['target'] - $done);
+        $html .= '<div class="alert ' . ($missing > 0.0 ? 'alert-warning' : 'alert-success') . '">'
+            . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TAB_CURRENT', array($currentYear, $fmt($years[$currentYear]['target']), $fmt($done),
+                $missing > 0.0 ? $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TAB_OPEN', array($fmt($missing))) : $gL10n->get('PLG_MEMBERSHIPFEE_WORK_STATUS_DONE')))
+            . '</div>';
+    }
+
+    // Jahresuebersicht
+    $html .= '<h5>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TAB_YEARS') . '</h5>'
+        . '<div class="table-responsive"><table class="table table-condensed"><thead><tr>'
+        . '<th>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_YEAR') . '</th>'
+        . '<th style="text-align: right;">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_COL_TARGET') . '</th>'
+        . '<th style="text-align: right;">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_COL_DONE') . '</th>'
+        . '<th style="text-align: right;">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_COL_MISSING') . '</th>'
+        . '<th>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_COL_FEE') . '</th>'
+        . '</tr></thead><tbody>';
+    foreach ($years as $year => $data) {
+        $done = (float) ($data['hours'] ?? 0.0);
+        $hasTarget = isset($data['target']);
+        $fees = array();
+        foreach ($data['positions'] ?? array() as $position) {
+            $fees[] = mf_format_amount($position['mfb_amount']) . ' <small class="text-muted">(' . mf_booking_label((string) $position['mfb_status']) . ')</small>';
+        }
+        $html .= '<tr><td>' . (int) $year . '</td>'
+            . '<td style="text-align: right;">' . ($hasTarget ? $fmt($data['target']) : '&ndash;') . '</td>'
+            . '<td style="text-align: right;">' . $fmt($done) . '</td>'
+            . '<td style="text-align: right;">' . ($hasTarget ? $fmt(max(0.0, $data['target'] - $done)) : '&ndash;') . '</td>'
+            . '<td>' . (count($fees) > 0 ? implode('<br/>', $fees) : '&ndash;') . '</td></tr>';
+    }
+    $html .= '</tbody></table></div>';
+
+    // geleistete Einsaetze
+    $html .= '<h5 class="mt-3">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TAB_ENTRIES') . '</h5>';
+    if (count($entries) === 0) {
+        return $html . '<p class="text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TAB_NO_ENTRIES') . '</p>';
+    }
+    $html .= '<div class="table-responsive"><table class="table table-condensed"><thead><tr>'
+        . '<th>' . $gL10n->get('SYS_DATE') . '</th>'
+        . '<th>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_ACTIVITY') . '</th>'
+        . '<th style="text-align: right;">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_HOURS') . '</th>'
+        . '</tr></thead><tbody>';
+    foreach ($years as $year => $data) {
+        if (count($data['entries'] ?? array()) === 0) {
+            continue;
+        }
+        $html .= '<tr class="table-light"><td colspan="2"><strong>' . (int) $year . '</strong> <small class="text-muted">('
+            . $gL10n->get(count($data['entries']) === 1 ? 'PLG_MEMBERSHIPFEE_WORK_PROFILE_ENTRY_ONE' : 'PLG_MEMBERSHIPFEE_WORK_PROFILE_ENTRIES_MANY', array(count($data['entries'])))
+            . ')</small></td><td style="text-align: right;"><strong>' . $fmt((float) $data['hours']) . '</strong></td></tr>';
+        $list = $data['entries'];
+        usort($list, static fn ($a, $b) => strcmp((string) $b['mfw_date'], (string) $a['mfw_date']));
+        foreach ($list as $entry) {
+            $comment = trim((string) ($entry['mfw_comment'] ?? ''));
+            $html .= '<tr><td>' . mf_format_date((string) $entry['mfw_date']) . '</td>'
+                . '<td>' . SecurityUtils::encodeHTML((string) $entry['mfw_activity'])
+                . ($comment !== '' ? '<br/><small class="text-muted">' . SecurityUtils::encodeHTML($comment) . '</small>' : '') . '</td>'
+                . '<td style="text-align: right;">' . $fmt((float) $entry['mfw_hours']) . '</td></tr>';
+        }
+    }
+    return $html . '</tbody></table></div>';
+}

@@ -39,8 +39,14 @@ Sobald eine AD-Position eines Jahres exportiert ist, ist die Erfassung für dies
 
 ## Anzeige beim Mitglied
 
-Im Profil und in der Buchungshistorie erscheint der Abschnitt „Arbeitsdienst“: aktuelle Sollstunden, je Jahr
-die geleisteten Stunden, die AD-Positionen mit Status und aufklappbar die einzelnen Einsätze.
+Eigene Registerkarte „Arbeitsdienst“ im Profil (wird mit der Registerkarte „Beiträge“ eingebaut; eine ältere
+Fassung ergänzt das Plugin automatisch, wenn ein Administrator es öffnet):
+- Stand des laufenden Jahres (Soll, geleistet, noch offen),
+- je Leistungsjahr Soll, Ist, Fehlstunden und Ersatzbeitrag mit Status (Soll vergangener Jahre aus dem Positionstext),
+- Liste aller geleisteten Einsätze, nach Jahr gruppiert.
+
+Sichtbar für das Mitglied selbst, die Zugriffsrolle und alle, die Arbeitsdienst erfassen dürfen (mit Button
+„Arbeitsdienst erfassen“). In der Buchungshistorie steht weiterhin eine kurze Zusammenfassung.
 
 ## Technik
 

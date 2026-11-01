@@ -5,7 +5,8 @@
  *
  * Wird von modules/profile/profile.php eingebunden (siehe classes/Bookings/ProfileAddin.php).
  * Verfuegbare Variablen aus profile.php: $page (PagePresenter), $user (angezeigtes Mitglied).
- * Die Registerkarte sehen nur Mitglieder der Zugriffsrolle des Plugins.
+ * Die Registerkarte "Beitraege" sehen nur Mitglieder der Zugriffsrolle des Plugins.
+ * Die Registerkarte "Arbeitsdienst" sehen zusaetzlich Berechtigte der Erfassung und das Mitglied selbst.
  *
  * @copyright The Admidio Team
  * @see https://www.admidio.org/
@@ -29,8 +30,17 @@ if (isset($page, $user) && is_object($page) && is_object($user) && method_exists
             $page->assignSmartyVariable('pmbBookingsHtml',
                 '<p><a class="btn btn-secondary" href="' . $pmbHistoryUrl . '"><i class="bi bi-clock-history"></i> '
                 . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_HISTORY_EDIT') . '</a></p>'
-                . mf_render_bookings($pmbUserId, (string) $user->getValue('usr_uuid'), false)
-                . mf_render_work($pmbUserId));
+                . mf_render_bookings($pmbUserId, (string) $user->getValue('usr_uuid'), false));
+        }
+
+        // Registerkarte "Arbeitsdienst": fuer die Zugriffsrolle, fuer Berechtigte der Erfassung und fuer das Mitglied selbst
+        $pmbWorkInput = $pmbUserId > 0 && mf_is_work_input_authorized();
+        if ($pmbUserId > 0 && ($pmbWorkInput || $pmbUserId === (int) $gCurrentUserId)) {
+            $pmbWorkHtml = mf_render_work_tab($pmbUserId, $pmbWorkInput);
+            if ($pmbWorkHtml !== '') {
+                $page->assignSmartyVariable('pmbWorkTitle', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TAB'));
+                $page->assignSmartyVariable('pmbWorkHtml', $pmbWorkHtml);
+            }
         }
     } catch (Throwable $pmbException) {
         // die Profilseite soll auch bei einem Fehler im Plugin angezeigt werden

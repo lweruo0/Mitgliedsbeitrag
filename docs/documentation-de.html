@@ -294,7 +294,7 @@
         Vorlagen unter &rarr; Einstellungen &ndash; Vorlagen f&uuml;r manuelle Positionen. Offene manuelle Positionen lassen sich bearbeiten oder l&ouml;schen.
         Offene manuelle Positionen erscheinen auch in den Rechnungen (5b).</li>
     <li><strong>Registerkarte im Profil:</strong> &rarr; Einstellungen &ndash; Registerkarte im Mitgliedsprofil (nur Administratoren). Wie beim Plugin Awards werden dazu
-        <code>modules/profile/profile.php</code> und <code>profile.view.tpl</code> erg&auml;nzt; nach einem Admidio-Update erneut einbauen. Die Registerkarte sehen nur Mitglieder der Zugriffsrolle. Unter der Buchungshistorie steht dort auch der Abschnitt <em>Arbeitsdienst</em>.</li>
+        <code>modules/profile/profile.php</code> und <code>profile.view.tpl</code> erg&auml;nzt; nach einem Admidio-Update erneut einbauen. Die Registerkarte sehen nur Mitglieder der Zugriffsrolle. Zusammen mit ihr wird die Registerkarte <a href="#doc-arbeitsdienst">Arbeitsdienst</a> eingebaut.</li>
 </ul>
 <p>Das ausf&uuml;hrliche Konzept steht in <code>docs/konzept-buchungshistorie.md</code>.</p>
 
@@ -341,8 +341,17 @@
 <div class="alert alert-info" role="alert">Sobald eine Arbeitsdienst-Position eines Jahres exportiert ist, ist die Erfassung f&uuml;r dieses Jahr gesperrt.</div>
 
 <h3>Anzeige beim Mitglied</h3>
-<p>In der Registerkarte <em>Beitr&auml;ge</em> im Profil und in der Buchungshistorie steht der Abschnitt <em>Arbeitsdienst</em>: aktuelle Sollstunden, je Leistungsjahr die geleisteten Stunden,
-    der Ersatzbeitrag mit Status und aufklappbar die einzelnen Eins&auml;tze. Das Soll selbst sieht jedes Mitglied im eigenen Profil (Feld &bdquo;Sollstunden Arbeitsdienst&ldquo;).</p>
+<p>Im Profil gibt es eine eigene Registerkarte <em>Arbeitsdienst</em> (wird mit der Registerkarte <em>Beitr&auml;ge</em> eingebaut, siehe
+    &rarr; Einstellungen &ndash; Registerkarte im Mitgliedsprofil). Sie zeigt</p>
+<ul>
+    <li>den Stand des laufenden Jahres (Soll, geleistet, noch offen),</li>
+    <li>je Leistungsjahr Soll, Ist, Fehlstunden und den Ersatzbeitrag mit Status,</li>
+    <li>die Liste aller geleisteten Eins&auml;tze (Datum, Einsatz, Stunden), nach Jahr gruppiert mit Jahressumme.</li>
+</ul>
+<p>Die Registerkarte sehen das Mitglied selbst, die Mitglieder der Zugriffsrolle und alle, die Arbeitsdienst erfassen d&uuml;rfen; diese bekommen zus&auml;tzlich einen Button
+    &bdquo;Arbeitsdienst erfassen&ldquo;. Gibt es f&uuml;r ein Mitglied weder Soll noch Eins&auml;tze, wird sie nicht angezeigt. Wurde die Registerkarte <em>Beitr&auml;ge</em> mit einer
+    &auml;lteren Version eingebaut, erg&auml;nzt das Plugin die Registerkarte <em>Arbeitsdienst</em> automatisch, sobald ein Administrator das Plugin &ouml;ffnet.
+    In der Buchungshistorie steht zus&auml;tzlich eine kurze Zusammenfassung.</p>
 
 <!-- ===================================================================== -->
 <h2 id="doc-zahlungen">12. Beitragszahlungen und Analyse</h2>

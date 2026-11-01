@@ -739,4 +739,11 @@
     <string name="PLG_MEMBERSHIPFEE_WORK_PRE_NOTIFICATION_MAIL_TEXT_DESC">Pre-notification for the work service fee; #fee#, #due_day# and #membership_fee_text# come from the work service fields.</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_PROFILE_ENTRY_ONE">1 assignment</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_PROFILE_ENTRIES_MANY">#VAR1# assignments</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_TAB">Work service</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_TAB_CURRENT">Work service #VAR1#: target #VAR2#, done #VAR3# – #VAR4#</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_TAB_OPEN">still open: #VAR1#</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_TAB_YEARS">Overview per year</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_TAB_ENTRIES">Assignments</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_TAB_NO_ENTRIES">No assignments recorded yet.</string>
+    <string name="PLG_MEMBERSHIPFEE_PROFILE_ADDIN_TABS_DESC">Adds the tabs "Contributions" (booking history, access role only) and "Work service" (target, hours and assignments; visible to the member, the access role and everyone allowed to record work service) to the member profile by extending modules/profile/profile.php and profile.view.tpl of the active theme. Must be reinstalled after an Admidio update.</string>
 </resources>

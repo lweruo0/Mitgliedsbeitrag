@@ -739,4 +739,11 @@
     <string name="PLG_MEMBERSHIPFEE_WORK_PRE_NOTIFICATION_MAIL_TEXT_DESC">Text der Vorabinformation zum Ersatzbeitrag Arbeitsdienst. #fee#, #due_day# und #membership_fee_text# kommen aus den Arbeitsdienst-Feldern (Betrag, Fälligkeit, Buchungstext).</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_PROFILE_ENTRY_ONE">1 Einsatz</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_PROFILE_ENTRIES_MANY">#VAR1# Einsätze</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_TAB">Arbeitsdienst</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_TAB_CURRENT">Arbeitsdienst #VAR1#: Soll #VAR2#, geleistet #VAR3# – #VAR4#</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_TAB_OPEN">noch offen: #VAR1#</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_TAB_YEARS">Übersicht je Leistungsjahr</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_TAB_ENTRIES">Geleistete Einsätze</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_TAB_NO_ENTRIES">Es sind noch keine Einsätze erfasst.</string>
+    <string name="PLG_MEMBERSHIPFEE_PROFILE_ADDIN_TABS_DESC">Baut die Registerkarten „Beiträge“ (Buchungshistorie, nur für die Zugriffsrolle des Plugins) und „Arbeitsdienst“ (Soll, Ist und geleistete Einsätze; sichtbar für das Mitglied selbst, die Zugriffsrolle und alle, die Arbeitsdienst erfassen dürfen) ins Mitgliedsprofil ein. Dafür werden die Admidio-Dateien modules/profile/profile.php und profile.view.tpl des aktiven Designs ergänzt, wie beim Plugin Awards. Nach einem Admidio-Update muss das erneut eingebaut werden.</string>
 </resources>

@@ -1149,10 +1149,14 @@ try {
 
             if ($gCurrentUser->isAdministrator()) {
                 $addinInstalled = ProfileAddin::isInstalled();
+                // aeltere Fassung (nur "Beitraege") automatisch um die Registerkarte "Arbeitsdienst" ergaenzen
+                if ($addinInstalled && !ProfileAddin::isCurrent()) {
+                    ProfileAddin::install(PLUGIN_FOLDER);
+                }
                 $formProfileAddin = new HtmlForm('profileaddin_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/profile_addin_install.php', array(
                     'mode' => $addinInstalled ? 'uninstall' : 'install'
                 )), $page);
-                $formProfileAddin->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_PROFILE_ADDIN_DESC'));
+                $formProfileAddin->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_PROFILE_ADDIN_TABS_DESC'));
                 $formProfileAddin->addStaticControl('profileaddin_status', $gL10n->get('PLG_MEMBERSHIPFEE_STATUS'), $gL10n->get($addinInstalled ? 'PLG_MEMBERSHIPFEE_PROFILE_ADDIN_ACTIVE' : 'PLG_MEMBERSHIPFEE_PROFILE_ADDIN_INACTIVE'));
                 $formProfileAddin->addSubmitButton('btn_profileaddin', $gL10n->get($addinInstalled ? 'PLG_MEMBERSHIPFEE_PROFILE_ADDIN_REMOVE' : 'PLG_MEMBERSHIPFEE_PROFILE_ADDIN_INSTALL'), array(
                     'icon' => $addinInstalled ? 'bi-x-circle' : 'bi-plus-circle',
