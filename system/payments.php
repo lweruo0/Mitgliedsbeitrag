@@ -17,7 +17,8 @@
  *                    prepare     - eine einzelne Checkbox oder "Alle" wurde angeklickt 
  * usr_id           : Id des Benutzers, fuer den das Bezahlt-Datum gesetzt wird
  * datum_neu        : das neue Bezahlt-Datum
- * mem_show_choice  : 0 - (Default) Alle Benutzer anzeigen
+ * mem_show_choice  : 3 - (Default) Nur Benutzer mit offenem Betrag (offene oder exportierte Positionen)
+ *                    0 - Alle Benutzer anzeigen
  *                    1 - Nur Benutzer anzeigen, bei denen ein Bezahlt-Datum vorhanden ist
  *                    2 - Nur Benutzer anzeigen, bei denen kein Bezahlt-Datum vorhanden ist
  ***********************************************************************************************
@@ -29,6 +30,7 @@ use Admidio\Infrastructure\Exception;
 use Admidio\Roles\Entity\Role;
 use Admidio\Users\Entity\User;
 use Plugins\MembershipFee\classes\Bookings\BookingService;
+use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
 require_once(__DIR__ . '/../../../system/common.php');
@@ -59,7 +61,7 @@ $getMode        = admFuncVariableIsValid($_GET, 'mode', 'string', array('default
 $getUserId      = admFuncVariableIsValid($_GET, 'usr_id', 'numeric', array('defaultValue' => 0, 'directOutput' => true));
 $getDatumNeu    = admFuncVariableIsValid($_GET, 'datum_neu', 'date');
 $getChecked     = admFuncVariableIsValid($_GET, 'checked', 'string');
-$getMembersShow = admFuncVariableIsValid($_GET, 'mem_show_choice', 'numeric', array('defaultValue' => 0));
+$getMembersShow = admFuncVariableIsValid($_GET, 'mem_show_choice', 'numeric', array('defaultValue' => 3));
 $paidDate       = ($getDatumNeu !== '') ? mf_parse_date($getDatumNeu) : '';
 if ($paidDate === '') {
     $paidDate = $getDatumNeu;
@@ -209,12 +211,43 @@ else
     {
     	$membersListSqlCondition .= ' AND paid.usd_value IS NULL ) ';
     }
+    elseif ($getMembersShow == 3)				// Nur Benutzer mit offenem Betrag (offene oder exportierte Positionen)
+    {
+        BookingStore::ensureTables();
+        $membersListSqlCondition .= ' AND usr_id IN (SELECT mfb_usr_id FROM ' . BookingStore::bookingsTable() . '
+            WHERE mfb_org_id = ' . (int) $gCurrentOrgId . '
+              AND mfb_status IN (\'' . BookingStore::STATUS_OPEN . '\', \'' . BookingStore::STATUS_EXPORTED . '\')) ) ';
+    }
     else 										// Alle Benutzer anzeigen
     {
     	$membersListSqlCondition .= ' ) ';
     }
     
     $membersList = list_members($membersListFields, $membersListRols, $membersListSqlCondition);
+
+    // offene Betraege, Status und Zahlart je Mitglied (fuer die festen Spalten und die Zusammenfassung)
+    $paymentInfo = array();
+    if ($getMode === 'html' && count($membersList) > 0) {
+        $extraFields = list_members(array('PAID' . $gCurrentOrgId, 'IBAN'), $membersListRols, $membersListSqlCondition);
+        $openByUser = BookingStore::getByUsers(array_keys($membersList), array(BookingStore::STATUS_OPEN, BookingStore::STATUS_EXPORTED));
+        foreach ($membersList as $member => $dummy) {
+            $open = 0.0;
+            $exported = 0.0;
+            foreach ($openByUser[$member] ?? array() as $position) {
+                if ($position['mfb_status'] === BookingStore::STATUS_EXPORTED) {
+                    $exported += (float) $position['mfb_amount'];
+                } else {
+                    $open += (float) $position['mfb_amount'];
+                }
+            }
+            $paymentInfo[$member] = array(
+                'open' => round($open, 2),
+                'exported' => round($exported, 2),
+                'paid' => (string) ($extraFields[$member]['PAID' . $gCurrentOrgId] ?? ''),
+                'iban' => (string) ($extraFields[$member]['IBAN'] ?? '') !== ''
+            );
+        }
+    }
 
     if ($getMode == 'prepare')
     {
@@ -365,20 +398,35 @@ else
 
         $form = new HtmlForm('payments_filter_form', '', $page, array('type' => 'navbar', 'setFocus' => false));
     
-        $selectBoxEntries = array('0' => $gL10n->get('SYS_SHOW_ALL_CONTACTS'), '1' => $gL10n->get('PLG_MEMBERSHIPFEE_WITH_PAID'), '2' => $gL10n->get('PLG_MEMBERSHIPFEE_WITHOUT_PAID'));
+        $selectBoxEntries = array('3' => $gL10n->get('PLG_MEMBERSHIPFEE_WITH_OPEN_AMOUNT'), '2' => $gL10n->get('PLG_MEMBERSHIPFEE_WITHOUT_PAID'), '1' => $gL10n->get('PLG_MEMBERSHIPFEE_WITH_PAID'), '0' => $gL10n->get('SYS_SHOW_ALL_CONTACTS'));
         $form->addSelectBox('mem_show', $gL10n->get('PLG_MEMBERSHIPFEE_FILTER'), $selectBoxEntries, array('defaultValue' => $getMembersShow, 'helpTextId' => 'PLG_MEMBERSHIPFEE_FILTER_DESC', 'showContextDependentFirstEntry' => false));
  
-        $datumtemp = \DateTime::createFromFormat('Y-m-d', DATE_NOW);
-        $datum = $datumtemp->format($gSettingsManager->getString('system_date'));
-        $form->addInput('datum', $gL10n->get('PLG_MEMBERSHIPFEE_PAID_ON'), $datum, array('type' => 'date', 'helpTextId' => 'PLG_MEMBERSHIPFEE_PAID_DESC'));
-
-        $form->addButton('btn_save_date', $gL10n->get('PLG_MEMBERSHIPFEE_SAVE_DATE'), array('icon' => 'bi-check-lg', 'link' => 'javascript:assign_date()', 'class' => 'btn-primary'));
-        $form->addDescription('&nbsp');
-        $form->addButton('btn_delete_date', $gL10n->get('PLG_MEMBERSHIPFEE_DELETE_DATE'), array('icon' => 'bi-trash', 'link' => 'javascript:delete_date()', 'class' => 'btn-primary'));
-        $form->addDescription('&nbsp');
-        $form->addButton('btn_add_position', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_ADD'), array('icon' => 'bi-plus-circle', 'link' => SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER .'/system/booking_edit.php', array('mode' => 'add', 'scope' => 'payments')), 'class' => 'btn-secondary'));
- 
         $page->addHtml($form->show(false));
+
+        // Aktionen unterhalb des Filters: Datum und Buttons
+        $page->addHtml('<div class="d-flex flex-wrap align-items-center gap-2 mb-3">'
+            . '<label for="datum" class="form-label mb-0">' . $gL10n->get('PLG_MEMBERSHIPFEE_PAID_ON') . '</label>'
+            . '<input type="date" id="datum" name="datum" class="form-control" style="width: auto;" value="' . DATE_NOW . '" />'
+            . '<a id="btn_save_date" class="btn btn-primary" href="javascript:assign_date()"><i class="bi bi-check-lg"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_MARK_PAID') . '</a>'
+            . '<a id="btn_delete_date" class="btn btn-secondary" href="javascript:delete_date()"><i class="bi bi-arrow-counterclockwise"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_UNDO_PAID') . '</a>'
+            . '<a id="btn_add_position" class="btn btn-secondary" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/booking_edit.php', array('mode' => 'add', 'scope' => 'payments')) . '"><i class="bi bi-plus-circle"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_ADD') . '</a>'
+            . '</div>');
+
+        // Zusammenfassung der offenen Betraege der angezeigten Mitglieder
+        $sumOpen = 0.0;
+        $sumExported = 0.0;
+        $countOpen = 0;
+        foreach ($paymentInfo as $info) {
+            $sumOpen += $info['open'];
+            $sumExported += $info['exported'];
+            if ($info['open'] + $info['exported'] > 0.004) {
+                $countOpen++;
+            }
+        }
+        $page->addHtml('<div class="alert alert-info" role="alert"><i class="bi bi-cash-coin"></i> '
+            . $gL10n->get('PLG_MEMBERSHIPFEE_PAYMENTS_OPEN_SUMMARY', array($countOpen, mf_format_amount($sumOpen + $sumExported)))
+            . ($sumExported > 0.004 ? ' ' . $gL10n->get('PLG_MEMBERSHIPFEE_PAYMENTS_SUMMARY_EXPORTED', array(mf_format_amount($sumExported))) : '')
+            . '<br/><small>' . $gL10n->get('PLG_MEMBERSHIPFEE_PAYMENTS_HINT') . '</small></div>');
 
         // create table object
         $table = new HtmlTable('tbl_payments', $page, true, true, 'table table-condensed');
@@ -388,6 +436,12 @@ else
         
         $columnValues = array();
         $columnValues[] = '<a class="icon-text-link" href="javascript:select_all()">'.$gL10n->get('SYS_ALL').'</a>';
+        $columnAlign[] = 'right';
+        $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_OPEN_AMOUNT');
+        $columnAlign[] = 'left';
+        $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_STATUS');
+        $columnAlign[] = 'left';
+        $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_PAYMENT_METHOD');
 
         // headlines for columns
    	    foreach ($membersList as $member => $memberData)
@@ -442,7 +496,22 @@ else
                 $content= '<input type="checkbox" id="member_'.$member.'" name="member_'.$member.'" class="memlist_checkbox memlist_member" /><b id="loadindicator_member_'.$member.'"></b>';
             }
             $columnValues[] = $content;
-        
+
+            $info = $paymentInfo[$member] ?? array('open' => 0.0, 'exported' => 0.0, 'paid' => '', 'iban' => false);
+            $openTotal = $info['open'] + $info['exported'];
+            $columnValues[] = array('value' => ($openTotal > 0.004 ? '<strong>' . mf_format_amount($openTotal) . '</strong>' : '&ndash;'), 'order' => $openTotal);
+            if ($info['exported'] > 0.004) {
+                $statusText = $gL10n->get('PLG_MEMBERSHIPFEE_PAYMENT_STATUS_IN_RUN');
+            } elseif ($info['open'] > 0.004) {
+                $statusText = mf_booking_label(BookingStore::STATUS_OPEN);
+            } elseif ($info['paid'] !== '') {
+                $statusText = $gL10n->get('PLG_MEMBERSHIPFEE_PAID') . ' ' . mf_format_date(mf_parse_date($info['paid']) ?: $info['paid']);
+            } else {
+                $statusText = '&ndash;';
+            }
+            $columnValues[] = $statusText;
+            $columnValues[] = $info['iban'] ? $gL10n->get('PLG_MEMBERSHIPFEE_PAYMENT_DIRECT_DEBIT') : '<span class="text-warning">' . $gL10n->get('PLG_MEMBERSHIPFEE_PAYMENT_TRANSFER') . '</span>';
+
             $user->readDataById($member);
     	
     	    foreach ($memberData as $usfId => $content)

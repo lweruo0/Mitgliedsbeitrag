@@ -382,9 +382,6 @@ try {
         <li class="nav-item">
             <a id="tabs_nav_mandatemanagement" class="nav-link" href="#tabs-mandatemanagement" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_MANDATE_MANAGEMENT') . '</a>
         </li>
-        <li class="nav-item">
-            <a id="tabs_nav_export" class="nav-link" href="#tabs-export" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_EXPORT') . '</a>
-        </li>
     ');
 
         if (isUserAuthorizedForPreferences()) {
@@ -549,6 +546,16 @@ try {
 
         $page->addHtml(getMenuePanel('fees', 'sepa', 'accordion_fees', $sepaStep . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILE'), 'bi bi-filetype-xml', $formSepa->show()));
 
+        // PANEL: BILL (Rechnungen erstellen, fuer Mitglieder ohne Lastschrift)
+        $formBillExport = new HtmlForm('billexport_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/bill.php', $page);
+        $formBillExport->addSubmitButton('btn_bill', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT'), array(
+            'icon' => 'bi-file-earmark-spreadsheet',
+            'class' => 'offset-sm-3'
+        ));
+        $formBillExport->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT_DESC'));
+
+        $page->addHtml(getMenuePanel('fees', 'bill', 'accordion_fees', $sepaStep . 'b. ' . $gL10n->get('PLG_MEMBERSHIPFEE_BILL_CREATE'), 'bi bi-file-earmark-spreadsheet', $formBillExport->show()));
+
 
         // PANEL: RUNS (Einzugsuebersicht)
 
@@ -578,7 +585,7 @@ try {
         ));
         $formPayments->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS_DESC'));
 
-        $page->addHtml(getMenuePanel('fees', 'payments', 'accordion_fees', (++$workflowStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS'), 'bi bi-cash-coin', $formPayments->show()));
+        $page->addHtml(getMenuePanel('fees', 'payments', 'accordion_fees', $workflowStep . 'b. ' . $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS'), 'bi bi-cash-coin', $formPayments->show()));
 
         // PANEL: ANALYSIS
 
@@ -655,21 +662,6 @@ try {
 
         $page->addHtml(closeMenueTab());
 
-        // TAB: EXPORT
-        $page->addHtml(openMenueTab('export', 'accordion_export'));
-
-        // PANEL: BILL
-
-        $formBillExport = new HtmlForm('billexport_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/bill.php', $page);
-        $formBillExport->addSubmitButton('btn_bill', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT'), array(
-            'icon' => 'bi-file-earmark-spreadsheet',
-            'class' => 'offset-sm-3'
-        ));
-        $formBillExport->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT_DESC'));
-
-        $page->addHtml(getMenuePanel('export', 'bill', 'accordion_export', $gL10n->get('PLG_MEMBERSHIPFEE_BILL'), 'bi bi-file-earmark-spreadsheet', $formBillExport->show()));
-
-        $page->addHtml(closeMenueTab());
 
         if (isUserAuthorizedForPreferences()) {
             // TAB: PREFERENCES

@@ -356,8 +356,12 @@ try {
         $details = array();
         $reference = '';
         $dueDate = '';
+        $cancelId = 0;
         foreach ($positions as $position) {
             $statuses[$position['mfb_status']] = true;
+            if ($cancelId === 0 && $position['mfb_status'] !== BookingStore::STATUS_CANCELLED) {
+                $cancelId = (int) $position['mfb_id'];
+            }
             if ($position['mfb_status'] !== BookingStore::STATUS_CANCELLED) {
                 $sum += (float) $position['mfb_amount'];
             }
@@ -379,7 +383,9 @@ try {
             <td style="text-align: right;">' . mf_format_amount($sum) . '</td>
             <td>' . mf_format_date($dueDate) . '</td>
             <td>' . SecurityUtils::encodeHTML($reference) . '</td>
-            <td>' . $statusText . '</td>
+            <td style="white-space: nowrap;">' . $statusText
+                . ($cancelId > 0 ? ' <a class="admidio-icon-link" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/booking_edit.php', array('mode' => 'cancel', 'mfb_id' => $cancelId, 'return_run' => (int) $run['mfr_id'])) . '">'
+                    . '<i class="bi bi-x-octagon" title="' . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL') . '"></i></a>' : '') . '</td>
         </tr>';
     }
 

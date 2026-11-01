@@ -15,7 +15,7 @@
  *                    mail       - nur zur Pruefung, ob user im CheckedArray markiert sind
  * usr_id           : <>0        - Id des Benutzers, fuer der im CheckedArray gesetzt/geloescht wird
  *                    leer       - alle user im CheckedArray aendern von gesetzt->geloescht bzw geloescht->gesetzt
- * mem_show_choice  : 0 - (Default) Alle Benutzer anzeigen
+ * mem_show_choice  : 0 - (Default) Alle Mitglieder mit offenen Positionen
  *                    1 - Nur Benutzer anzeigen, bei denen eien E-Mail vorhanden ist
  *                    2 - Nur Benutzer anzeigen, bei denen keine E-Mail vorhanden ist
  * checked          : true  - Der Haken beim Benutzer wurde gesetzt
@@ -67,6 +67,9 @@ $getChecked = admFuncVariableIsValid($_GET, 'checked', 'string');
 $getMembersShow = admFuncVariableIsValid($_GET, 'mem_show_choice', 'numeric', array(
     'defaultValue' => 0
 ));
+if ($getMembersShow > 2) {
+    $getMembersShow = 0;
+}
 
 // add current url to navigation stack if last url was not the same page
 if (strpos($gNavigation->getUrl(), 'bill.php') === false) {
@@ -104,14 +107,9 @@ if ($getMode == 'mail' || $getMode == 'export') {
           ON ' . getContributionYearCondition('mem.') . '
          AND mem.mem_usr_id  = usr_id
              
-       WHERE ' . (($getMembersShow == 3)
-            ? 'usr_id IN (SELECT mfb_usr_id FROM ' . BookingStore::bookingsTable() . '
-                           WHERE mfb_org_id = ' . (int) $gCurrentOrgId . '
-                             AND mfb_status = \'' . BookingStore::STATUS_OPEN . '\'
-                             AND mfb_source = \'' . BookingStore::SOURCE_MANUAL . '\')'
-            : 'iban.usd_value IS NULL') . '
-         AND paid.usd_value IS NULL
-         AND fee.usd_value IS NOT NULL
+       WHERE usr_id IN (SELECT mfb_usr_id FROM ' . BookingStore::bookingsTable() . '
+                         WHERE mfb_org_id = ' . (int) $gCurrentOrgId . '
+                           AND mfb_status = \'' . BookingStore::STATUS_OPEN . '\')
                     ';
     if ($getMembersShow == 1) // Nur Benutzer anzeigen, bei denen eine E-Mail vorhanden ist
     {
@@ -262,11 +260,11 @@ if ($getMode == 'mail' || $getMode == 'export') {
             'setFocus' => false
         ));
 
+        // Grundmenge: alle Mitglieder mit offenen Positionen (unabhaengig von IBAN und Bezahlt-Datum)
         $selectBoxEntries = array(
-            '0' => $gL10n->get('SYS_SHOW_ALL_CONTACTS'),
+            '0' => $gL10n->get('PLG_MEMBERSHIPFEE_BILL_ALL_OPEN'),
             '1' => $gL10n->get('PLG_MEMBERSHIPFEE_WITH_EMAIL'),
-            '2' => $gL10n->get('PLG_MEMBERSHIPFEE_WITHOUT_EMAIL'),
-            '3' => $gL10n->get('PLG_MEMBERSHIPFEE_BILL_OPEN_MANUAL')
+            '2' => $gL10n->get('PLG_MEMBERSHIPFEE_WITHOUT_EMAIL')
         );
         $form->addSelectBox('mem_show', $gL10n->get('PLG_MEMBERSHIPFEE_FILTER'), $selectBoxEntries, array(
             'defaultValue' => $getMembersShow,
@@ -274,19 +272,13 @@ if ($getMode == 'mail' || $getMode == 'export') {
             'showContextDependentFirstEntry' => false
         ));
 
-        $form->addButton('btn_exportieren', $gL10n->get('PLG_MEMBERSHIPFEE_EXPORT'), array(
-            'icon' => 'bi-filetype-csv',
-            'link' => 'javascript:billexport()',
-            'class' => 'btn-primary'
-        ));
-        $form->addDescription('&nbsp');
-        $form->addButton('btn_mailen', $gL10n->get('SYS_EMAIL'), array(
-            'icon' => 'bi-envelope',
-            'link' => 'javascript:massmail()',
-            'class' => 'btn-primary'
-        ));
-
         $page->addHtml($form->show());
+
+        // Aktionen unterhalb des Filters
+        $page->addHtml('<div class="mb-3">'
+            . '<a id="btn_exportieren" class="btn btn-primary me-2" href="javascript:billexport()"><i class="bi bi-filetype-csv"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_EXPORT') . '</a>'
+            . '<a id="btn_mailen" class="btn btn-primary" href="javascript:massmail()"><i class="bi bi-envelope"></i> ' . $gL10n->get('SYS_EMAIL') . '</a>'
+            . '</div>');
 
         // create table object
         $table = new HtmlTable('tbl_bill', $page, true, true, 'table table-condensed');

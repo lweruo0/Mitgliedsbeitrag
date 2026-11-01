@@ -42,6 +42,7 @@
     <string name="PLG_MEMBERSHIPFEE_BICCHECK2_RESULT_ERROR">Bei den aufgeführten Mitgliedern oder bei den Kontodaten des Vereins entspricht der BIC nicht dem gültigen Format.</string> 
     <string name="PLG_MEMBERSHIPFEE_BICCHECK2_RESULT_OK">Alle vorhandenen BIC entsprechen dem gültigen Format.</string>    
     <string name="PLG_MEMBERSHIPFEE_BILL">Rechnung</string>
+    <string name="PLG_MEMBERSHIPFEE_BILL_CREATE">Rechnungen erstellen</string>
     <string name="PLG_MEMBERSHIPFEE_BILL_EDIT">Rechnungsdaten bearbeiten</string>   
     <string name="PLG_MEMBERSHIPFEE_BILL_EDIT_DESC">Bietet die Möglichkeit, Überweisungsaufforderungen per E-Mail zu versenden bzw. erstellt eine Datei mit Daten zum Erzeugen von Rechnungen.</string>
     <string name="PLG_MEMBERSHIPFEE_BILL_FILE_NAME">Rechnungsdateiname</string>
@@ -611,4 +612,16 @@
     <string name="PLG_MEMBERSHIPFEE_UNINST_BOOKINGS_TABLE_DELETED">&lt;br/&gt;Tabellen der Buchungshistorie gelöscht.</string>
     <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_WHOLE_DEBIT">Alle Positionen dieser Lastschrift stornieren</string>
     <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_WHOLE_DEBIT_DESC">Eine Rücklastschrift betrifft immer die ganze Lastschrift eines Mitglieds, also alle Positionen mit derselben SEPA-Datei und Referenz. Der Rollenentzug gilt nur für die ausgewählte Position.</string>
+    <string name="PLG_MEMBERSHIPFEE_WITH_OPEN_AMOUNT">Mit offenem Betrag</string>
+    <string name="PLG_MEMBERSHIPFEE_OPEN_AMOUNT">Offener Betrag</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENT_METHOD">Zahlart</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENT_DIRECT_DEBIT">Lastschrift</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENT_TRANSFER">Überweisung</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENT_STATUS_IN_RUN">im Einzug (exportiert)</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENTS_OPEN_SUMMARY">Mitglieder mit offenem Betrag: #VAR1#, zusammen &lt;strong&gt;#VAR2#&lt;/strong&gt;.</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENTS_SUMMARY_EXPORTED">Davon stehen #VAR1# in einem laufenden Einzug und werden über die Einzugsübersicht abgeschlossen.</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENTS_HINT">Für Zahlungen ohne Lastschrift (Überweisung, bar): Mitglied anhaken, Datum wählen und „Als bezahlt markieren“. Lastschriften werden in der Einzugsübersicht als eingezogen markiert.</string>
+    <string name="PLG_MEMBERSHIPFEE_BILL_ALL_OPEN">Alle Mitglieder mit offenen Positionen</string>
+    <string name="PLG_MEMBERSHIPFEE_MARK_PAID">Als bezahlt markieren</string>
+    <string name="PLG_MEMBERSHIPFEE_UNDO_PAID">Bezahlt zurücknehmen</string>
 </resources>

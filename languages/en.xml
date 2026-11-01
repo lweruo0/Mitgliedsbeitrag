@@ -42,6 +42,7 @@
     <string name="PLG_MEMBERSHIPFEE_BICCHECK2_RESULT_ERROR">The BIC code for the listed members or the club's account details does not conform to the valid format.</string> 
     <string name="PLG_MEMBERSHIPFEE_BICCHECK2_RESULT_OK">All existing BIC codes conform to the valid format.</string>     
     <string name="PLG_MEMBERSHIPFEE_BILL">Invoice</string>
+    <string name="PLG_MEMBERSHIPFEE_BILL_CREATE">Create invoices</string>
     <string name="PLG_MEMBERSHIPFEE_BILL_EDIT">Edit invoice data</string>    
     <string name="PLG_MEMBERSHIPFEE_BILL_EDIT_DESC">Offers the option to send payment requests via email or generates a file containing data for creating invoices.</string>
     <string name="PLG_MEMBERSHIPFEE_BILL_FILE_NAME">Invoice file name</string>
@@ -611,4 +612,16 @@
     <string name="PLG_MEMBERSHIPFEE_UNINST_BOOKINGS_TABLE_DELETED">&lt;br/&gt;Tables of the booking history deleted.</string>
     <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_WHOLE_DEBIT">Cancel all items of this debit</string>
     <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_WHOLE_DEBIT_DESC">A return debit always affects the whole debit of a member, i.e. all items with the same SEPA file and reference. The role revocation only applies to the selected item.</string>
+    <string name="PLG_MEMBERSHIPFEE_WITH_OPEN_AMOUNT">With open amount</string>
+    <string name="PLG_MEMBERSHIPFEE_OPEN_AMOUNT">Open amount</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENT_METHOD">Payment method</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENT_DIRECT_DEBIT">Direct debit</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENT_TRANSFER">Bank transfer</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENT_STATUS_IN_RUN">in collection (exported)</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENTS_OPEN_SUMMARY">Members with open amount: #VAR1#, total &lt;strong&gt;#VAR2#&lt;/strong&gt;.</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENTS_SUMMARY_EXPORTED">#VAR1# of it is in a running collection and is completed in the collection overview.</string>
+    <string name="PLG_MEMBERSHIPFEE_PAYMENTS_HINT">For payments without direct debit (transfer, cash): tick the member, choose the date and click "Mark as paid". Direct debits are marked as collected in the collection overview.</string>
+    <string name="PLG_MEMBERSHIPFEE_BILL_ALL_OPEN">All members with open items</string>
+    <string name="PLG_MEMBERSHIPFEE_MARK_PAID">Mark as paid</string>
+    <string name="PLG_MEMBERSHIPFEE_UNDO_PAID">Undo paid</string>
 </resources>

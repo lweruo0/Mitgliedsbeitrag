@@ -13,6 +13,7 @@
  * mode      : add | edit | delete | reference | cancel      (Formular anzeigen)
  *             save_add | save_edit | save_delete | save_reference | save_cancel (Speichern, POST)
  * user_uuid : Mitglied (mode add)
+ * return_run: optional, Einzug, in dessen Einzugsuebersicht nach dem Speichern zurueckgesprungen wird
  * scope     : payments = fuer alle in den Beitragszahlungen markierten Mitglieder (mode add)
  * mfb_id    : Position (alle anderen Modi)
  ***********************************************************************************************
@@ -40,6 +41,7 @@ try {
     $getUserUuid = admFuncVariableIsValid($_GET, 'user_uuid', 'uuid');
     $getScope = admFuncVariableIsValid($_GET, 'scope', 'string', array('validValues' => array('', 'payments')));
     $getBookingId = admFuncVariableIsValid($_GET, 'mfb_id', 'int');
+    $getReturnRun = admFuncVariableIsValid($_GET, 'return_run', 'int'); // Ruecksprung in die Einzugsuebersicht (Einzug)
 
     $pPreferences = new ConfigTable();
     $pPreferences->read();
@@ -70,6 +72,9 @@ try {
     $returnUrl = ($getScope === 'payments')
         ? ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/payments.php'
         : SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/bookings.php', array('user_uuid' => $user->getValue('usr_uuid')));
+    if ($getReturnRun > 0) {
+        $returnUrl = SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/runs.php', array('run_id' => $getReturnRun));
+    }
 
     $selfUrl = ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/booking_edit.php';
 
@@ -209,6 +214,9 @@ try {
     }
 
     $urlParams = array('mode' => 'save_' . $getMode);
+    if ($getReturnRun > 0) {
+        $urlParams['return_run'] = $getReturnRun;
+    }
     if ($position !== null) {
         $urlParams['mfb_id'] = $position['mfb_id'];
     } elseif ($getScope === 'payments') {
