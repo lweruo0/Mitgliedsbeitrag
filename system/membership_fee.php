@@ -499,11 +499,8 @@ try {
         // PANEL: SEPA (SEPA-Datei erzeugen)
 
         $sepaStep = ++$workflowStep;
-        $exportActionFile = 'sepa_export.php';
-        if ($pPreferences->config['SEPA']['direct_debit_format'] === 'v8') {
-            $exportActionFile = 'sepa_export_pain.008.001.08.php';
-        }
-        $formSepa = new HtmlForm('sepa_export_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/' . $exportActionFile, $page);
+        // SEPA-Dateien: je Faelligkeitsdatum eine Datei (bzw. je Faelligkeitsdatum und Sequenztyp), siehe sepa_create.php
+        $formSepa = new HtmlForm('sepa_export_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/sepa_create.php', $page);
 
         if (! $directdebittype) {
             $html = '<div class="alert alert-warning alert-small" role="alert"><i class="bi bi-exclamation-triangle"></i>' . $gL10n->get('PLG_MEMBERSHIPFEE_NO_DUEDATES_EXIST') . '</div>';
@@ -519,58 +516,30 @@ try {
                     <th style="text-align: center;font-weight:bold;">FNAL</th>
                     <th style="text-align: center;font-weight:bold;">OOFF</th>
                 </tr>
-            </thead>';
-
-            $htmlTable .= '
-            <tbody id="test">';
-
+            </thead>
+            <tbody>';
+            ksort($duedates);
             foreach ($duedates as $duedate => $duedatedata) {
                 $datumtemp = \DateTime::createFromFormat('Y-m-d', $duedate);
-
                 $htmlTable .= '
-                    <tr>
-                        <td style="text-align: center;">' . $datumtemp->format($gSettingsManager->getString('system_date')) . '</td>
-                        <td style="text-align: center;"><input type="checkbox" name="duedatesepatype[]" ';
-                if ($duedatedata['FRST'] == 0) {
-                    $htmlTable .= ' disabled="disabled" ';
+                <tr>
+                    <td style="text-align: center;">' . $datumtemp->format($gSettingsManager->getString('system_date')) . '</td>';
+                foreach (array('FRST', 'RCUR', 'FNAL', 'OOFF') as $sequenceType) {
+                    $htmlTable .= '<td style="text-align: center;">' . ($duedatedata[$sequenceType] > 0 ? $duedatedata[$sequenceType] : '<span class="text-muted">–</span>') . '</td>';
                 }
-                $htmlTable .= 'value="' . $duedate . 'FRST" /><small> (' . $duedatedata['FRST'] . ')</small>
-                        </td>
-                        <td style="text-align: center;"><input type="checkbox" name="duedatesepatype[]" ';
-                if ($duedatedata['RCUR'] == 0) {
-                    $htmlTable .= ' disabled="disabled" ';
-                }
-                $htmlTable .= 'value="' . $duedate . 'RCUR" /><small> (' . $duedatedata['RCUR'] . ')</small>
-                        </td>
-                        <td style="text-align: center;"><input type="checkbox" name="duedatesepatype[]"  ';
-                if ($duedatedata['FNAL'] == 0) {
-                    $htmlTable .= ' disabled="disabled" ';
-                }
-                $htmlTable .= 'value="' . $duedate . 'FNAL" /><small> (' . $duedatedata['FNAL'] . ')</small>
-                        </td>
-                        <td style="text-align: center;"><input type="checkbox" name="duedatesepatype[]"  ';
-                if ($duedatedata['OOFF'] == 0) {
-                    $htmlTable .= ' disabled="disabled" ';
-                }
-                $htmlTable .= 'value="' . $duedate . 'OOFF" /><small> (' . $duedatedata['OOFF'] . ')</small>
-                        </td>
-                    </tr>';
+                $htmlTable .= '</tr>';
             }
             $htmlTable .= '
-                </tbody>
+            </tbody>
         </table>';
 
-            $formSepa->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE_SELECTION'), $htmlTable);
-            $formSepa->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE_SELECTION_DESC'));
-
-            $formSepa->addRadioButton('export_file_mode', '', array(
-                'xml_file' => $gL10n->get('PLG_MEMBERSHIPFEE_XML_FILE'),
-                'ctl_file' => $gL10n->get('PLG_MEMBERSHIPFEE_CONTROL_FILE')
-            ), array(
-                'defaultValue' => 'xml_file'
+            $formSepa->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), $htmlTable);
+            $formSepa->addCheckbox('combine_sequence_types', $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_COMBINE'), (bool) ($pPreferences->config['SEPA']['combine_sequence_types'] ?? 1), array(
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_SEPA_COMBINE_DESC'
             ));
+            $formSepa->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_FILES_INFO'));
 
-            $formSepa->addSubmitButton('btn_create_export_file', $gL10n->get('PLG_MEMBERSHIPFEE_CREATE_EXPORT_FILE'), array(
+            $formSepa->addSubmitButton('btn_create_export_file', $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILES'), array(
                 'icon' => 'bi-filetype-xml',
                 'class' => 'btn-primary offset-sm-3'
             ));

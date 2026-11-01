@@ -379,7 +379,11 @@
     <string name="PLG_MEMBERSHIPFEE_SECOND_PASSAGE_INFO">The displayed data is for information purposes only. No changes will be made to the database. Should there be any differences (DESIRED / ACTUAL), the plugin may not function correctly.</string>
     <string name="PLG_MEMBERSHIPFEE_SELECT_ALL">Select all</string>
     <string name="PLG_MEMBERSHIPFEE_SEPA">SEPA</string>
-    <string name="PLG_MEMBERSHIPFEE_SEPA_EXPORT_INFO">The plugin membership fee generates a single SEPA XML file based on the selected parameters. However, the file may not be accepted by the bank / home banking program if it has multiple due dates. It is therefore recommended to create an XML file with only one due date.\n\n FRST=first debit, RCUR=recurring debit, FNAL=final debit, OOFF=one-off debit</string>
+    <string name="PLG_MEMBERSHIPFEE_SEPA_COMBINE">Combine the sequence types of a due date in one file</string>
+    <string name="PLG_MEMBERSHIPFEE_SEPA_COMBINE_DESC">A separate SEPA file is created for each due date. Checked: FRST, RCUR etc. of one date are in one file (one block per sequence type; your bank must support several sequence types in one file). Unchecked: one file per due date and sequence type.</string>
+    <string name="PLG_MEMBERSHIPFEE_SEPA_FILES_INFO">The files are not downloaded directly but stored with the respective collection run. Afterwards the collection overview opens, where the SEPA file and the control file can be downloaded and shared. Members already contained in a SEPA file are not added again.</string>
+    <string name="PLG_MEMBERSHIPFEE_SEPA_CREATE_FILES">Create SEPA files</string>
+    <string name="PLG_MEMBERSHIPFEE_SEPA_EXPORT_INFO">A separate SEPA file is created for each due date; within a file each sequence type has its own block.\n\n FRST=first debit, RCUR=recurring debit, FNAL=final debit, OOFF=one-off debit</string>
     <string name="PLG_MEMBERSHIPFEE_SEPA_EXPORT_NO_DATA">There is not enough data to export.</string>
     <string name="PLG_MEMBERSHIPFEE_SEQUENCETYPE">Sequence type</string>
     <string name="PLG_MEMBERSHIPFEE_SEQUENCETYPE_DESC">Sequence type: empty=first debit(FRST) R=recurring debit(RCUR) F=final debit(FNAL) O=one-off debit(OOFF)</string>

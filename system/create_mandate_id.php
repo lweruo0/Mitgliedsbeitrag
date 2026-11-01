@@ -150,6 +150,15 @@ if ($getMode == 'preview')     //Default
 			$table->addRowByArray($columnValues);
 		}
 
+		// Speichern oberhalb und unterhalb der Liste (zwei Formulare mit demselben Ziel)
+		if (!$errorMarker)
+		{
+			$formTop = new HtmlForm('createmandateid_preview_form_top', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER .'/system/create_mandate_id.php', array('mode' => 'write')), $page);
+			$formTop->addSubmitButton('btn_next_page_top', $gL10n->get('SYS_SAVE'), array('icon' => 'bi-check-lg'));
+			$formTop->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID_PREVIEW'));
+			$page->addHtml($formTop->show(false));
+		}
+
 		$page->addHtml($table->show(false));
 		if (!$errorMarker)
 		{

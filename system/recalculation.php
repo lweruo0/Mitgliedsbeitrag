@@ -212,6 +212,17 @@ if ($getMode == 'preview') // Default
                 '<a class="admidio-icon-link" href="' . $historyUrl . '"><i class="bi bi-clock-history" title="' . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_HISTORY') . '"></i></a>'
             ));
         }
+        // Speichern oberhalb und unterhalb der Liste (zwei Formulare mit demselben Ziel)
+        $formTop = new HtmlForm('recalculation_preview_form_top', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/recalculation.php', array(
+            'mode' => 'write'
+        )), $page);
+        $formTop->addSubmitButton('btn_next_page_top', $gL10n->get('SYS_SAVE'), array(
+            'icon' => 'bi-check-lg',
+            'class' => 'btn btn-primary'
+        ));
+        $formTop->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_PREVIEW'));
+        $page->addHtml($formTop->show(false));
+
         $page->addHtml($table->show(false));
 
         $form = new HtmlForm('recalculation_preview_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/recalculation.php', array(
@@ -284,8 +295,14 @@ if ($getMode == 'preview') // Default
     $_SESSION['pMembershipFee']['recalculation_saved'] = $_SESSION['pMembershipFee']['recalculation_plan'];
     unset($_SESSION['pMembershipFee']['recalculation_plan']);
 
+    // naechster Schritt der Kurzanleitung: Faelligkeitsdatum setzen (oberhalb und unterhalb der Liste)
+    $nextStepHtml = '<div class="mb-3"><a class="btn btn-primary" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/duedates.php') . '">'
+        . '<i class="bi bi-arrow-right-circle"></i> Weiter mit Fälligkeit setzen</a></div>';
+
+    $page->addHtml('<div class="alert alert-success" role="alert"><i class="bi bi-check-lg"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_SAVED') . '</div>');
+    $page->addHtml($nextStepHtml);
     $page->addHtml($table->show(false));
-    $page->addHtml('<br/><strong>' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_SAVED') . '</strong><br/><br/>');
+    $page->addHtml($nextStepHtml);
     $page->show();
 } elseif ($getMode == 'print') {
     $page = new HtmlPage('plg-mitgliedsbeitrag-recalculation-print', $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_NEW'));

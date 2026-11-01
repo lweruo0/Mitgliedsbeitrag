@@ -1942,3 +1942,188 @@ function mf_auto_sequence_types(array $userIds): array
     }
     return $result;
 }
+
+/**
+ * Tabelle fuer zwischengespeicherte OpenIBAN-Ergebnisse (je IBAN nur der SHA-256-Hash, keine Kontonummer).
+ */
+function mf_openiban_cache_table(): string
+{
+    static $ensured = false;
+    $table = TABLE_PREFIX . '_plugin_membershipfee_ibancache';
+    if (!$ensured) {
+        $GLOBALS['gDb']->queryPrepared('CREATE TABLE IF NOT EXISTS ' . $table . ' (
+            mfi_hash     char(64)      NOT NULL,
+            mfi_valid    tinyint(1)    NOT NULL DEFAULT 0,
+            mfi_bic      varchar(11)   NOT NULL DEFAULT \'\',
+            mfi_bank     varchar(255)  NOT NULL DEFAULT \'\',
+            mfi_checked  datetime      NOT NULL,
+            PRIMARY KEY (mfi_hash)
+        ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4');
+        $ensured = true;
+    }
+    return $table;
+}
+
+/**
+ * Fragt IBANs bei openiban.com ab (Gueltigkeit, Bankname, BIC). Ergebnisse werden 30 Tage
+ * zwischengespeichert; gleichzeitig laufen bis zu 8 Anfragen. Fehlgeschlagene Anfragen werden
+ * nicht gespeichert und beim naechsten Aufruf wiederholt.
+ *
+ * @param array<int, string> $ibans normalisierte IBANs (ohne Leerzeichen, Grossbuchstaben)
+ * @return array<string, array{valid:bool, bic:string, bank:string, error:string}> IBAN => Ergebnis
+ */
+function mf_openiban_lookup(array $ibans): array
+{
+    global $gDb;
+    $table = mf_openiban_cache_table();
+    $result = array();
+    $hashes = array();
+    foreach (array_unique($ibans) as $iban) {
+        $hashes[hash('sha256', $iban)] = $iban;
+    }
+    if (count($hashes) === 0) {
+        return $result;
+    }
+
+    // Cache lesen
+    foreach (array_chunk(array_keys($hashes), 500) as $chunk) {
+        $statement = $gDb->queryPrepared('SELECT * FROM ' . $table . ' WHERE mfi_checked >= ? AND mfi_hash IN (' . implode(',', array_fill(0, count($chunk), '?')) . ')',
+            array_merge(array(date('Y-m-d H:i:s', strtotime('-30 days'))), $chunk));
+        while ($row = $statement->fetch()) {
+            $result[$hashes[$row['mfi_hash']]] = array('valid' => (bool) $row['mfi_valid'], 'bic' => (string) $row['mfi_bic'], 'bank' => (string) $row['mfi_bank'], 'error' => '');
+        }
+    }
+
+    $open = array();
+    foreach ($hashes as $hash => $iban) {
+        if (!isset($result[$iban])) {
+            $open[$hash] = $iban;
+        }
+    }
+    if (count($open) === 0) {
+        return $result;
+    }
+    if (!function_exists('curl_multi_init')) {
+        foreach ($open as $iban) {
+            $result[$iban] = array('valid' => false, 'bic' => '', 'bank' => '', 'error' => 'cURL ist auf dem Server nicht verfügbar');
+        }
+        return $result;
+    }
+    if (function_exists('set_time_limit')) {
+        @set_time_limit(600);
+    }
+
+    foreach (array_chunk($open, 8, true) as $batch) {
+        $multi = curl_multi_init();
+        $handles = array();
+        foreach ($batch as $hash => $iban) {
+            $handle = curl_init('https://openiban.com/validate/' . rawurlencode($iban) . '?getBIC=true&validateBankCode=true');
+            curl_setopt_array($handle, array(
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_HTTPHEADER => array('Accept: application/json'),
+                CURLOPT_USERAGENT => 'Admidio-Mitgliedsbeitrag'
+            ));
+            curl_multi_add_handle($multi, $handle);
+            $handles[$hash] = $handle;
+        }
+        do {
+            $status = curl_multi_exec($multi, $running);
+            if ($running) {
+                curl_multi_select($multi, 1.0);
+            }
+        } while ($running && $status === CURLM_OK);
+
+        foreach ($handles as $hash => $handle) {
+            $iban = $batch[$hash];
+            $body = curl_multi_getcontent($handle);
+            $httpCode = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($handle);
+            curl_multi_remove_handle($multi, $handle);
+            curl_close($handle);
+
+            $data = is_string($body) ? json_decode($body, true) : null;
+            if ($httpCode !== 200 || !is_array($data)) {
+                $result[$iban] = array('valid' => false, 'bic' => '', 'bank' => '', 'error' => 'Abfrage fehlgeschlagen' . ($curlError !== '' ? ': ' . $curlError : ' (HTTP ' . $httpCode . ')'));
+                continue;
+            }
+            $entry = array(
+                'valid' => (bool) ($data['valid'] ?? false),
+                'bic' => strtoupper(trim((string) ($data['bankData']['bic'] ?? ''))),
+                'bank' => trim((string) ($data['bankData']['name'] ?? '')),
+                'error' => ''
+            );
+            $result[$iban] = $entry;
+            $gDb->queryPrepared('REPLACE INTO ' . $table . ' (mfi_hash, mfi_valid, mfi_bic, mfi_bank, mfi_checked) VALUES (?, ?, ?, ?, ?)',
+                array($hash, $entry['valid'] ? 1 : 0, mb_substr($entry['bic'], 0, 11), mb_substr($entry['bank'], 0, 255), DATETIME_NOW));
+        }
+        curl_multi_close($multi);
+    }
+    return $result;
+}
+
+/**
+ * Gleicht die IBANs aller Mitglieder mit OpenIBAN ab und liefert die Auffaelligkeiten:
+ * IBAN laut OpenIBAN ungueltig, BIC fehlt/weicht ab, Bankname fehlt/weicht ab, Abfrage fehlgeschlagen.
+ * IBANs, die schon die lokale Pruefziffern-Pruefung nicht bestehen, meldet check_iban().
+ *
+ * @return array{rows: array<int, array<string, mixed>>, checked: int}
+ */
+function mf_openiban_check(): array
+{
+    $members = list_members(array('FIRST_NAME', 'LAST_NAME', 'IBAN', 'BIC', 'BANK'), 0);
+    $ibanByUser = array();
+    foreach ($members as $usrId => $memberdata) {
+        $iban = strtoupper(str_replace(' ', '', (string) $memberdata['IBAN']));
+        if (strlen($iban) > 1 && test_iban($iban)) {
+            $ibanByUser[$usrId] = $iban;
+        }
+    }
+    $lookup = mf_openiban_lookup(array_values($ibanByUser));
+
+    $normalizeBic = static function (string $bic): string {
+        $bic = strtoupper(str_replace(' ', '', $bic));
+        return (strlen($bic) === 11 && substr($bic, 8) === 'XXX') ? substr($bic, 0, 8) : $bic;
+    };
+    $rows = array();
+    foreach ($ibanByUser as $usrId => $iban) {
+        $info = $lookup[$iban] ?? null;
+        if ($info === null) {
+            continue;
+        }
+        $storedBic = trim((string) $members[$usrId]['BIC']);
+        $storedBank = trim((string) $members[$usrId]['BANK']);
+        $problems = array();
+        if ($info['error'] !== '') {
+            $problems[] = $info['error'];
+        } elseif (!$info['valid']) {
+            $problems[] = 'IBAN laut OpenIBAN ungültig (z. B. unbekannte Bankleitzahl)';
+        } else {
+            if ($info['bic'] !== '' && $normalizeBic($storedBic) !== $normalizeBic($info['bic'])) {
+                $problems[] = $storedBic === '' ? 'BIC fehlt' : 'BIC weicht ab';
+            }
+            if ($info['bank'] !== '' && mb_strtolower($storedBank) !== mb_strtolower($info['bank'])) {
+                $problems[] = $storedBank === '' ? 'Bankname fehlt' : 'Bankname weicht ab';
+            }
+        }
+        if (count($problems) === 0) {
+            continue;
+        }
+        $rows[] = array(
+            'usr_id' => (int) $usrId,
+            'name' => trim($members[$usrId]['LAST_NAME'] . ', ' . $members[$usrId]['FIRST_NAME'], ', '),
+            'iban' => substr($iban, 0, 4) . ' … ' . substr($iban, -4),
+            'stored_bic' => $storedBic,
+            'stored_bank' => $storedBank,
+            'bic' => $info['bic'],
+            'bank' => $info['bank'],
+            'problems' => $problems,
+            'fixable' => $info['error'] === '' && $info['valid'] && ($info['bic'] !== '' || $info['bank'] !== '')
+        );
+    }
+    usort($rows, static function ($a, $b) {
+        return strcmp($a['name'], $b['name']);
+    });
+    return array('rows' => $rows, 'checked' => count($ibanByUser));
+}

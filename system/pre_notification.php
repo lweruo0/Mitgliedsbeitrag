@@ -24,6 +24,7 @@ use Admidio\Infrastructure\Exception;
 use Admidio\Infrastructure\Utils\SecurityUtils;
 use Admidio\Infrastructure\Utils\StringUtils;
 use Admidio\Users\Entity\User;
+use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
 require_once (__DIR__ . '/../../../system/common.php');
@@ -59,6 +60,11 @@ $getUserId = admFuncVariableIsValid($_GET, 'usr_id', 'numeric', array(
     'directOutput' => true
 ));
 $getChecked = admFuncVariableIsValid($_GET, 'checked', 'string');
+// all: select = alle angezeigten Mitglieder auswaehlen, deselect = alle abwaehlen (Schaltflaechen ueber der Tabelle)
+$getAll = admFuncVariableIsValid($_GET, 'all', 'string', array(
+    'defaultValue' => '',
+    'validValues' => array('', 'select', 'deselect')
+));
 $getDueDate = admFuncVariableIsValid($_GET, 'duedate', 'string', array(
     'defaultValue' => 0
 ));
@@ -209,6 +215,18 @@ if ($getMode == 'mail' || $getMode == 'export') {
                 $_SESSION['pMembershipFee']['checkedArray'][$getUserId] = isset($_SESSION['pMembershipFee']['mailArray'][$getUserId]) ? $_SESSION['pMembershipFee']['mailArray'][$getUserId] : '';
                 $ret_text = 'success';
             }
+        } elseif ($getAll !== '') // Schaltflaechen „Alle auswählen“ / „Alle abwählen“
+        {
+            while ($usr = $statement->fetch()) {
+                if ($getAll === 'select') {
+                    if (!array_key_exists($usr['usr_id'], $_SESSION['pMembershipFee']['checkedArray'])) {
+                        $_SESSION['pMembershipFee']['checkedArray'][$usr['usr_id']] = isset($_SESSION['pMembershipFee']['mailArray'][$usr['usr_id']]) ? $_SESSION['pMembershipFee']['mailArray'][$usr['usr_id']] : '';
+                    }
+                } else {
+                    unset($_SESSION['pMembershipFee']['checkedArray'][$usr['usr_id']]);
+                }
+            }
+            $ret_text = 'success';
         } else // Alle aendern wurde gewaehlt
         {
             while ($usr = $statement->fetch()) {
@@ -276,6 +294,22 @@ if ($getMode == 'mail' || $getMode == 'export') {
         '); // !!!: ohne true
 
         $javascriptCode = '
+
+        // Schaltflaechen „Alle auswählen“ / „Alle abwählen“
+        $(".mf-prenot-all").click(function(){
+            var duedate = $("#duedate").val();
+            $.post("' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/pre_notification.php', array(
+            'mode' => 'prepare'
+        )) . '&all=" + $(this).data("all") + "&duedate=" + duedate,
+                function(data){
+                    if(data == "success") {
+                        window.location.replace("' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/pre_notification.php') . '?duedate=" + duedate);
+                    } else {
+                        alert(data);
+                    }
+                }
+            );
+        });
 
         // if checkbox in header is clicked then change all data
         $("input[type=checkbox].change_checkbox").click(function(){
@@ -368,19 +402,15 @@ if ($getMode == 'mail' || $getMode == 'export') {
             'showContextDependentFirstEntry' => false
         ));
 
-        $form->addButton('btn_exportieren', $gL10n->get('PLG_MEMBERSHIPFEE_EXPORT'), array(
-            'icon' => 'bi-filetype-csv',
-            'link' => 'javascript:prenotexport()',
-            'class' => 'btn-primary'
-        ));
-        $form->addDescription('&nbsp');
-        $form->addButton('btn_mailen', $gL10n->get('SYS_EMAIL'), array(
-            'icon' => 'bi-envelope',
-            'link' => 'javascript:massmail()',
-            'class' => 'btn-primary'
-        ));
-
-        $page->addHtml($form->show());
+        // Reihenfolge der Ausgabe (Zusammenfassung, Filter, Schaltflaechen, Tabelle) siehe Ende der Datei
+        $filterHtml = $form->show();
+        $buttonsHtml = '<div class="mb-3">'
+            . '<button type="button" class="btn btn-primary me-2 mb-2 mf-prenot-all" data-all="select"><i class="bi bi-check2-square"></i> Alle auswählen</button>'
+            . '<button type="button" class="btn btn-secondary me-2 mb-2 mf-prenot-all" data-all="deselect"><i class="bi bi-square"></i> Alle abwählen</button>'
+            . '<a class="btn btn-primary me-2 mb-2" href="javascript:prenotexport()"><i class="bi bi-filetype-csv"></i> Exportiere Auswahl</a>'
+            . '<a class="btn btn-primary mb-2" href="javascript:massmail()"><i class="bi bi-envelope"></i> Auswahl per E-Mail versenden</a>'
+            . '<div class="form-text">„Alle auswählen“ und „Alle abwählen“ gelten für alle Mitglieder der Liste (Filter Fälligkeitsdatum beachten), nicht nur für die aktuelle Tabellenseite.</div>'
+            . '</div>';
 
         // create table object
         $table = new HtmlTable('tbl_duedates', $page, true, true, 'table table-condensed');
@@ -436,8 +466,14 @@ if ($getMode == 'mail' || $getMode == 'export') {
             12
         ));
 
+        // fuer die Zusammenfassung: angezeigte Mitglieder und Summe des Beitragsfelds
+        $summaryUserIds = array();
+        $summaryFeeTotal = 0.0;
+
         // show rows with all organization users
         while ($usr = $statement->fetch()) {
+            $summaryUserIds[] = (int) $usr['usr_id'];
+            $summaryFeeTotal += normalize_fee($usr['beitrag']);
             $addressText = ' ';
             $htmlAddress = '&nbsp;';
             $htmlBirthday = '&nbsp;';
@@ -572,6 +608,52 @@ if ($getMode == 'mail' || $getMode == 'export') {
             $table->addRowByArray($columnValues, 'userid_' . $usr['usr_id']);
         } // End While
 
+        // Zusammenfassung je Beitragsrolle: offene und exportierte Positionen der angezeigten Mitglieder
+        $currency = $gSettingsManager->getString('system_currency');
+        $formatAmount = static function (float $amount) use ($currency): string {
+            return number_format($amount, 2, ',', '.') . ' ' . $currency;
+        };
+        $summary = array();
+        $positionsTotal = 0.0;
+        if (count($summaryUserIds) > 0) {
+            foreach (BookingStore::getByUsers($summaryUserIds, array(BookingStore::STATUS_OPEN, BookingStore::STATUS_EXPORTED)) as $positions) {
+                foreach ($positions as $position) {
+                    $name = trim((string) $position['mfb_rol_name']) !== '' ? (string) $position['mfb_rol_name'] : (string) $position['mfb_text'];
+                    if (!isset($summary[$name])) {
+                        $summary[$name] = array('count' => 0, 'members' => array(), 'amount' => 0.0);
+                    }
+                    $summary[$name]['count']++;
+                    $summary[$name]['members'][(int) $position['mfb_usr_id']] = true;
+                    $summary[$name]['amount'] += (float) $position['mfb_amount'];
+                    $positionsTotal += (float) $position['mfb_amount'];
+                }
+            }
+        }
+        ksort($summary, SORT_NATURAL | SORT_FLAG_CASE);
+
+        $summaryHtml = '<div class="card admidio-blog mb-4"><div class="card-header">Zusammenfassung '
+            . ($getDueDate != 0 ? 'Fälligkeit ' . htmlspecialchars((string) ($selectBoxEntries[$getDueDate] ?? $getDueDate), ENT_QUOTES, 'UTF-8') : 'aller Fälligkeiten')
+            . ' (' . count($summaryUserIds) . ' Mitglieder)</div><div class="card-body p-0"><div class="table-responsive mb-0">'
+            . '<table class="table table-sm table-striped mb-0"><thead><tr><th>Beitragsrolle</th><th class="text-end">Anzahl</th><th class="text-end">Summe</th></tr></thead><tbody>';
+        if (count($summary) === 0) {
+            $summaryHtml .= '<tr><td colspan="3" class="text-muted">Keine offenen Beitragspositionen gefunden.</td></tr>';
+        }
+        foreach ($summary as $name => $data) {
+            $summaryHtml .= '<tr><td>' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '</td>'
+                . '<td class="text-end">' . $data['count'] . '</td>'
+                . '<td class="text-end">' . $formatAmount($data['amount']) . '</td></tr>';
+        }
+        $summaryHtml .= '</tbody><tfoot><tr class="fw-bold"><td>Gesamt</td><td class="text-end">' . array_sum(array_column($summary, 'count')) . '</td>'
+            . '<td class="text-end">' . $formatAmount($positionsTotal) . '</td></tr>';
+        if (abs($positionsTotal - $summaryFeeTotal) >= 0.005) {
+            $summaryHtml .= '<tr class="text-danger"><td colspan="2">Abweichung: Summe des Profilfelds Beitrag der angezeigten Mitglieder</td>'
+                . '<td class="text-end">' . $formatAmount($summaryFeeTotal) . '</td></tr>';
+        }
+        $summaryHtml .= '</tfoot></table></div></div></div>';
+
+        $page->addHtml($summaryHtml);
+        $page->addHtml($filterHtml);
+        $page->addHtml($buttonsHtml);
         $page->addHtml($table->show(false));
         $page->show();
     }

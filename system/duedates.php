@@ -449,7 +449,7 @@ if ($getMode == 'assign') {
     $page->addHtml('<div class="mb-3">'
         . '<button type="button" class="btn btn-primary me-2 mb-2 mf-duedate-bulk" data-bulk="set">'
         . '<span class="spinner-border spinner-border-sm d-none me-1" role="status"></span><i class="bi bi-calendar-check"></i> Fälligkeit bei allen angezeigten Mitgliedern setzen</button>'
-        . '<button type="button" class="btn btn-outline-secondary mb-2 mf-duedate-bulk" data-bulk="remove">'
+        . '<button type="button" class="btn btn-secondary mb-2 mf-duedate-bulk" data-bulk="remove">'
         . '<span class="spinner-border spinner-border-sm d-none me-1" role="status"></span><i class="bi bi-calendar-x"></i> Fälligkeit bei allen entfernen</button>'
         . '<div class="form-text">Gesetzt wird das oben gewählte Datum mit dem gewählten Sequenztyp, nur bei Mitgliedern ohne Fälligkeit. '
         . 'Es zählen alle Mitglieder der Liste (Filter oben beachten), nicht nur die der aktuellen Seite.</div>'

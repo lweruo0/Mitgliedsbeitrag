@@ -399,23 +399,29 @@ try {
                 $("input.pmb-collect").prop("checked", $(this).prop("checked"));
             });', true);
 
+        // „Als eingezogen markieren“ und „Einzug verwerfen“ nebeneinander, oberhalb und unterhalb der Liste.
+        // Verwerfen sendet dasselbe Formular per formaction an mode=discard (die Haken werden dort ignoriert).
+        $canDiscard = ($run['mfr_status'] === BookingStore::RUN_CREATED);
+        $discardUrl = SecurityUtils::encodeUrl($selfUrl, array('run_id' => $getRunId, 'mode' => 'discard'));
+        $actionButtons = '<div class="mb-3">'
+            . '<button type="submit" class="btn btn-primary me-2 mb-2" name="btn_collect"><i class="bi bi-check2-all"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_RUN_COLLECT') . '</button>'
+            . ($canDiscard ? '<button type="submit" class="btn btn-secondary mb-2 pmb-run-discard" name="btn_discard" formaction="' . $discardUrl . '" formnovalidate="formnovalidate"><i class="bi bi-x-circle"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_RUN_DISCARD') . '</button>' : '')
+            . '</div>';
+
         $form = new HtmlForm('run_collect_form', SecurityUtils::encodeUrl($selfUrl, array('run_id' => $getRunId, 'mode' => 'collect')), $page);
-        $form->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_RUN_COLLECT_DESC'));
-        $form->addHtml($tableHtml);
+        $form->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_RUN_COLLECT_DESC') . ($canDiscard ? '<br/>' . $gL10n->get('PLG_MEMBERSHIPFEE_RUN_DISCARD_DESC') : ''));
         $form->addInput('collect_date', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_DATE'), DATE_NOW, array(
             'type' => 'date',
             'property' => HtmlForm::FIELD_REQUIRED
         ));
-        $form->addSubmitButton('btn_collect', $gL10n->get('PLG_MEMBERSHIPFEE_RUN_COLLECT'), array('icon' => 'bi-check2-all', 'class' => 'btn-primary'));
+        $form->addHtml($actionButtons);
+        $form->addHtml($tableHtml);
+        $form->addHtml($actionButtons);
         $page->addHtml($form->show(false));
 
-        if ($run['mfr_status'] === BookingStore::RUN_CREATED) {
-            $formDiscard = new HtmlForm('run_discard_form', SecurityUtils::encodeUrl($selfUrl, array('run_id' => $getRunId, 'mode' => 'discard')), $page);
-            $formDiscard->addDescription('<hr/>' . $gL10n->get('PLG_MEMBERSHIPFEE_RUN_DISCARD_DESC'));
-            $formDiscard->addSubmitButton('btn_discard', $gL10n->get('PLG_MEMBERSHIPFEE_RUN_DISCARD'), array('icon' => 'bi-x-circle', 'class' => 'btn-secondary'));
-            $page->addHtml($formDiscard->show(false));
+        if ($canDiscard) {
             $page->addJavascript('
-                $("#run_discard_form").submit(function() {
+                $(".pmb-run-discard").click(function() {
                     return confirm("' . $gL10n->get('PLG_MEMBERSHIPFEE_RUN_DISCARD_CONFIRM') . '");
                 });', true);
         }

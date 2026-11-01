@@ -11,6 +11,9 @@
  *
  * Parameters:
  *
+ * Wird von sepa_create.php je zu erzeugender Datei eingebunden ($mfSepaBatch = true): dann kein Download,
+ * sondern Rueckgabe; Mitglieder in $mfSepaExclude (usr_id => true) werden nicht aufgenommen.
+ *
  * duedatesepatype  :   Array mit Kombinationen von Faelligkeitsdatum und SepaTyp
  *                      - Zeichen 0 bis 9: Faelligkeitsdatum 
  *                      - ab Zeichen 10: Sepatyp
@@ -40,7 +43,7 @@ if (!isUserAuthorized())
 $pPreferences = new ConfigTable();
 $pPreferences->read();
 
-$oneDueDateOnly = false;
+$oneDueDateOnly = true; // PmtTpInf (mit SeqTp) immer im PmtInf-Block: ein Block je Faelligkeitsdatum und Sequenztyp
 $user = new User($gDb, $gProfileFields);
 
 if (!isset($_POST['duedatesepatype']))
@@ -69,9 +72,9 @@ $filename_ext = '';
 foreach ($_POST['duedatesepatype'] as $dummy => $data)
 {
 	$filename_ext .= '_'.substr($data, 0, 10).'-'.substr($data, 10);				// Erweiterung fuer den Dateinamen zusammensetzen
-	$dueDateArr[substr($data, 0, 10)]['sequencetype'] = substr($data, 10);			// je DueDate ein PmtInf-Block
-	$dueDateArr[substr($data, 0, 10)]['nbOfTxs_PmtInf'] = 0;						// Anzahl der Transaktionen innerhalb eines PmtInf-Blocks
-	$dueDateArr[substr($data, 0, 10)]['ctrlSum_PmtInf'] = 0;						// Kontrollsumme der Beträge innerhalb eines PmtInf-Blocks
+	$dueDateArr[$data]['sequencetype'] = substr($data, 10);			// je DueDate ein PmtInf-Block
+	$dueDateArr[$data]['nbOfTxs_PmtInf'] = 0;						// Anzahl der Transaktionen innerhalb eines PmtInf-Blocks
+	$dueDateArr[$data]['ctrlSum_PmtInf'] = 0;						// Kontrollsumme der Beträge innerhalb eines PmtInf-Blocks
 }
 	
 $members = list_members(array('FIRST_NAME', 'LAST_NAME', 'FEE'.$gCurrentOrgId, 'CONTRIBUTORY_TEXT'.$gCurrentOrgId, 'PAID'.$gCurrentOrgId, 'STREET', 'CITY', 'DEBTOR', 'DEBTOR_CITY', 'DEBTOR_STREET', 'IBAN', 'ORIG_IBAN', 'BIC', 'BANK', 'ORIG_DEBTOR_AGENT', 'MANDATEID'.$gCurrentOrgId, 'ORIG_MANDATEID'.$gCurrentOrgId, 'MANDATEDATE'.$gCurrentOrgId, 'DUEDATE'.$gCurrentOrgId, 'SEQUENCETYPE'.$gCurrentOrgId), 0);
@@ -85,7 +88,7 @@ foreach ($members as $member => $memberdata)
     if  (!empty($memberdata['FEE'.$gCurrentOrgId])
         && empty($memberdata['PAID'.$gCurrentOrgId])
         && !empty($memberdata['IBAN'])
-        && in_array($dueDateMember.$sequenceTypeMember, $_POST['duedatesepatype']) )
+        && in_array($dueDateMember . $sequenceTypeMember, $_POST['duedatesepatype']) && !isset($mfSepaExclude[(int) $member]) )
     {
         $zpflgt[$member]['duedate'] = '';
         $zpflgt[$member]['sequencetype'] = '';
@@ -148,8 +151,8 @@ foreach ($members as $member => $memberdata)
         $zpflgt[$member]['orig_iban'] = strtoupper(str_replace(' ', '', $members[$member]['ORIG_IBAN']));                                             // urspruengliche IBAN
         $zpflgt[$member]['orig_dbtr_agent'] = $members[$member]['ORIG_DEBTOR_AGENT'];                                                                 // urspruengliches Kreditinstitut, nur "SMNDA" moeglich
 
-        $dueDateArr[$dueDateMember]['nbOfTxs_PmtInf']++;
-        $dueDateArr[$dueDateMember]['ctrlSum_PmtInf'] += $zpflgt[$member]['betrag'];
+        $dueDateArr[$dueDateMember . $sequenceTypeMember]['nbOfTxs_PmtInf']++;
+        $dueDateArr[$dueDateMember . $sequenceTypeMember]['ctrlSum_PmtInf'] += $zpflgt[$member]['betrag'];
         $ctrlSum_Msg += $zpflgt[$member]['betrag'];
 
         $zpflgt[$member]['end2end_id'] = BookingService::endToEndId(replace_sepadaten($gCurrentOrganization->getValue('org_shortname')), (int) $member, $dueDateMember);     //SEPA End2End-ID   (max. 35)
@@ -224,9 +227,12 @@ if ($postExportFileMode === 'xml_file')
 
         foreach ($dueDateArr as $dueDate => $data)      							// je DueDate ein PmtInf-Block
         {
+            // Schluessel: Faelligkeitsdatum + Sequenztyp (z. B. 2026-11-02FRST); eindeutige PmtInfId je Block
+            $dueDate = substr($dueDate, 0, 10);
+            $paymentIdBlock = substr('BEITR-' . $data['sequencetype'] . '-' . str_replace('-', '', $dueDate) . '-' . substr(md5($message_id), 0, 8), 0, 35);
         	// ########## Payment Information ###########
         	$xmlfile .= "<PmtInf>\n";
-            	$xmlfile .= "<PmtInfId>$payment_id</PmtInfId>\n";                 	//Payment-ID
+            	$xmlfile .= "<PmtInfId>$paymentIdBlock</PmtInfId>\n";                 	//Payment-ID
             	$xmlfile .= "<PmtMtd>DD</PmtMtd>\n";                              	//Payment-Methode, Lastschrift: DD
             	$xmlfile .= "<BtchBookg>true</BtchBookg>\n";                      	//BatchBooking, Sammelbuchung (true) oder eine Einzelbuchung handelt (false)
             	$xmlfile .= '<NbOfTxs>'.$data['nbOfTxs_PmtInf']."</NbOfTxs>\n";     //Number of Transactions
@@ -292,7 +298,7 @@ if ($postExportFileMode === 'xml_file')
             	// ######### Direct Debit Transaction Information, Lastschriften ##############
             	foreach ($zpflgt as $dummy => $zpflgtdata)                        // je Zahlungspflichtiger ein DrctDbtTxInf-Block
             	{
-            		if ($dueDate == $zpflgtdata['duedate'])
+            		if ($dueDate == $zpflgtdata['duedate'] && $zpflgtdata['sequencetype'] === $data['sequencetype'])
             		{
                 		$xmlfile .= "<DrctDbtTxInf>\n";                               //DirectDebitTransactionInformation
                     		$xmlfile .= "<PmtId>\n";                                  //PaymentIdentification, Referenzierung einer einzelnen Transaktion
@@ -444,7 +450,7 @@ if ($postExportFileMode === 'xml_file')
                     		}
                     		
                 		$xmlfile .= "</DrctDbtTxInf>\n";
-            		}                 							// Ende if $dueDate == $zpflgtdata['duedate']
+            		}                 							// Ende if $dueDate == $zpflgtdata['duedate'] && $zpflgtdata['sequencetype'] === $data['sequencetype']
             	}												// Ende foreach ($zpflgt as $dummy => $zpflgtdata)
         	$xmlfile .= "</PmtInf>\n";
     	}														// Ende foreach ($dueDateArr as $dueDate => $dummy), Payment Information Block
@@ -464,6 +470,17 @@ if ($postExportFileMode === 'xml_file')
     } catch (\Throwable $e) {
         $gLogger->error('MembershipFee: SEPA-Datei konnte nicht gespeichert werden: ' . $e->getMessage());
     }
+
+    // Aufruf aus sepa_create.php: Datei ist beim Einzug gespeichert, kein Download
+
+    if (!empty($mfSepaBatch)) {
+
+        $mfSepaCreated[] = array('file' => $pPreferences->config['SEPA']['dateiname'] . $filename_ext . '.xml', 'count' => $nbOfTxs_Msg, 'amount' => $ctrlSum_Msg);
+
+        return;
+
+    }
+
 
     header('content-type: text/xml');
     header('Cache-Control: private'); // noetig fuer IE, da ansonsten der Download mit SSL nicht funktioniert

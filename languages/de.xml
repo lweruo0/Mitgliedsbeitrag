@@ -379,7 +379,11 @@
     <string name="PLG_MEMBERSHIPFEE_SECOND_PASSAGE_INFO">Die angezeigten Daten dienen nur zur Information. Es werden keine Änderungen an der Datenbank vorgenommen. Sollten jedoch Unterschiede (SOLL/IST) vorhanden sein, kann das Plugin unter Umständen nicht richtig funktionieren.</string>
     <string name="PLG_MEMBERSHIPFEE_SELECT_ALL">Alle markieren</string>
     <string name="PLG_MEMBERSHIPFEE_SEPA">SEPA</string>
-    <string name="PLG_MEMBERSHIPFEE_SEPA_EXPORT_INFO">Das Plugin Mitgliedsbeitrag erzeugt anhand der gewählten Einstellungen eine einzige SEPA XML-Datei. Unter Umständen wird die Datei aber von der Bank/einem Homebanking Programm nicht akzeptiert, wenn sie mehrere Fälligkeitsdaten aufweist. Es wird deshalb empfohlen eine XML-Datei mit nur jeweils einem Fälligkeitsdatum zu erstellen.\n\n FRST=Erstlastschrift, RCUR=Folgelastschrift, FNAL=letzte Lastschrift, OOFF=Einmallastschrift</string>
+    <string name="PLG_MEMBERSHIPFEE_SEPA_COMBINE">Sequenztypen eines Fälligkeitsdatums in einer Datei zusammenfassen</string>
+    <string name="PLG_MEMBERSHIPFEE_SEPA_COMBINE_DESC">Für jedes Fälligkeitsdatum wird eine eigene SEPA-Datei erzeugt. Angehakt: FRST, RCUR usw. eines Datums stehen in einer Datei (je Sequenztyp ein eigener Block; die Bank muss mehrere Sequenztypen in einer Datei unterstützen). Nicht angehakt: je Fälligkeitsdatum und Sequenztyp eine eigene Datei.</string>
+    <string name="PLG_MEMBERSHIPFEE_SEPA_FILES_INFO">Die Dateien werden nicht direkt heruntergeladen, sondern beim jeweiligen Einzug gespeichert. Danach öffnet sich die Einzugsübersicht; dort stehen SEPA-Datei und Kontrolldatei zum Herunterladen und Teilen bereit. Mitglieder, die schon in einer SEPA-Datei stehen, werden nicht erneut aufgenommen.</string>
+    <string name="PLG_MEMBERSHIPFEE_SEPA_CREATE_FILES">SEPA-Dateien erzeugen</string>
+    <string name="PLG_MEMBERSHIPFEE_SEPA_EXPORT_INFO">Je Fälligkeitsdatum wird eine eigene SEPA-Datei erzeugt; innerhalb einer Datei steht jeder Sequenztyp in einem eigenen Block.\n\n FRST=Erstlastschrift, RCUR=Folgelastschrift, FNAL=letzte Lastschrift, OOFF=Einmallastschrift</string>
     <string name="PLG_MEMBERSHIPFEE_SEPA_EXPORT_NO_DATA">Es sind nicht genügend Daten für den Export vorhanden.</string>
     <string name="PLG_MEMBERSHIPFEE_SEQUENCETYPE">Sequenztyp</string>
     <string name="PLG_MEMBERSHIPFEE_SEQUENCETYPE_DESC">Sequenztyp: leer=Erstlastschrift(FRST) R=Folgelastschrift(RCUR) F=letzte Lastschrift (FNAL) O=Einmallastschrift (OOFF)</string>

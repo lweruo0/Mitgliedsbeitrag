@@ -99,6 +99,7 @@ $config_default['Rechnungs-Export'] = array(
 $config_default['SEPA'] = array(
     'dateiname' => 'sepa',
     'direct_debit_format' => 'v8',
+    'combine_sequence_types' => 1,
     'kontroll_dateiname' => 'sepa',
     'kontroll_dateityp' => 'xlsx',
     'vorabinformation_dateiname' => 'export',
