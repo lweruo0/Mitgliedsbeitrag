@@ -26,9 +26,13 @@ use Admidio\Infrastructure\Utils\StringUtils;
 use Admidio\Users\Entity\User;
 use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
+use Plugins\MembershipFee\classes\Bookings\CollectionScope;
 
 require_once (__DIR__ . '/../../../system/common.php');
 require_once (__DIR__ . '/common_function.php');
+
+// Buchungskreis (Mitgliedsbeitrag oder Arbeitsdienst), siehe mf_collection_scope()
+$mfScope = mf_collection_scope();
 
 // only authorized user are allowed to start this module
 if (! isUserAuthorized()) {
@@ -91,7 +95,7 @@ if ($getMode == 'mail' || $getMode == 'export') {
             AND mem_rol_id = rol_id
             AND ' . getContributionYearCondition() . '
             AND usd_usr_id = usr_id
-            AND usd_usf_id = ' . $gProfileFields->getProperty('DUEDATE' . $gCurrentOrgId, 'usf_id') . '
+            AND usd_usf_id = ' . $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_DUEDATE), 'usf_id') . '
             AND rol_valid  = true
             AND rol_cat_id = cat_id
             AND (  cat_org_id = ' . $gCurrentOrgId . '
@@ -187,9 +191,9 @@ if ($getMode == 'mail' || $getMode == 'export') {
         $gProfileFields->getProperty('MANDATEID' . $gCurrentOrgId, 'usf_id'),
         $gProfileFields->getProperty('MANDATEDATE' . $gCurrentOrgId, 'usf_id'),
         $gProfileFields->getProperty('IBAN', 'usf_id'),
-        $gProfileFields->getProperty('DUEDATE' . $gCurrentOrgId, 'usf_id'),
-        $gProfileFields->getProperty('SEQUENCETYPE' . $gCurrentOrgId, 'usf_id'),
-        $gProfileFields->getProperty('FEE' . $gCurrentOrgId, 'usf_id'),
+        $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_DUEDATE), 'usf_id'),
+        $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_SEQUENCETYPE), 'usf_id'),
+        $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_FEE), 'usf_id'),
         $gProfileFields->getProperty('POSTCODE', 'usf_id'),
         $gProfileFields->getProperty('DEBTOR', 'usf_id'),
         $gProfileFields->getProperty('DEBTOR_STREET', 'usf_id'),
@@ -246,6 +250,7 @@ if ($getMode == 'mail' || $getMode == 'export') {
         $gNavigation->addUrl(CURRENT_URL, $headline);
 
         $page = new HtmlPage('plg-mitgliedsbeitrag-pre-notification', $headline);
+        $page->addHtml(mf_collection_banner($mfScope));
         $page->setContentFullWidth();
 
         $page->addJavascript('
@@ -383,7 +388,7 @@ if ($getMode == 'mail' || $getMode == 'export') {
                  OR cat_org_id IS NULL ) ';
 
         $queryParams = array(
-            $gProfileFields->getProperty('DUEDATE' . $gCurrentOrgId, 'usf_id'),
+            $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_DUEDATE), 'usf_id'),
             $gCurrentOrgId
         );
 
@@ -617,7 +622,7 @@ if ($getMode == 'mail' || $getMode == 'export') {
         $positionsTotal = 0.0;
         if (count($summaryUserIds) > 0) {
             foreach (BookingStore::getByUsers($summaryUserIds, array(BookingStore::STATUS_OPEN, BookingStore::STATUS_EXPORTED)) as $positions) {
-                foreach ($positions as $position) {
+                foreach ($mfScope->filterPositions($positions) as $position) {
                     $name = trim((string) $position['mfb_rol_name']) !== '' ? (string) $position['mfb_rol_name'] : (string) $position['mfb_text'];
                     if (!isset($summary[$name])) {
                         $summary[$name] = array('count' => 0, 'members' => array(), 'amount' => 0.0);

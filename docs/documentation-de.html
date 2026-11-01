@@ -11,7 +11,7 @@
 <div id="plg-doc-de">
 
 <h1>Mitgliedsbeitrag &ndash; Dokumentation</h1>
-<p class="text-muted">Ein Plugin f&uuml;r die kostenlose Online-Mitgliederverwaltungssoftware Admidio. Autor: Rainer M. Binder.</p>
+<p class="text-muted">Ein Plugin f&uuml;r die kostenlose Online-Mitgliederverwaltungssoftware Admidio. Autor: Rainer M. Binder. Angepasst f&uuml;r den BFV Ehingen, Stand Version 6.4.0 (01.11.2026).</p>
 
 <div class="alert alert-info" role="alert">
     Verweise auf Men&uuml;punkte des Plugins sind so dargestellt:
@@ -31,8 +31,9 @@
     <li><a href="#doc-individual">Individualbeitr&auml;ge</a></li>
     <li><a href="#doc-berechnung">Beitragsberechnung</a></li>
     <li><a href="#doc-buchungen">Buchungshistorie und Einz&uuml;ge</a></li>
+    <li><a href="#doc-arbeitsdienst">Arbeitsdienst</a></li>
     <li><a href="#doc-zahlungen">Beitragszahlungen und Analyse</a></li>
-    <li><a href="#doc-export">Export</a></li>
+    <li><a href="#doc-export">SEPA-Export und Rechnungen</a></li>
     <li><a href="#doc-mandate">Mandatsverwaltung</a></li>
     <li><a href="#doc-optionen">Pr&uuml;fungen und Rollen&uuml;bersicht</a></li>
     <li><a href="#doc-einstellungen">Einstellungen</a></li>
@@ -44,7 +45,8 @@
 <!-- ===================================================================== -->
 <h2 id="doc-funktion">1. Funktion</h2>
 <p>Das Plugin <strong>Mitgliedsbeitrag</strong> berechnet Mitgliedsbeitr&auml;ge und exportiert sie entweder als SEPA-XML-Datei
-    oder als Liste (XLSX, CSV). Da das Plugin keine SEPA-XML-Datei direkt an eine Bank senden kann, muss daf&uuml;r eine externe
+    oder als Liste (XLSX, CSV). Zus&auml;tzlich verwaltet es den <a href="#doc-arbeitsdienst">Arbeitsdienst</a> (Sollstunden, Erfassung, Abrechnung
+    des Ersatzbeitrags mit eigenem Lastschrifteinzug). Da das Plugin keine SEPA-XML-Datei direkt an eine Bank senden kann, muss daf&uuml;r eine externe
     Homebanking-Anwendung (z.B. Jameica/Hibiscus) verwendet werden. Sofern die Bank es zul&auml;sst, kann die Datei eventuell auch per
     USB-Stick eingereicht werden.</p>
 
@@ -126,13 +128,13 @@
 <p>Mehrere Module zeigen nur dann Daten an, wenn bestimmte Voraussetzungen erf&uuml;llt sind: Beitragszahlungen, Rechnung, F&auml;lligkeitsdatum und Vorabinformation.</p>
 <ol>
     <li>Im Profil eines Mitglieds unter <em>Beitrag</em> die Zahl 99 eintragen. In der &Uuml;bersicht wird bei <em>Gesamtsumme</em> jetzt 99 angezeigt.
-        In den Modulen <em>Beitragszahlungen</em> (&rarr; Beitragseinzug &ndash; Beitragszahlungen) und <em>Rechnung</em> (&rarr; Export &ndash; Rechnung &ndash; Rechnungsdaten bearbeiten)
-        wird genau dieses Mitglied angezeigt (diese Module zeigen nur Mitglieder, bei denen der Beitrag <em>nicht leer</em> ist).</li>
+        Nach einer Neuberechnung erscheint das Mitglied mit offenen Positionen in den Modulen <em>Beitragszahlungen</em>
+        (&rarr; Beitragseinzug &ndash; 6b. Beitragszahlungen) und <em>Rechnungen</em> (&rarr; Beitragseinzug &ndash; 5b. Rechnungen erstellen).</li>
     <li>Das Modul <em>F&auml;lligkeitsdatum</em> ben&ouml;tigt: Beitrag, Mandatsreferenz, Mandatsdatum, IBAN und ein <em>leeres</em> Bezahlt-Datum.
         Diese Werte im Profil erg&auml;nzen und danach &rarr; Beitragseinzug &ndash; F&auml;lligkeitsdatum &ouml;ffnen.</li>
     <li>Die Checkbox in der ersten Spalte anklicken (als F&auml;lligkeitsdatum wird das aktuelle Datum eingetragen) und mit &bdquo;Zur&uuml;ck&ldquo; zur&uuml;ckgehen.
-        Unter &rarr; Beitragseinzug &ndash; SEPA-Datei erzeugen erscheint eine neue Zeile mit Checkboxen. <em>FRST</em> anklicken, zuerst <em>XML-Datei</em>, dann <em>Kontrolldatei</em> erzeugen.
-        Die Kontrolldatei enth&auml;lt dieselben Daten wie die XML-Datei, nur besser lesbar aufbereitet.</li>
+        Unter &rarr; Beitragseinzug &ndash; 5. SEPA-Datei erzeugen &bdquo;SEPA-Dateien erzeugen&ldquo; klicken. Die Datei steht danach mit ihrer Kontrolldatei
+        in der &rarr; Beitragseinzug &ndash; 6. Einzugs&uuml;bersicht zum Herunterladen bereit. Zum Aufr&auml;umen den Einzug dort mit &bdquo;Einzug verwerfen&ldquo; entfernen.</li>
 </ol>
 
 <h3>Beitragsberechnung testen</h3>
@@ -158,13 +160,17 @@
 <table class="table table-bordered table-sm">
     <thead><tr><th>Reiter</th><th>Inhalt</th></tr></thead>
     <tbody>
-        <tr><td>Beitragseinzug</td><td>Der Ablauf in nummerierten Schritten: 1. Pr&uuml;fungen, 2. Neuberechnung (danach ggf. Individualbeitr&auml;ge), 3. F&auml;lligkeitsdatum, 4. Vorabinformation, 5. SEPA-Datei erzeugen, 6. Einzugs&uuml;bersicht (Teilen, als eingezogen markieren), 7. Beitragszahlungen; danach Beitragsanalyse, Rollen&uuml;bersicht, Buchungs&uuml;bersicht</td></tr>
+        <tr><td>Beitragseinzug</td><td>Der Ablauf in nummerierten Schritten: 1. Pr&uuml;fungen, 2. Neuberechnung (danach ggf. Individualbeitr&auml;ge), 3. F&auml;lligkeitsdatum, 4. Vorabinformation, 5. SEPA-Datei erzeugen,
+            5b. Rechnungen erstellen, 6. Einzugs&uuml;bersicht (Teilen, als eingezogen markieren, stornieren), 6b. Beitragszahlungen; danach Beitragsanalyse, Rollen&uuml;bersicht, Buchungs&uuml;bersicht.
+            Mit Schritt 6 ist ein normaler Lastschrifteinzug abgeschlossen; 5b und 6b sind f&uuml;r Sonderf&auml;lle (&Uuml;berweiser, Barzahlung, Zahlung nach R&uuml;cklastschrift).</td></tr>
+        <tr><td>Arbeitsdienst</td><td>1. Sollstunden abgleichen, 2. Arbeitsdienst erfassen, 3. Jahres&uuml;bersicht, 4. Arbeitsdienst abrechnen, 5. F&auml;lligkeitsdatum, 6. Vorabinformation,
+            7. SEPA-Datei erzeugen, 7b. Rechnungen erstellen, 8. Einzugs&uuml;bersicht, 8b. Beitragszahlungen (siehe <a href="#doc-arbeitsdienst">Arbeitsdienst</a>)</td></tr>
         <tr><td>Mandatsverwaltung</td><td>Mandatsreferenzen erzeugen, Mandate bearbeiten</td></tr>
-        <tr><td>Export</td><td>Rechnung</td></tr>
         <tr><td>Einstellungen</td><td>Alle Grundeinstellungen, zuunterst die Plugininformationen (standardm&auml;&szlig;ig nur f&uuml;r Administratoren sichtbar)</td></tr>
         <tr><td>Dokumentation</td><td>Diese Dokumentation</td></tr>
     </tbody>
 </table>
+<p>Der fr&uuml;here Reiter <em>Export</em> entf&auml;llt; die Rechnung ist jetzt Schritt 5b.</p>
 
 <!-- ===================================================================== -->
 <h2 id="doc-rollen">7. Beitragsrollen</h2>
@@ -257,7 +263,7 @@
     werden nicht erneut berechnet.</p>
 
 <!-- ===================================================================== -->
-<h2 id="doc-buchungen">9a. Buchungshistorie und Einz&uuml;ge</h2>
+<h2 id="doc-buchungen">10. Buchungshistorie und Einz&uuml;ge</h2>
 <p>Jede Beitragsforderung wird als <strong>Buchungsposition</strong> gespeichert (Mitglied, Beitragsrolle bzw. Bezeichnung, Beitragsjahr, Betrag, Buchungstext).
     Eine Position durchl&auml;uft die Status <em>offen</em> &rarr; <em>exportiert</em> (SEPA-Datei erzeugt) &rarr; <em>eingezogen</em>; sie kann jederzeit <em>storniert</em> werden.
     Die Historie bleibt &uuml;ber Jahre erhalten, das L&ouml;schen am Jahresende leert nur die Profilfelder.</p>
@@ -269,33 +275,84 @@
         Die EndToEnd-ID ist <code>Vereinsk&uuml;rzel-usr_id-F&auml;lligkeitsdatum</code>; ein erneuter Download derselben Datei erzeugt keinen neuen Einzug.
         Weicht das Profilfeld Beitrag von den offenen Positionen ab, wird automatisch eine Korrekturposition angelegt, damit die Historie genau den eingezogenen Betrag zeigt.</li>
     <li><strong>Einzugs&uuml;bersicht</strong> (&rarr; Beitragseinzug): alle SEPA-Dateien. &bdquo;Als eingezogen markieren&ldquo; setzt alle gew&auml;hlten Lastschriften einer Datei auf eingezogen
-        (Profilfelder wie bei &bdquo;Datum speichern&ldquo; in den Beitragszahlungen); bekannte R&uuml;cklastschriften vorher abw&auml;hlen.
-        &bdquo;Einzug verwerfen&ldquo; (nur f&uuml;r nie eingereichte Dateien) setzt die Positionen wieder auf offen.</li>
+        (Profilfelder wie bei &bdquo;Als bezahlt markieren&ldquo; in den Beitragszahlungen); bekannte R&uuml;cklastschriften vorher abw&auml;hlen.
+        &bdquo;Einzug verwerfen&ldquo; (nur f&uuml;r nie eingereichte Dateien) setzt die Positionen wieder auf offen.
+        Die Spalte <em>Art</em> zeigt, ob es ein Einzug des Mitgliedsbeitrags oder des Arbeitsdienstes ist. In der Liste einer Datei steht neben dem Status
+        je Mitglied das Stornieren-Symbol (wie in der Buchungshistorie); nach dem Speichern geht es zur&uuml;ck in die Einzugs&uuml;bersicht.</li>
     <li><strong>SEPA-Datei erneut herunterladen und teilen:</strong> Die XML-Datei wird beim Erzeugen in der Datenbank gespeichert (nur f&uuml;r das aktuelle Beitragsjahr;
         beim ersten Export eines neuen Beitragsjahres werden die Dateien der Vorjahre entfernt, die Einz&uuml;ge selbst bleiben).
         Zusammen mit der XML-Datei wird die Kontrolldatei (Excel bzw. CSV) gespeichert. In der Einzugs&uuml;bersicht laden die Download-Symbole bzw. &bdquo;Herunterladen&ldquo; und &bdquo;Kontrolldatei herunterladen&ldquo; genau die urspr&uuml;nglich erzeugten Dateien.
         &bdquo;Teilen&ldquo; erzeugt gesch&uuml;tzte Download-Links f&uuml;r SEPA-Datei und Kontrolldatei (ohne Anmeldung, nicht erratbar, standardm&auml;&szlig;ig 14 Tage g&uuml;ltig) und sendet sie per E-Mail an den Kassier.
         Die Adresse und die G&uuml;ltigkeit werden unter &rarr; Einstellungen &ndash; Export &ndash; SEPA-Datei teilen eingestellt und k&ouml;nnen beim Teilen ge&auml;ndert werden.
         Der Link wird nur direkt nach dem Erzeugen angezeigt; ein neuer Link macht den alten ung&uuml;ltig, &bdquo;Link widerrufen&ldquo; sperrt ihn sofort. Die Abrufe werden gez&auml;hlt.</li>
-    <li><strong>Beitragszahlungen:</strong> &bdquo;Datum speichern&ldquo; setzt die exportierten Positionen auf eingezogen; ohne SEPA-Datei werden die offenen Positionen mit Einzug MAN (&Uuml;berweisung) eingezogen.
-        &bdquo;Datum l&ouml;schen&ldquo; setzt die eingezogenen Positionen zur&uuml;ck und stellt F&auml;lligkeitsdatum, Sequenztyp und Mandats&auml;nderungsdaten wieder her.</li>
+    <li><strong>Beitragszahlungen:</strong> &bdquo;Als bezahlt markieren&ldquo; setzt die exportierten Positionen auf eingezogen; ohne SEPA-Datei werden die offenen Positionen mit Einzug MAN (&Uuml;berweisung) eingezogen.
+        &bdquo;Bezahlt zur&uuml;cknehmen&ldquo; setzt die eingezogenen Positionen zur&uuml;ck und stellt F&auml;lligkeitsdatum, Sequenztyp und Mandats&auml;nderungsdaten wieder her.</li>
     <li><strong>Stornieren / R&uuml;cklastschrift:</strong> In der Historie &bdquo;Stornieren&ldquo; w&auml;hlen; standardm&auml;&szlig;ig werden alle Positionen derselben Lastschrift storniert.
         Optional wird die Rolle zum Stornodatum entzogen und eine zus&auml;tzliche Position aus einer Vorlage (z.B. R&uuml;cklastschriftgeb&uuml;hr) angelegt.
         Ohne Rollenentzug legt die n&auml;chste Neuberechnung die Rolle wieder als offen an.</li>
     <li><strong>Manuelle Positionen:</strong> &bdquo;Position hinzuf&uuml;gen&ldquo; in der Historie oder f&uuml;r alle markierten Mitglieder in den Beitragszahlungen (z.B. Kleinbetr&auml;ge, Gutschriften mit negativem Betrag).
         Vorlagen unter &rarr; Einstellungen &ndash; Vorlagen f&uuml;r manuelle Positionen. Offene manuelle Positionen lassen sich bearbeiten oder l&ouml;schen.
-        In der Rechnung zeigt der Filter &bdquo;Offene manuelle Positionen&ldquo; auch Mitglieder mit IBAN.</li>
+        Offene manuelle Positionen erscheinen auch in den Rechnungen (5b).</li>
     <li><strong>Registerkarte im Profil:</strong> &rarr; Einstellungen &ndash; Registerkarte im Mitgliedsprofil (nur Administratoren). Wie beim Plugin Awards werden dazu
-        <code>modules/profile/profile.php</code> und <code>profile.view.tpl</code> erg&auml;nzt; nach einem Admidio-Update erneut einbauen. Die Registerkarte sehen nur Mitglieder der Zugriffsrolle.</li>
+        <code>modules/profile/profile.php</code> und <code>profile.view.tpl</code> erg&auml;nzt; nach einem Admidio-Update erneut einbauen. Die Registerkarte sehen nur Mitglieder der Zugriffsrolle. Unter der Buchungshistorie steht dort auch der Abschnitt <em>Arbeitsdienst</em>.</li>
 </ul>
 <p>Das ausf&uuml;hrliche Konzept steht in <code>docs/konzept-buchungshistorie.md</code>.</p>
 
 <!-- ===================================================================== -->
-<h2 id="doc-zahlungen">10. Beitragszahlungen und Analyse</h2>
+<h2 id="doc-arbeitsdienst">11. Arbeitsdienst</h2>
+<p>Der Arbeitsdienst ist ein <strong>eigener Buchungskreis</strong> neben dem Mitgliedsbeitrag: eigene Profilfelder, eigene Positionen
+    (&bdquo;Ersatzleistung Arbeitsdienst&ldquo;), eigene Einz&uuml;ge und eine eigene SEPA-Datei. Der Mitgliedsbeitrag wird dabei nicht ver&auml;ndert.
+    Alle Schritte stehen auf dem Reiter <em>Arbeitsdienst</em>; auf den Unterseiten zeigt ein Hinweis oben, dass im Buchungskreis Arbeitsdienst gearbeitet wird.</p>
+
+<h3>Regeln</h3>
+<ul>
+    <li><strong>Leistungsjahr</strong> ist das Kalenderjahr, Stichtag f&uuml;r Alter und Rollen ist der 31.12. Es gibt keinen Stunden&uuml;bertrag ins Folgejahr.</li>
+    <li><strong>Sollstunden</strong> werden je Rolle eingestellt (z.B. Aktiv 10 h, Probezeit 15 h, Jugend 0 h). Ist ein Mitglied in mehreren dieser Rollen, gilt der h&ouml;chste Wert.</li>
+    <li><strong>Befreit</strong> sind Mitglieder in Ausnahme-Rollen (z.B. Schwerbehindert), in Rollen aus Ausnahme-Kategorien (z.B. Funktionsrollen) und Mitglieder,
+        die am Stichtag die Altersgrenze (60) erreicht haben. Einzelne Rollen einer Ausnahme-Kategorie k&ouml;nnen unter &bdquo;Trotz Kategorie pflichtig&ldquo; wieder eingeschlossen werden.</li>
+    <li><strong>Ersatzbeitrag</strong> = fehlende Stunden &times; Stundensatz (20,00 &euro;).</li>
+</ul>
+
+<h3>Profilfelder</h3>
+<p>Die Kategorie <em>Arbeitsdienst</em> mit den Feldern wird beim ersten Aufruf automatisch angelegt:</p>
+<table class="table table-bordered table-sm">
+    <thead><tr><th>Feld</th><th>Inhalt</th></tr></thead>
+    <tbody>
+        <tr><td>Sollstunden Arbeitsdienst</td><td>Soll des Leistungsjahres; das Mitglied sieht es im eigenen Profil</td></tr>
+        <tr><td>Ersatzbeitrag, Text Ersatzbeitrag, F&auml;lligkeit, Sequenztyp, Bezahlt (jeweils &bdquo;Arbeitsdienst&ldquo;)</td><td>Arbeitsfelder des Einzugs, entsprechen Beitrag, Beitragstext, F&auml;lligkeitsdatum, Sequenztyp und Bezahlt beim Mitgliedsbeitrag</td></tr>
+    </tbody>
+</table>
+
+<h3>Ablauf</h3>
+<ol>
+    <li><strong>Sollstunden abgleichen</strong> (zu Jahresbeginn und bei Rollen&auml;nderungen): Die Voransicht zeigt je Mitglied das neue Soll und den Grund; &bdquo;&Uuml;bernehmen&ldquo; schreibt es ins Profilfeld.</li>
+    <li><strong>Arbeitsdienst erfassen</strong> (laufend): Einsatz mit Datum, Bezeichnung, Teilnehmern und Stunden. Die erfassten Eins&auml;tze sind nach Datum und Einsatz gruppiert;
+        die Teilnehmer erscheinen beim Aufklappen, einzelne Eintr&auml;ge lassen sich &uuml;ber das M&uuml;lleimer-Symbol l&ouml;schen. Die Seite hat einen eigenen Men&uuml;punkt
+        &bdquo;Arbeitsdienst erfassen&ldquo;: Wer ihn sehen darf (&bdquo;Sichtbar f&uuml;r&ldquo;, z.B. Arbeitsdienstleiter), darf erfassen &ndash; auch ohne Zugriff auf das &uuml;brige Plugin.</li>
+    <li><strong>Jahres&uuml;bersicht</strong>: Soll, Ist und Fehlstunden je Mitglied mit dem voraussichtlichen Ersatzbeitrag.</li>
+    <li><strong>Arbeitsdienst abrechnen</strong> (nach Jahresende): Die Voransicht zeigt je Mitglied, ob eine Position neu angelegt, ge&auml;ndert oder entfernt wird; nach &bdquo;Speichern&ldquo;
+        entsteht je Mitglied mit Fehlstunden eine offene Position, z.B. <code>Ersatzleistung Arbeitsdienst 2026: Soll 10 h, Ist 4 h, 6 h x 20,00 EUR</code>.
+        Erneutes Abrechnen passt offene Positionen an; exportierte oder eingezogene Positionen bleiben unver&auml;ndert (Korrektur dann &uuml;ber Storno oder Gutschrift).</li>
+    <li><strong>F&auml;lligkeitsdatum</strong>, 6. <strong>Vorabinformation</strong>, 7. <strong>SEPA-Datei erzeugen</strong>, 8. <strong>Einzugs&uuml;bersicht</strong> (mit 7b. Rechnungen und 8b. Beitragszahlungen)
+        funktionieren wie beim Mitgliedsbeitrag, aber nur mit den Arbeitsdienst-Positionen und -Feldern.
+        Die SEPA-Datei hei&szlig;t z.B. <code>sepa_arbeitsdienst_2026-11-16-RCUR.xml</code>, die Message-ID beginnt mit <code>AD-</code>, die EndToEnd-ID lautet <code>BFV-AD-usr_id-F&auml;lligkeitsdatum</code>.
+        Die Vorabinformation verwendet die eigene Vorlage &bdquo;Vorabinformation Arbeitsdienst&ldquo;.</li>
+</ol>
+<div class="alert alert-info" role="alert">Sobald eine Arbeitsdienst-Position eines Jahres exportiert ist, ist die Erfassung f&uuml;r dieses Jahr gesperrt.</div>
+
+<h3>Anzeige beim Mitglied</h3>
+<p>In der Registerkarte <em>Beitr&auml;ge</em> im Profil und in der Buchungshistorie steht der Abschnitt <em>Arbeitsdienst</em>: aktuelle Sollstunden, je Leistungsjahr die geleisteten Stunden,
+    der Ersatzbeitrag mit Status und aufklappbar die einzelnen Eins&auml;tze. Das Soll selbst sieht jedes Mitglied im eigenen Profil (Feld &bdquo;Sollstunden Arbeitsdienst&ldquo;).</p>
+
+<!-- ===================================================================== -->
+<h2 id="doc-zahlungen">12. Beitragszahlungen und Analyse</h2>
 
 <h3>Beitragszahlungen</h3>
-<p>Wurde ein Beitrag bezahlt, wird das Datum des Zahltages (<em>Bezahlt-Datum</em>) gespeichert: Zuerst das Datum setzen (&bdquo;bezahlt am&ldquo;), dann die betroffenen Mitglieder
-    markieren und &uuml;ber &bdquo;Datum speichern&ldquo; das Bezahlt-Datum setzen.</p>
+<p>&rarr; Beitragseinzug &ndash; 6b. Beitragszahlungen ist f&uuml;r Zahlungen ohne Lastschrift (Rechnung, &Uuml;berweisung, bar) und f&uuml;r Korrekturen.
+    Oben steht eine Zusammenfassung der offenen Betr&auml;ge. Der Filter steht standardm&auml;&szlig;ig auf &bdquo;Mit offenem Betrag&ldquo;; die Liste zeigt je Mitglied
+    den offenen Betrag, den Status und die Zahlart.</p>
+<p>Unterhalb des Filters: Datum setzen (&bdquo;bezahlt am&ldquo;), die betroffenen Mitglieder markieren und &bdquo;Als bezahlt markieren&ldquo; klicken.
+    &bdquo;Bezahlt zur&uuml;cknehmen&ldquo; macht das f&uuml;r die markierten Mitglieder r&uuml;ckg&auml;ngig. &bdquo;Position hinzuf&uuml;gen&ldquo; erfasst Kleinbetr&auml;ge oder Gutschriften.</p>
 <div class="alert alert-warning" role="alert">Das Setzen eines Bezahlt-Datums l&ouml;scht ein eventuell vorhandenes F&auml;lligkeitsdatum und wechselt den
     SEPA-Sequenztyp von FRST nach RCUR. Ein globales Zur&uuml;cksetzen des Bezahlt-Datums ist &uuml;ber &rarr; Einstellungen &ndash; L&ouml;schen m&ouml;glich.</div>
 
@@ -308,10 +365,10 @@
     Mitglied der Rolle waren; die Auswertung nach Mitgliedern basiert auf den gespeicherten Beitr&auml;gen aller Mitglieder, auch bereits ausgetretener.</p>
 
 <!-- ===================================================================== -->
-<h2 id="doc-export">11. Export</h2>
+<h2 id="doc-export">13. SEPA-Export und Rechnungen</h2>
 
 <h3>SEPA</h3>
-<p>Unter <em>SEPA</em> sind alle SEPA-spezifischen Exportfunktionen zusammengefasst. Ein Download einer Datei oder das Versenden von Vorabinformationen ist erst m&ouml;glich,
+<p>Die SEPA-Funktionen sind die Schritte 3 bis 6 auf dem Reiter <em>Beitragseinzug</em> (beim Arbeitsdienst die Schritte 5 bis 8). Eine SEPA-Datei oder Vorabinformation ist erst m&ouml;glich,
     wenn mindestens ein F&auml;lligkeitsdatum festgelegt wurde.</p>
 <div class="alert alert-warning" role="alert">Alle SEPA-Funktionen setzen eine zuvor durchgef&uuml;hrte und abgeschlossene Beitragsberechnung voraus.
     Alle erzeugten Daten (Mandatsreferenz, Mandatsdatum, Sequenztyp usw.) k&ouml;nnen im Profil eines Mitglieds nachtr&auml;glich ge&auml;ndert werden &ndash; das sollte wohl&uuml;berlegt sein,
@@ -337,9 +394,10 @@
     Nur wenn F&auml;lligkeitsdaten existieren, k&ouml;nnen Daten exportiert werden.</p>
 
 <h3>XML-Datei</h3>
-<p>W&auml;hlt man mehrere Kombinationen aus F&auml;lligkeitsdatum und Sequenztyp, wird eine XML-Datei mit mehreren <code>PmtTpInf</code>-Bl&ouml;cken erzeugt
-    (Dateiname z.B. <code>sepa_2022-10-23-RCUR_2022-10-21-FRST_2022-10-21-RCUR.xml</code>). Wird nur <em>eine</em> Kombination gew&auml;hlt, enth&auml;lt die Datei genau einen
-    <code>PmtTpInf</code>-Block (z.B. <code>sepa_2022-10-21-RCUR.xml</code>); diese Datei sollte von allen Banken und Homebankingprogrammen eingelesen werden k&ouml;nnen.
+<p>&bdquo;SEPA-Dateien erzeugen&ldquo; legt je F&auml;lligkeitsdatum eine Datei an. Ist &bdquo;Meine Bank unterst&uuml;tzt mehrere Sequenztypen in einer Datei&ldquo; nicht angehakt,
+    entsteht je F&auml;lligkeitsdatum und Sequenztyp (FRST/RCUR) eine eigene Datei mit genau einem <code>PmtTpInf</code>-Block (z.B. <code>sepa_2026-11-02-RCUR.xml</code>);
+    diese Dateien sollten von allen Banken und Homebankingprogrammen eingelesen werden k&ouml;nnen. Es gibt keinen direkten Download: Danach geht es zur Einzugs&uuml;bersicht,
+    wo die Dateien heruntergeladen oder geteilt werden. Mitglieder, die zu diesem Datum schon in einer Datei stehen, werden nicht erneut aufgenommen.
     Welches XML-Format (pain.008.001.02 bzw. pain.008.001.08) verwendet wird, ist in den Export-Einstellungen festgelegt.</p>
 
 <h3>Kontrolldatei</h3>
@@ -352,10 +410,10 @@
 <p>Unter &rarr; Einstellungen &ndash; E-Mail-Benachrichtigungen kann ein Nachrichtentext mit Platzhaltern definiert werden. Wird an <em>ein</em> markiertes Mitglied gesendet,
     enth&auml;lt der Text bereits eindeutige Angaben; bei <em>mehreren</em> Mitgliedern stehen Platzhalter im Text, die erst nach &bdquo;Abschicken&ldquo; ersetzt werden.</p>
 
-<h3>Rechnung</h3>
-<p>Hier k&ouml;nnen Dateien mit Daten zum Erzeugen von Rechnungen erstellt und &Uuml;berweisungsaufforderungen per E-Mail versendet werden. In diesem Modul werden nur Mitglieder angezeigt,
-    bei denen <strong>keine IBAN</strong> vorhanden ist. Die angezeigten Spalten werden unter &rarr; Einstellungen &ndash; Ansichtsdefinitionen festgelegt
-    (die Spalten E-Mail und KtoInh-E-Mail sollten immer aktiviert sein).</p>
+<h3>Rechnungen (Schritt 5b)</h3>
+<p>Hier k&ouml;nnen Dateien mit Daten zum Erzeugen von Rechnungen erstellt und &Uuml;berweisungsaufforderungen per E-Mail versendet werden. Angezeigt werden alle Mitglieder mit
+    <strong>offenen Positionen</strong>, unabh&auml;ngig von einer IBAN. Der Filter unterscheidet <em>alle</em>, <em>mit E-Mail</em> und <em>ohne E-Mail</em>; die Buttons stehen unterhalb des Filters.
+    Die angezeigten Spalten werden unter &rarr; Einstellungen &ndash; Ansichtsdefinitionen festgelegt (die Spalten E-Mail und KtoInh-E-Mail sollten immer aktiviert sein).</p>
 <ul>
     <li><strong>Button Export:</strong> erstellt aus den markierten Mitgliedern eine Datei mit Daten f&uuml;r Serienbriefe (Struktur fest kodiert).</li>
     <li><strong>Button E-Mail:</strong> sendet zuerst an die Kontoinhaber-E-Mail-Adresse; ist diese leer, an die Standard-E-Mail-Adresse. Weitere Adressen werden nicht abgefragt,
@@ -363,7 +421,7 @@
 </ul>
 
 <!-- ===================================================================== -->
-<h2 id="doc-mandate">12. Mandatsverwaltung</h2>
+<h2 id="doc-mandate">14. Mandatsverwaltung</h2>
 
 <h3>Mandatsreferenzen erzeugen</h3>
 <p>Erzeugt Mandatsreferenzen abh&auml;ngig von den Vorgaben unter &rarr; Einstellungen &ndash; Mandatsverwaltung. Es erscheint zun&auml;chst eine Voransicht; erst nach &bdquo;Speichern&ldquo;
@@ -374,7 +432,7 @@
     Einzug ge&auml;ndert haben. Es gibt eine Mandats&auml;nderung f&uuml;r Zahlungspflichtige (Mitglieder) und eine f&uuml;r den Zahlungsempf&auml;nger (&rarr; Einstellungen &ndash; Kontodaten).</p>
 
 <!-- ===================================================================== -->
-<h2 id="doc-optionen">13. Pr&uuml;fungen und Rollen&uuml;bersicht</h2>
+<h2 id="doc-optionen">15. Pr&uuml;fungen und Rollen&uuml;bersicht</h2>
 <p>Beide Punkte stehen auf dem Reiter <em>Beitragseinzug</em>: die Pr&uuml;fungen als Schritt 1 (vor der Neuberechnung), die Rollen&uuml;bersicht unter der Beitragsanalyse.</p>
 
 <h3>Pr&uuml;fungen</h3>
@@ -402,7 +460,7 @@
 
 
 <!-- ===================================================================== -->
-<h2 id="doc-einstellungen">14. Einstellungen</h2>
+<h2 id="doc-einstellungen">16. Einstellungen</h2>
 <p>Der Reiter <em>Einstellungen</em> ist in der Grundeinstellung nur f&uuml;r Administratoren sichtbar.</p>
 
 <h3>Beitragseinstellungen</h3>
@@ -439,7 +497,17 @@
 <p>Einstellungen f&uuml;r den Datenexport: SEPA-Dateiname und XML-Format, Kontrolldatei, Vorabinformation, Rechnungsexport sowie <em>F&auml;lligkeitsdatum f&uuml;r alle</em>.</p>
 
 <h3>E-Mail-Benachrichtigungen</h3>
-<p>Nachrichtentexte mit Platzhaltern f&uuml;r Vorabinformation, Zahlungserinnerung (Beitragszahlungen) und Rechnung.</p>
+<p>Nachrichtentexte mit Platzhaltern f&uuml;r Vorabinformation, Zahlungserinnerung (Beitragszahlungen), Rechnung und <em>Vorabinformation Arbeitsdienst</em>.
+    In der Vorlage f&uuml;r den Arbeitsdienst kommen <code>#fee#</code>, <code>#due_day#</code> und <code>#membership_fee_text#</code> aus den Arbeitsdienst-Feldern.</p>
+
+<h3>Arbeitsdienst</h3>
+<ul>
+    <li><strong>Sollstunden je Rolle</strong> (z.B. Aktiv 10, Probezeit 15, Jugend 0),</li>
+    <li><strong>Ausnahme-Rollen</strong> und <strong>Ausnahme-Kategorien</strong> (befreien vom Arbeitsdienst),</li>
+    <li><strong>Trotz Kategorie pflichtig:</strong> Rollen einer Ausnahme-Kategorie, die nicht befreien,</li>
+    <li><strong>Altersgrenze</strong> (ab diesem Alter am 31.12. befreit, leer = keine) und <strong>Stundensatz</strong> des Ersatzbeitrags,</li>
+    <li><strong>Men&uuml;punkt &bdquo;Arbeitsdienst erfassen&ldquo;</strong> anlegen; wer erfassen darf, wird &uuml;ber &bdquo;Sichtbar f&uuml;r&ldquo; des Men&uuml;punkts festgelegt.</li>
+</ul>
 
 <h3>Pr&uuml;fungen</h3>
 <ul>
@@ -461,21 +529,22 @@
 <ul>
     <li>den bei der Installation angelegten Men&uuml;punkt,</li>
     <li>die angelegte Zugriffsrolle,</li>
-    <li>alle vom Plugin erzeugten Profilfelder und die darin gespeicherten Daten,</li>
+    <li>alle vom Plugin erzeugten Profilfelder und die darin gespeicherten Daten (auch die Kategorie <em>Arbeitsdienst</em>),</li>
+    <li>den Men&uuml;punkt &bdquo;Arbeitsdienst erfassen&ldquo; und die erfassten Arbeitsdienst-Eins&auml;tze,</li>
     <li>alle Konfigurationsdaten.</li>
 </ul>
 <div class="alert alert-danger" role="alert">Gel&ouml;schte Benutzerdaten (z.B. IBAN oder Mitgliedsnummer) k&ouml;nnen nicht wiederhergestellt werden!</div>
 
 <h3>Plugininformationen</h3>
-<p>Letzter Punkt auf dem Reiter <em>Einstellungen</em>: Version und Stand des Plugins sowie ein Link zur PDF-Dokumentation.</p>
+<p>Letzter Punkt auf dem Reiter <em>Einstellungen</em>: Version und Stand des Plugins.</p>
 
 <!-- ===================================================================== -->
-<h2 id="doc-konfiguration">15. Speicherung der Konfiguration</h2>
+<h2 id="doc-konfiguration">17. Speicherung der Konfiguration</h2>
 <p>Alle Konfigurationsdaten werden in der Tabelle <code>adm_plugin_preferences</code> der Admidio-Datenbank gespeichert (sie wird angelegt, falls sie nicht existiert).
     Die Eintr&auml;ge des Plugins Mitgliedsbeitrag beginnen dabei mit den Buchstaben &bdquo;PMB&ldquo;.</p>
 
 <!-- ===================================================================== -->
-<h2 id="doc-overview">16. Informationen zur Beitragsberechnung auf der &Uuml;bersichtsseite</h2>
+<h2 id="doc-overview">18. Informationen zur Beitragsberechnung auf der &Uuml;bersichtsseite</h2>
 <p>Als Information f&uuml;r das Mitglied kann auf der &Uuml;bersichtsseite von Admidio der aktuelle Sachstand des Beitragseinzugs angezeigt werden.
     Dazu sind folgende Zeilen in die Datei <code>themes/simple/templates/system/overview.tpl</code> einzuf&uuml;gen:</p>
 <pre><code>&lt;div class="admidio-overview-plugin col-sm-6 col-lg-4 col-xl-3" id="admidio-plugin-membership_fee"&gt;
@@ -487,7 +556,7 @@
 &lt;/div&gt;</code></pre>
 
 <!-- ===================================================================== -->
-<h2 id="doc-ablauf">17. Ablauf einer Beitragsberechnung</h2>
+<h2 id="doc-ablauf">19. Ablauf einer Beitragsberechnung</h2>
 <p>Voraussetzungen:</p>
 <ul>
     <li>Die Grundeinstellungen sind eingetragen und die Grundfunktionen wurden getestet.</li>
@@ -497,12 +566,14 @@
 
 <h3>Grobablauf</h3>
 <ol>
-    <li>Beitragsberechnung durchf&uuml;hren, danach F&auml;lligkeitsdatum setzen, XML-Datei erzeugen und die Beitr&auml;ge einziehen.</li>
-    <li>Sind alle Beitr&auml;ge eingezogen, das <strong>Bezahlt-Datum</strong> setzen. Es l&ouml;st mehrere Folgeaktionen aus (z.B. FRST wird RCUR, Mandats&auml;nderungen werden zur&uuml;ckgesetzt).
-        Wann es gesetzt wird, ist unwichtig &ndash; wichtig ist nur, dass es gesetzt wird.</li>
-    <li>Treten im Laufe des Jahres weitere Mitglieder bei, wird genauso verfahren: Beitragsberechnung, F&auml;lligkeitsdatum, Einzug, Bezahlt-Datum.</li>
-    <li>Am Jahresende (wenn alle Beitr&auml;ge eingezogen wurden) wird &bdquo;L&ouml;schen&ldquo; ausgef&uuml;hrt. Dadurch werden alle berechneten Beitr&auml;ge, Beitragstexte und F&auml;lligkeitsdaten entfernt;
-        im neuen Jahr beginnt man wieder mit dem Gesamteinzug.</li>
+    <li>Pr&uuml;fungen, Neuberechnung, F&auml;lligkeitsdatum setzen, Vorabinformation senden und SEPA-Datei erzeugen (Schritte 1&ndash;5).</li>
+    <li>Die Datei aus der Einzugs&uuml;bersicht an den Kassier geben (Herunterladen oder Teilen) und bei der Bank einreichen.</li>
+    <li>Nach der Gutschrift in der Einzugs&uuml;bersicht bekannte R&uuml;cklastschriften abw&auml;hlen und <strong>Als eingezogen markieren</strong>. Das setzt das Bezahlt-Datum
+        und l&ouml;st die Folgeaktionen aus (z.B. FRST wird RCUR, Mandats&auml;nderungen werden zur&uuml;ckgesetzt).</li>
+    <li>Treten im Laufe des Jahres weitere Mitglieder bei, wird genauso verfahren: Neuberechnung, F&auml;lligkeitsdatum, Einzug, als eingezogen markieren.</li>
+    <li>Am Jahresende wird &bdquo;L&ouml;schen&ldquo; ausgef&uuml;hrt. Dadurch werden die Arbeitsfelder (Beitrag, Beitragstext, Bezahlt, F&auml;lligkeit) geleert; die Buchungshistorie bleibt erhalten.
+        Danach das Beitragsjahr umstellen.</li>
+    <li>Der Arbeitsdienst l&auml;uft unabh&auml;ngig davon nach Ende des Leistungsjahres &uuml;ber den Reiter <em>Arbeitsdienst</em> (siehe <a href="#doc-arbeitsdienst">Arbeitsdienst</a>).</li>
 </ol>
 
 <h3>Ablaufplan f&uuml;r ein neues Mitglied</h3>
@@ -512,10 +583,11 @@
     <li><strong>Mandatsdatum eintragen</strong> (falls noch nicht geschehen): &rarr; Mandatsverwaltung &ndash; Mandate bearbeiten oder im Profil des Mitglieds.</li>
     <li><strong>Beitragsberechnung:</strong> &rarr; Beitragseinzug &ndash; Neuberechnung.</li>
     <li><strong>F&auml;lligkeitsdatum:</strong> &rarr; Beitragseinzug &ndash; F&auml;lligkeitsdatum bearbeiten.</li>
-    <li><strong>XML-Datei:</strong> Nach Vergabe eines F&auml;lligkeitsdatums &uuml;ber &rarr; Beitragseinzug &ndash; SEPA-Datei erzeugen.</li>
-    <li><strong>Vorabinformation:</strong> Ebenfalls erst nach Vergabe eines F&auml;lligkeitsdatums &uuml;ber &rarr; Beitragseinzug &ndash; Vorabinformation.</li>
-    <li><strong>Weitergabe der XML-Datei</strong> &uuml;ber ein Homebanking-Programm (z.B. StarMoney oder Jameica/Hibiscus) an die Bank.</li>
-    <li><strong>Abschluss:</strong> Bezahlt-Datum setzen. Dadurch wird der Sequenztyp FRST in RCUR ge&auml;ndert.</li>
+    <li><strong>Vorabinformation:</strong> Nach Vergabe eines F&auml;lligkeitsdatums &uuml;ber &rarr; Beitragseinzug &ndash; Vorabinformation.</li>
+    <li><strong>XML-Datei:</strong> &uuml;ber &rarr; Beitragseinzug &ndash; SEPA-Datei erzeugen.</li>
+    <li><strong>Weitergabe der XML-Datei</strong> aus der Einzugs&uuml;bersicht &uuml;ber ein Homebanking-Programm (z.B. StarMoney oder Jameica/Hibiscus) an die Bank.</li>
+    <li><strong>Abschluss:</strong> In der Einzugs&uuml;bersicht &bdquo;Als eingezogen markieren&ldquo;. Dadurch wird der Sequenztyp FRST in RCUR ge&auml;ndert.</li>
+    <li><strong>Arbeitsdienst:</strong> &rarr; Arbeitsdienst &ndash; Sollstunden abgleichen, damit das neue Mitglied sein Soll sieht.</li>
 </ol>
 
 </div>

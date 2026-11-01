@@ -24,8 +24,12 @@ use Admidio\Infrastructure\Exception;
 use Admidio\Infrastructure\Utils\SecurityUtils;
 use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
+use Plugins\MembershipFee\classes\Bookings\CollectionScope;
 
 require_once (__DIR__ . '/common_function.php');
+
+// Buchungskreis (Mitgliedsbeitrag oder Arbeitsdienst), siehe mf_collection_scope()
+$mfScope = mf_collection_scope();
 
 // only authorized user are allowed to start this module
 if (! isUserAuthorized()) {
@@ -45,19 +49,19 @@ $pPreferences->save();
 
 // Kandidaten wie im Formular: Faelligkeit, Beitrag, nicht bezahlt, IBAN
 $members = list_members(array(
-    'DUEDATE' . $gCurrentOrgId,
-    'SEQUENCETYPE' . $gCurrentOrgId,
-    'FEE' . $gCurrentOrgId,
-    'PAID' . $gCurrentOrgId,
+    $mfScope->field(CollectionScope::FIELD_DUEDATE),
+    $mfScope->field(CollectionScope::FIELD_SEQUENCETYPE),
+    $mfScope->field(CollectionScope::FIELD_FEE),
+    $mfScope->field(CollectionScope::FIELD_PAID),
     'IBAN'
 ), 0);
 
 $candidates = array();   // usr_id => array(duedate, sequencetype)
 foreach ($members as $usrId => $memberdata) {
-    if (! empty($memberdata['DUEDATE' . $gCurrentOrgId]) && ! empty($memberdata['FEE' . $gCurrentOrgId])
-        && empty($memberdata['PAID' . $gCurrentOrgId]) && ! empty($memberdata['IBAN'])) {
-        $sequenceType = empty($memberdata['SEQUENCETYPE' . $gCurrentOrgId]) ? 'FRST' : (string) $memberdata['SEQUENCETYPE' . $gCurrentOrgId];
-        $candidates[(int) $usrId] = array((string) $memberdata['DUEDATE' . $gCurrentOrgId], $sequenceType);
+    if (! empty($memberdata[$mfScope->field(CollectionScope::FIELD_DUEDATE)]) && ! empty($memberdata[$mfScope->field(CollectionScope::FIELD_FEE)])
+        && empty($memberdata[$mfScope->field(CollectionScope::FIELD_PAID)]) && ! empty($memberdata['IBAN'])) {
+        $sequenceType = empty($memberdata[$mfScope->field(CollectionScope::FIELD_SEQUENCETYPE)]) ? 'FRST' : (string) $memberdata[$mfScope->field(CollectionScope::FIELD_SEQUENCETYPE)];
+        $candidates[(int) $usrId] = array((string) $memberdata[$mfScope->field(CollectionScope::FIELD_DUEDATE)], $sequenceType);
     }
 }
 unset($members);
@@ -69,7 +73,7 @@ if (count($candidates) > 0) {
     foreach ($candidates as $usrId => $candidate) {
         $hasOpen = false;
         $exportedForDate = false;
-        foreach ($positionsByUser[$usrId] ?? array() as $position) {
+        foreach ($mfScope->filterPositions($positionsByUser[$usrId] ?? array()) as $position) {
             if ($position['mfb_status'] === BookingStore::STATUS_OPEN) {
                 $hasOpen = true;
             } elseif ((string) $position['mfb_due_date'] === $candidate[0]) {

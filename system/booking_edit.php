@@ -45,7 +45,8 @@ try {
 
     $pPreferences = new ConfigTable();
     $pPreferences->read();
-    $bookingService = new BookingService($pPreferences->config);
+    // Buchungskreis: bei einer vorhandenen Position deren Buchungskreis (siehe BookingService::cancel), sonst Parameter scope
+    $bookingService = new BookingService($pPreferences->config, mf_collection_scope());
 
     $user = new User($gDb, $gProfileFields);
 

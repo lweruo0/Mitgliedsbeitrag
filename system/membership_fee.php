@@ -31,6 +31,10 @@ try {
     ));
     $getConf = admFuncVariableIsValid($_GET, 'conf', 'numeric');
 
+    // Einzugsseiten (Faelligkeit, Vorabinformation, ...) starten im Buchungskreis Mitgliedsbeitrag;
+    // die Schritte der Registerkarte Arbeitsdienst uebergeben collection=ad (siehe mf_collection_scope())
+    $_SESSION['pMembershipFee']['collection'] = \Plugins\MembershipFee\classes\Bookings\CollectionScope::MEMBERSHIP;
+
     $pPreferences = new ConfigTable();
     $pPreferences->read();
 
@@ -122,14 +126,14 @@ try {
     $num_individualcontributions = count($pPreferences->config['individual_contributions']['desc']);
 
     // Beitragsgruppen und Vorlagen fuer manuelle Positionen (fehlen evtl. noch vor dem ersten Init)
-    foreach (array('Beitragsgruppen' => array('name', 'roles'), 'Positionsvorlagen' => array('name', 'amount', 'text')) as $section => $keys) {
+    foreach (array('Beitragsgruppen' => array('name', 'roles'), 'Positionsvorlagen' => array('name', 'amount', 'text'), 'Arbeitsdienst' => array('soll_rollen', 'soll_stunden')) as $section => $keys) {
         foreach ($keys as $key) {
             if (!isset($pPreferences->config[$section][$key]) || !is_array($pPreferences->config[$section][$key])) {
                 $pPreferences->config[$section][$key] = $pPreferences->config_default[$section][$key] ?? array(' ');
             }
         }
     }
-    foreach (array('contributiongroups' => array('Beitragsgruppen', array('name', 'roles')), 'manualtemplates' => array('Positionsvorlagen', array('name', 'amount', 'text'))) as $choice => $sectionData) {
+    foreach (array('contributiongroups' => array('Beitragsgruppen', array('name', 'roles')), 'manualtemplates' => array('Positionsvorlagen', array('name', 'amount', 'text')), 'workservice' => array('Arbeitsdienst', array('soll_rollen', 'soll_stunden'))) as $choice => $sectionData) {
         if ($getChoice !== $choice || !isset($_GET['conf'])) {
             continue;
         }
@@ -144,6 +148,7 @@ try {
     }
     $num_contributiongroups = count($pPreferences->config['Beitragsgruppen']['name']);
     $num_manualtemplates = count($pPreferences->config['Positionsvorlagen']['name']);
+    $num_workservice = count($pPreferences->config['Arbeitsdienst']['soll_rollen']);
 
     $fixrollen = beitragsrollen_einlesen('fix');
     $alt_fix_rollen = $fixrollen;
@@ -378,6 +383,9 @@ try {
     <ul id="preferences_tabs" class="nav nav-tabs" role="tablist">
         <li class="nav-item">
             <a id="tabs_nav_fees" class="nav-link" href="#tabs-fees" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_TAB_COLLECTION') . '</a>
+        </li>
+        <li class="nav-item">
+            <a id="tabs_nav_workservice" class="nav-link" href="#tabs-workservice" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_SETTINGS') . '</a>
         </li>
         <li class="nav-item">
             <a id="tabs_nav_mandatemanagement" class="nav-link" href="#tabs-mandatemanagement" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_MANDATE_MANAGEMENT') . '</a>
@@ -623,6 +631,108 @@ try {
         $formBookingOverview->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_OVERVIEW_DESC'));
 
         $page->addHtml(getMenuePanel('fees', 'bookingoverview', 'accordion_fees', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_OVERVIEW'), 'bi bi-clock-history', $formBookingOverview->show()));
+
+        $page->addHtml(closeMenueTab());
+
+        // TAB: WORKSERVICE (Arbeitsdienst; Schritte nummeriert wie beim Beitragseinzug)
+        $page->addHtml(openMenueTab('workservice', 'accordion_workservice'));
+        $workStep = 0;
+
+        // PANEL: WORK_TARGETS (Sollstunden abgleichen)
+        $formWorkTargets = new HtmlForm('worktargets_form', '', $page);
+        $formWorkTargets->addButton('btn_work_targets', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TARGETS'), array(
+            'icon' => 'bi-bullseye',
+            'link' => 'work_targets.php',
+            'class' => 'btn-primary offset-sm-3'
+        ));
+        $formWorkTargets->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TARGETS_PANEL_DESC'));
+        $page->addHtml(getMenuePanel('workservice', 'worktargets', 'accordion_workservice', (++$workStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TARGETS'), 'bi bi-bullseye', $formWorkTargets->show()));
+
+        // PANEL: WORK_INPUT (Stunden erfassen)
+        $formWorkInput = new HtmlForm('workinput_form', '', $page);
+        $formWorkInput->addButton('btn_work_input', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_INPUT'), array(
+            'icon' => 'bi-pencil-square',
+            'link' => 'work_input.php',
+            'class' => 'btn-primary offset-sm-3'
+        ));
+        $formWorkInput->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_INPUT_DESC'));
+        $page->addHtml(getMenuePanel('workservice', 'workinput', 'accordion_workservice', (++$workStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_INPUT'), 'bi bi-pencil-square', $formWorkInput->show()));
+
+        // PANEL: WORK_OVERVIEW (Jahresuebersicht Soll/Ist/Fehlstunden)
+        $formWorkOverview = new HtmlForm('workoverview_form', '', $page);
+        $formWorkOverview->addButton('btn_work_overview', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_OVERVIEW'), array(
+            'icon' => 'bi-clipboard-data',
+            'link' => 'work_overview.php',
+            'class' => 'btn-primary offset-sm-3'
+        ));
+        $formWorkOverview->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_OVERVIEW_DESC'));
+        $page->addHtml(getMenuePanel('workservice', 'workoverview', 'accordion_workservice', (++$workStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_OVERVIEW'), 'bi bi-clipboard-data', $formWorkOverview->show()));
+
+        // Einzug im Buchungskreis Arbeitsdienst: dieselben Seiten wie beim Mitgliedsbeitrag mit collection=ad
+        $workCollection = array('collection' => \Plugins\MembershipFee\classes\Bookings\CollectionScope::WORK);
+        $workScope = \Plugins\MembershipFee\classes\Bookings\CollectionScope::work((int) $gCurrentOrgId);
+        $workDuedates = mf_sepa_duedate_overview($workScope);
+        $workPanel = static function (string $id, string $title, string $icon, string $page2, string $label, string $desc) use ($page, $gL10n, $workCollection, &$workStep): string {
+            $form = new HtmlForm($id . '_form', '', $page);
+            $form->addButton('btn_' . $id, $label, array(
+                'icon' => $icon,
+                'link' => SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/' . $page2, $workCollection),
+                'class' => 'btn-primary offset-sm-3'
+            ));
+            $form->addCustomContent('', $desc);
+            return getMenuePanel('workservice', $id, 'accordion_workservice', $title, 'bi ' . $icon, $form->show());
+        };
+
+        // PANEL: WORK_BILLING (Abrechnen)
+        $page->addHtml($workPanel('workbilling', (++$workStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING'), 'bi-receipt', 'work_billing.php', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING'), $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING_PANEL_DESC')));
+        // PANEL: Faelligkeitsdatum und Vorabinformation im Arbeitsdienst
+        $page->addHtml($workPanel('workduedates', (++$workStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), 'bi-calendar-check', 'duedates.php', $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), $gL10n->get('PLG_MEMBERSHIPFEE_WORK_DUEDATE_DESC')));
+        $page->addHtml($workPanel('workprenotification', (++$workStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'), 'bi-envelope-paper', 'pre_notification.php', $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'), $gL10n->get('PLG_MEMBERSHIPFEE_WORK_PRE_NOTIFICATION_DESC')));
+
+        // PANEL: SEPA-Datei Arbeitsdienst
+        $workSepaStep = ++$workStep;
+        $formWorkSepa = new HtmlForm('worksepa_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/sepa_create.php', $page);
+        if (count($workDuedates) === 0) {
+            $formWorkSepa->addCustomContent('', '<div class="alert alert-warning alert-small" role="alert"><i class="bi bi-exclamation-triangle"></i>' . $gL10n->get('PLG_MEMBERSHIPFEE_NO_DUEDATES_EXIST') . '</div>');
+        } else {
+            $htmlTable = '<table class="table table-condensed"><thead><tr><th style="text-align: center;">' . $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE') . '</th>';
+            foreach (array('FRST', 'RCUR', 'FNAL', 'OOFF') as $sequenceType) {
+                $htmlTable .= '<th style="text-align: center;">' . $sequenceType . '</th>';
+            }
+            $htmlTable .= '</tr></thead><tbody>';
+            foreach ($workDuedates as $duedate => $counts) {
+                $htmlTable .= '<tr><td style="text-align: center;">' . mf_format_date($duedate) . '</td>';
+                foreach ($counts as $count) {
+                    $htmlTable .= '<td style="text-align: center;">' . ($count > 0 ? $count : '<span class="text-muted">–</span>') . '</td>';
+                }
+                $htmlTable .= '</tr>';
+            }
+            $htmlTable .= '</tbody></table>';
+            $formWorkSepa->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), $htmlTable);
+            $formWorkSepa->addCustomContent('', '<input type="hidden" name="collection" value="' . \Plugins\MembershipFee\classes\Bookings\CollectionScope::WORK . '" />');
+            $formWorkSepa->addCheckbox('combine_sequence_types', $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_COMBINE'), (bool) ($pPreferences->config['SEPA']['combine_sequence_types'] ?? 1), array(
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_SEPA_COMBINE_DESC'
+            ));
+            $formWorkSepa->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_SEPA_INFO'));
+            $formWorkSepa->addSubmitButton('btn_create_work_export_file', $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILES'), array(
+                'icon' => 'bi-filetype-xml',
+                'class' => 'btn-primary offset-sm-3'
+            ));
+        }
+        $page->addHtml(getMenuePanel('workservice', 'worksepa', 'accordion_workservice', $workSepaStep . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILE'), 'bi bi-filetype-xml', $formWorkSepa->show()));
+        $page->addHtml($workPanel('workbill', $workSepaStep . 'b. ' . $gL10n->get('PLG_MEMBERSHIPFEE_BILL_CREATE'), 'bi-file-earmark-spreadsheet', 'bill.php', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT'), $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILL_DESC')));
+
+        // PANEL: Einzugsuebersicht (gemeinsam) und Zahlungen ohne Lastschrift
+        $workRunsStep = ++$workStep;
+        $formWorkRuns = new HtmlForm('workruns_form', '', $page);
+        $formWorkRuns->addButton('btn_work_runs', $gL10n->get('PLG_MEMBERSHIPFEE_RUNS'), array(
+            'icon' => 'bi-bank',
+            'link' => 'runs.php',
+            'class' => 'btn-primary offset-sm-3'
+        ));
+        $formWorkRuns->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_RUNS_DESC'));
+        $page->addHtml(getMenuePanel('workservice', 'workruns', 'accordion_workservice', $workRunsStep . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_RUNS'), 'bi bi-bank', $formWorkRuns->show()));
+        $page->addHtml($workPanel('workpayments', $workRunsStep . 'b. ' . $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS'), 'bi-cash-coin', 'payments.php', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS'), $gL10n->get('PLG_MEMBERSHIPFEE_WORK_PAYMENTS_DESC')));
 
         $page->addHtml(closeMenueTab());
 
@@ -897,6 +1007,105 @@ try {
             ));
 
             $page->addHtml(getMenuePanel('preferences', 'contributiongroups', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUPS'), 'bi bi-diagram-3', $formContributionGroups->show()));
+
+            // PANEL: WORK_SERVICE (Arbeitsdienst: Sollstunden je Rolle, Befreiungen, Altersgrenze, Stundensatz)
+
+            $workRules = \Plugins\MembershipFee\classes\Work\WorkRules::fromConfig($pPreferences->config);
+            $sqlAllRoles = 'SELECT rol.rol_id, rol.rol_name, cat.cat_name
+                              FROM ' . TBL_ROLES . ' AS rol
+                        INNER JOIN ' . TBL_CATEGORIES . ' AS cat
+                                ON cat.cat_id = rol.rol_cat_id
+                             WHERE rol.rol_valid = true
+                               AND (  cat.cat_org_id = ' . (int) $gCurrentOrgId . '
+                                   OR cat.cat_org_id IS NULL )
+                          ORDER BY cat.cat_sequence, rol.rol_name';
+            $formWorkService = new HtmlForm('workservice_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee_function.php', array(
+                'form' => 'workservice'
+            )), $page, array(
+                'class' => 'form-preferences'
+            ));
+            $formWorkService->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_WORK_SETTINGS_DESC'));
+            $formWorkService->addLine();
+
+            for ($conf = 0; $conf < $num_workservice; $conf ++) {
+                $formWorkService->openGroupBox('workservice_group' . $conf, ($conf + 1) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TARGET_ROLE'));
+                $formWorkService->addSelectBoxFromSql('work_role' . $conf, $gL10n->get('PLG_MEMBERSHIPFEE_ROLE'), $gDb, $sqlAllRoles, array(
+                    'defaultValue' => (int) $pPreferences->config['Arbeitsdienst']['soll_rollen'][$conf],
+                    'multiselect' => false
+                ));
+                $formWorkService->addInput('work_hours' . $conf, $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TARGET_HOURS'), trim((string) ($pPreferences->config['Arbeitsdienst']['soll_stunden'][$conf] ?? '')), array(
+                    'helpTextId' => 'PLG_MEMBERSHIPFEE_WORK_TARGET_HOURS_DESC'
+                ));
+                $html = '<a class="icon-text-link" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', array(
+                    'choice' => 'workservice',
+                    'conf' => $conf
+                )) . '"><i class="bi bi-trash"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_DELETE_CONFIG') . '</a>';
+                $formWorkService->addCustomContent('', $html);
+                $formWorkService->closeGroupBox();
+            }
+            $html = '<a class="icon-text-link" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', array(
+                'choice' => 'workservice',
+                'conf' => - 1
+            )) . '"><i class="bi bi-plus-circle"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TARGET_ROLE_ADD') . '</a>';
+            $htmlDesc = '<div class="alert alert-warning alert-small" role="alert"><i class="bi bi-exclamation-triangle"></i>' . $gL10n->get('PLG_MEMBERSHIPFEE_NOT_SAVED_SETTINGS_LOST') . '</div>';
+            $formWorkService->addCustomContent('', $html, array(
+                'helpTextId' => $htmlDesc
+            ));
+            $formWorkService->addLine();
+            $formWorkService->addSelectBoxFromSql('work_exempt_roles', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_EXEMPT_ROLES'), $gDb, $sqlAllRoles, array(
+                'defaultValue' => $workRules->exemptRoleIds(),
+                'multiselect' => true,
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_WORK_EXEMPT_ROLES_DESC'
+            ));
+            $formWorkService->addSelectBoxFromSql('work_exempt_categories', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_EXEMPT_CATEGORIES'), $gDb, 'SELECT cat_id, cat_name
+                  FROM ' . TBL_CATEGORIES . '
+                 WHERE cat_type = \'ROL\'
+                   AND (  cat_org_id = ' . (int) $gCurrentOrgId . '
+                       OR cat_org_id IS NULL )
+              ORDER BY cat_sequence', array(
+                'defaultValue' => $workRules->exemptCategoryIds(),
+                'multiselect' => true,
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_WORK_EXEMPT_CATEGORIES_DESC'
+            ));
+            $formWorkService->addSelectBoxFromSql('work_included_roles', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_INCLUDED_ROLES'), $gDb, $sqlAllRoles, array(
+                'defaultValue' => $workRules->includedRoleIds(),
+                'multiselect' => true,
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_WORK_INCLUDED_ROLES_DESC'
+            ));
+            $formWorkService->addInput('work_max_age', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_MAX_AGE'), $workRules->maxAge() !== null ? (string) $workRules->maxAge() : '', array(
+                'type' => 'number',
+                'minNumber' => 1,
+                'maxNumber' => 120,
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_WORK_MAX_AGE_DESC'
+            ));
+            $formWorkService->addInput('work_rate', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_RATE'), number_format($workRules->rate(), 2, ',', ''), array(
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_WORK_RATE_DESC'
+            ));
+            $formWorkService->addSubmitButton('btn_save_configurations', $gL10n->get('SYS_SAVE'), array(
+                'icon' => 'bi-check-lg',
+                'class' => ' offset-sm-3'
+            ));
+
+            // Menuepunkt "Arbeitsdienst erfassen" (eigenes Recht ueber "Sichtbar für")
+            $workMenuId = mf_work_menu_id();
+            $formWorkMenu = new HtmlForm('workmenu_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee_function.php', array(
+                'form' => 'workmenu'
+            )), $page, array(
+                'class' => 'form-preferences'
+            ));
+            if ($workMenuId > 0) {
+                $formWorkMenu->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_WORK_MENU'), '<i class="bi bi-check-circle text-success"></i> '
+                    . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_MENU_EXISTS')
+                    . ' <a href="' . ADMIDIO_URL . FOLDER_MODULES . '/menu.php">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_MENU_EDIT') . '</a>');
+            } else {
+                $formWorkMenu->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_WORK_MENU'), $gL10n->get('PLG_MEMBERSHIPFEE_WORK_MENU_DESC'));
+                $formWorkMenu->addSubmitButton('btn_work_menu', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_MENU_CREATE'), array(
+                    'icon' => 'bi-plus-circle',
+                    'class' => ' offset-sm-3'
+                ));
+            }
+
+            $page->addHtml(getMenuePanel('preferences', 'workservice', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_SETTINGS'), 'bi bi-tools', $formWorkService->show() . '<hr />' . $formWorkMenu->show()));
 
             // PANEL: MANUAL_TEMPLATES (Vorlagen fuer manuelle Positionen)
 
@@ -1270,6 +1479,24 @@ try {
                 ));
             }
             $formEmailNotifications->addMultilineTextInput('pre_notification_text', $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION_MAIL_TEXT'), $text->getValue('txt_text'), 7);
+
+            // Vorabinformation Arbeitsdienst (Platzhalter aus den Arbeitsdienst-Feldern, siehe replace_emailparameter())
+            $text->readDataByColumns(array(
+                'txt_name' => 'PMBMAIL_PRE_NOTIFICATION_AD',
+                'txt_org_id' => $gCurrentOrgId
+            ));
+            if ($text->getValue('txt_text') == '') {
+                $value = preg_replace('/<br[[:space:]]*\/?[[:space:]]*>/', chr(13) . chr(10), $gL10n->get('PLG_MEMBERSHIPFEE_PMBMAIL_PRE_NOTIFICATION_AD'));
+                $text->setValue('txt_text', $value);
+                $text->save();
+                $text->readDataByColumns(array(
+                    'txt_name' => 'PMBMAIL_PRE_NOTIFICATION_AD',
+                    'txt_org_id' => $gCurrentOrgId
+                ));
+            }
+            $formEmailNotifications->addMultilineTextInput('pre_notification_ad_text', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_PRE_NOTIFICATION_MAIL_TEXT'), $text->getValue('txt_text'), 7, array(
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_WORK_PRE_NOTIFICATION_MAIL_TEXT_DESC'
+            ));
 
             $text->readDataByColumns(array(
                 'txt_name' => 'PMBMAIL_BILL',

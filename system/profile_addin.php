@@ -29,7 +29,8 @@ if (isset($page, $user) && is_object($page) && is_object($user) && method_exists
             $page->assignSmartyVariable('pmbBookingsHtml',
                 '<p><a class="btn btn-secondary" href="' . $pmbHistoryUrl . '"><i class="bi bi-clock-history"></i> '
                 . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_HISTORY_EDIT') . '</a></p>'
-                . mf_render_bookings($pmbUserId, (string) $user->getValue('usr_uuid'), false));
+                . mf_render_bookings($pmbUserId, (string) $user->getValue('usr_uuid'), false)
+                . mf_render_work($pmbUserId));
         }
     } catch (Throwable $pmbException) {
         // die Profilseite soll auch bei einem Fehler im Plugin angezeigt werden

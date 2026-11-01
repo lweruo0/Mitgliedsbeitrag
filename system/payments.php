@@ -32,9 +32,13 @@ use Admidio\Users\Entity\User;
 use Plugins\MembershipFee\classes\Bookings\BookingService;
 use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
+use Plugins\MembershipFee\classes\Bookings\CollectionScope;
 
 require_once(__DIR__ . '/../../../system/common.php');
 require_once(__DIR__ . '/common_function.php');
+
+// Buchungskreis (Mitgliedsbeitrag oder Arbeitsdienst), siehe mf_collection_scope()
+$mfScope = mf_collection_scope();
 
 // only authorized user are allowed to start this module
 if (!isUserAuthorized())
@@ -47,7 +51,7 @@ $pPreferences->read();
 
 $user = new User($gDb, $gProfileFields);
 $userField = new Entity($gDb, TBL_USER_FIELDS, 'usf'); 
-$bookingService = new BookingService($pPreferences->config);
+$bookingService = new BookingService($pPreferences->config, $mfScope);
 $revertMessages = array();
 
 if(isset($_GET['mode']) && ($_GET['mode'] == 'assign_date' || $_GET['mode'] == 'delete_date' || $_GET['mode'] == 'prepare'))
@@ -141,7 +145,7 @@ elseif ($getMode == 'delete_date')
             {
                 $user->readDataById($userId);
             
-                if (strlen($user->getValue('PAID'.$gCurrentOrgId)) > 0)
+                if (strlen($user->getValue($mfScope->field(CollectionScope::FIELD_PAID))) > 0)
                 {
                     // Bezahlt-Datum loeschen, eingezogene Positionen zuruecksetzen und Profilfelder wiederherstellen
                     $notReverted = $bookingService->revertPaid($user);
@@ -192,10 +196,10 @@ else
         FROM '. TBL_USERS. '
         LEFT JOIN '. TBL_USER_DATA. ' AS paid
           ON paid.usd_usr_id = usr_id
-         AND paid.usd_usf_id = '. $gProfileFields->getProperty('PAID'.$gCurrentOrgId, 'usf_id'). '
+         AND paid.usd_usf_id = '. $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_PAID), 'usf_id'). '
         LEFT JOIN '. TBL_USER_DATA. ' AS fee
           ON fee.usd_usr_id = usr_id
-         AND fee.usd_usf_id = '. $gProfileFields->getProperty('FEE'.$gCurrentOrgId, 'usf_id'). '
+         AND fee.usd_usf_id = '. $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_FEE), 'usf_id'). '
          		
         LEFT JOIN '. TBL_MEMBERS. ' AS mem
           ON '.getContributionYearCondition('mem.').'
@@ -216,6 +220,7 @@ else
         BookingStore::ensureTables();
         $membersListSqlCondition .= ' AND usr_id IN (SELECT mfb_usr_id FROM ' . BookingStore::bookingsTable() . '
             WHERE mfb_org_id = ' . (int) $gCurrentOrgId . '
+              AND ' . $mfScope->sourceSqlCondition() . '
               AND mfb_status IN (\'' . BookingStore::STATUS_OPEN . '\', \'' . BookingStore::STATUS_EXPORTED . '\')) ) ';
     }
     else 										// Alle Benutzer anzeigen
@@ -228,12 +233,12 @@ else
     // offene Betraege, Status und Zahlart je Mitglied (fuer die festen Spalten und die Zusammenfassung)
     $paymentInfo = array();
     if ($getMode === 'html' && count($membersList) > 0) {
-        $extraFields = list_members(array('PAID' . $gCurrentOrgId, 'IBAN'), $membersListRols, $membersListSqlCondition);
+        $extraFields = list_members(array($mfScope->field(CollectionScope::FIELD_PAID), 'IBAN'), $membersListRols, $membersListSqlCondition);
         $openByUser = BookingStore::getByUsers(array_keys($membersList), array(BookingStore::STATUS_OPEN, BookingStore::STATUS_EXPORTED));
         foreach ($membersList as $member => $dummy) {
             $open = 0.0;
             $exported = 0.0;
-            foreach ($openByUser[$member] ?? array() as $position) {
+            foreach ($mfScope->filterPositions($openByUser[$member] ?? array()) as $position) {
                 if ($position['mfb_status'] === BookingStore::STATUS_EXPORTED) {
                     $exported += (float) $position['mfb_amount'];
                 } else {
@@ -243,7 +248,7 @@ else
             $paymentInfo[$member] = array(
                 'open' => round($open, 2),
                 'exported' => round($exported, 2),
-                'paid' => (string) ($extraFields[$member]['PAID' . $gCurrentOrgId] ?? ''),
+                'paid' => (string) ($extraFields[$member][$mfScope->field(CollectionScope::FIELD_PAID)] ?? ''),
                 'iban' => (string) ($extraFields[$member]['IBAN'] ?? '') !== ''
             );
         }
@@ -291,6 +296,7 @@ else
         $gNavigation->addUrl(CURRENT_URL, $headline);
 
         $page = new HtmlPage('plg-mitgliedsbeitrag-payments', $headline);
+        $page->addHtml(mf_collection_banner($mfScope));
         $page->setContentFullWidth(); 
         
         $page->addJavascript('

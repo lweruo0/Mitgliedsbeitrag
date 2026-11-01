@@ -12,6 +12,7 @@ use Admidio\Infrastructure\Utils\SecurityUtils;
 use Admidio\Infrastructure\Utils\StringUtils;
 use Admidio\Roles\Entity\RolesRights;
 use Admidio\Users\Entity\User;
+use Plugins\MembershipFee\classes\Bookings\CollectionScope;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
 if (basename($_SERVER['SCRIPT_FILENAME']) === 'common_function.php') {
@@ -274,6 +275,188 @@ function bezugskategorie_einlesen()
  *
  * @return int
  */
+/**
+ * Buchungskreis der aktuellen Seite: "ad" = Arbeitsdienst, sonst (Standard) Mitgliedsbeitrag.
+ *
+ * Der Parameter "collection" (GET oder POST) legt ihn fest und wird in der Sitzung gemerkt, damit die
+ * Folgeaufrufe einer Seite (AJAX, Filter, Export) ohne den Parameter im selben Buchungskreis bleiben.
+ * membership_fee.php setzt die Sitzung auf den Mitgliedsbeitrag zurueck; die Schritte der Registerkarte
+ * "Arbeitsdienst" uebergeben collection=ad. (Der Parameter "scope" ist in booking_edit.php schon belegt.)
+ */
+function mf_collection_scope(): CollectionScope
+{
+    global $gCurrentOrgId;
+
+    $key = $_GET['collection'] ?? $_POST['collection'] ?? null;
+    if (is_string($key) && in_array($key, CollectionScope::keys(), true)) {
+        $_SESSION['pMembershipFee']['collection'] = $key;
+    } else {
+        $key = (string) ($_SESSION['pMembershipFee']['collection'] ?? CollectionScope::MEMBERSHIP);
+    }
+    return CollectionScope::fromKey($key, (int) $gCurrentOrgId);
+}
+
+/**
+ * Offene Lastschriften je Faelligkeitsdatum und Sequenztyp in einem Buchungskreis
+ * (Mitglieder mit Faelligkeit, Betrag, ohne Bezahlt-Datum und mit IBAN; wie in sepa_create.php).
+ * @return array<string, array<string, int>> Y-m-d => (FRST|RCUR|FNAL|OOFF => Anzahl)
+ */
+function mf_sepa_duedate_overview(CollectionScope $scope): array
+{
+    $members = list_members(array(
+        $scope->field(CollectionScope::FIELD_DUEDATE),
+        $scope->field(CollectionScope::FIELD_SEQUENCETYPE),
+        $scope->field(CollectionScope::FIELD_FEE),
+        $scope->field(CollectionScope::FIELD_PAID),
+        'IBAN'
+    ), 0);
+    $duedates = array();
+    foreach ($members as $memberdata) {
+        $dueDate = (string) ($memberdata[$scope->field(CollectionScope::FIELD_DUEDATE)] ?? '');
+        if ($dueDate === '' || empty($memberdata[$scope->field(CollectionScope::FIELD_FEE)])
+            || !empty($memberdata[$scope->field(CollectionScope::FIELD_PAID)]) || empty($memberdata['IBAN'])) {
+            continue;
+        }
+        $sequenceType = (string) ($memberdata[$scope->field(CollectionScope::FIELD_SEQUENCETYPE)] ?? '');
+        $sequenceType = in_array($sequenceType, array('RCUR', 'FNAL', 'OOFF'), true) ? $sequenceType : 'FRST';
+        if (!isset($duedates[$dueDate])) {
+            $duedates[$dueDate] = array('FRST' => 0, 'RCUR' => 0, 'FNAL' => 0, 'OOFF' => 0);
+        }
+        $duedates[$dueDate][$sequenceType]++;
+    }
+    ksort($duedates);
+    return $duedates;
+}
+
+/**
+ * Hinweis oben auf den Seiten des Einzugs, wenn im Buchungskreis Arbeitsdienst gearbeitet wird.
+ */
+function mf_collection_banner(CollectionScope $scope): string
+{
+    global $gL10n;
+
+    if ($scope->isMembership()) {
+        return '';
+    }
+    return '<div class="alert alert-info" role="alert"><i class="bi bi-tools"></i> <strong>' . $gL10n->get('PLG_MEMBERSHIPFEE_SCOPE_AD') . '</strong> &ndash; '
+        . $gL10n->get('PLG_MEMBERSHIPFEE_SCOPE_AD_BANNER') . '</div>';
+}
+
+/** URL des Menuepunkts "Arbeitsdienst erfassen" (eigenes Recht ueber "Sichtbar für") */
+function mf_work_menu_url(): string
+{
+    return FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/work_input.php';
+}
+
+/**
+ * men_id des Menuepunkts "Arbeitsdienst erfassen" oder 0, wenn es ihn nicht gibt.
+ */
+function mf_work_menu_id(): int
+{
+    global $gDb;
+
+    $row = $gDb->queryPrepared('SELECT men_id FROM ' . TBL_MENU . ' WHERE men_url = ?', array(mf_work_menu_url()))->fetch();
+    return $row ? (int) $row['men_id'] : 0;
+}
+
+/**
+ * Legt den Menuepunkt "Arbeitsdienst erfassen" unter "Erweiterungen" an (falls noch nicht vorhanden).
+ * Sichtbar zunaechst nur fuer die Zugriffsrolle des Plugins; weitere Rollen (z. B. Arbeitsdienstleiter)
+ * werden in der Admidio-Menueverwaltung unter "Sichtbar für" eingetragen.
+ *
+ * @return int men_id
+ */
+function mf_work_menu_create(int $accessRoleId): int
+{
+    global $gDb, $gCurrentSession;
+
+    $menId = mf_work_menu_id();
+    if ($menId > 0) {
+        return $menId;
+    }
+    $menuParent = new \Admidio\Menu\Entity\MenuEntry($gDb);
+    $menuParent->readDataByColumns(array('men_name_intern' => 'extensions'));
+
+    $menu = new \Admidio\Menu\Entity\MenuEntry($gDb);
+    $menu->setValue('men_men_id_parent', $menuParent->getValue('men_id'));
+    $menu->setValue('men_url', mf_work_menu_url());
+    $menu->setValue('men_icon', 'tools');
+    $menu->setValue('men_name', 'Arbeitsdienst erfassen');
+    $menu->setValue('men_description', 'Geleistete Arbeitsdienst-Stunden erfassen');
+    $menu->save();
+    $menId = (int) $menu->getValue('men_id');
+
+    if ($accessRoleId > 0) {
+        $rightMenuView = new RolesRights($gDb, 'menu_view', $menId);
+        $rightMenuView->addRoles(array($accessRoleId));
+    }
+    $gCurrentSession->reloadAllSessions();
+    return $menId;
+}
+
+/**
+ * Darf der angemeldete Benutzer Arbeitsdienst-Stunden erfassen?
+ * Ja fuer die Zugriffsrolle des Plugins und fuer alle, die den Menuepunkt "Arbeitsdienst erfassen"
+ * (system/work_input.php) sehen duerfen.
+ */
+function mf_is_work_input_authorized(): bool
+{
+    return isUserAuthorized() || isUserAuthorized('system/work_input.php');
+}
+
+/**
+ * Ist das Leistungsjahr im Arbeitsdienst schon abgerechnet (exportierte oder eingezogene Positionen)?
+ * Dann duerfen nur noch Mitglieder der Zugriffsrolle Stunden aendern.
+ */
+function mf_work_year_locked(int $year): bool
+{
+    global $gDb, $gCurrentOrgId;
+
+    \Plugins\MembershipFee\classes\Bookings\BookingStore::ensureTables();
+    $scope = CollectionScope::work((int) $gCurrentOrgId);
+    $sql = 'SELECT COUNT(*) FROM ' . \Plugins\MembershipFee\classes\Bookings\BookingStore::bookingsTable() . '
+             WHERE mfb_org_id = ? AND mfb_year = ? AND ' . $scope->sourceSqlCondition() . '
+               AND mfb_status IN (?, ?)';
+    return (int) $gDb->queryPrepared($sql, array((int) $gCurrentOrgId, $year, 'exportiert', 'eingezogen'))->fetchColumn() > 0;
+}
+
+/**
+ * Mitglieder der Organisation, die im Jahr in mindestens einer Rolle waren (Auswahl bei der Erfassung).
+ * @return array<int, array{name:string, birthday:string}> usr_id => Daten, nach Namen sortiert
+ */
+function mf_work_members_of_year(int $year): array
+{
+    global $gDb, $gProfileFields, $gCurrentOrgId;
+
+    $sql = 'SELECT DISTINCT mem.mem_usr_id, ln.usd_value AS last_name, fn.usd_value AS first_name, bd.usd_value AS birthday
+              FROM ' . TBL_MEMBERS . ' AS mem
+        INNER JOIN ' . TBL_ROLES . ' AS rol ON rol.rol_id = mem.mem_rol_id AND rol.rol_valid = true
+        INNER JOIN ' . TBL_CATEGORIES . ' AS cat ON cat.cat_id = rol.rol_cat_id AND (cat.cat_org_id = ? OR cat.cat_org_id IS NULL)
+        INNER JOIN ' . TBL_USERS . ' AS usr ON usr.usr_id = mem.mem_usr_id AND usr.usr_valid = true
+         LEFT JOIN ' . TBL_USER_DATA . ' AS ln ON ln.usd_usr_id = mem.mem_usr_id AND ln.usd_usf_id = ?
+         LEFT JOIN ' . TBL_USER_DATA . ' AS fn ON fn.usd_usr_id = mem.mem_usr_id AND fn.usd_usf_id = ?
+         LEFT JOIN ' . TBL_USER_DATA . ' AS bd ON bd.usd_usr_id = mem.mem_usr_id AND bd.usd_usf_id = ?
+             WHERE mem.mem_begin <= ? AND mem.mem_end >= ?
+               AND cat.cat_type = \'ROL\'';
+    $statement = $gDb->queryPrepared($sql, array(
+        (int) $gCurrentOrgId,
+        (int) $gProfileFields->getProperty('LAST_NAME', 'usf_id'),
+        (int) $gProfileFields->getProperty('FIRST_NAME', 'usf_id'),
+        (int) $gProfileFields->getProperty('BIRTHDAY', 'usf_id'),
+        sprintf('%04d-12-31', $year),
+        sprintf('%04d-01-01', $year)
+    ));
+    $members = array();
+    while ($row = $statement->fetch()) {
+        $members[(int) $row['mem_usr_id']] = array(
+            'name' => trim((string) $row['last_name'] . ', ' . (string) $row['first_name'], ', '),
+            'birthday' => (string) $row['birthday']
+        );
+    }
+    uasort($members, static fn (array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+    return $members;
+}
+
 function getContributionYear()
 {
     global $pPreferences;
@@ -1404,6 +1587,9 @@ function replace_emailparameter($text, $user)
 {
     global $pPreferences, $gCurrentOrgId, $gCurrentOrganization;
 
+    // Beitrag, Faelligkeit und Text aus den Arbeitsfeldern des aktuellen Buchungskreises
+    $scope = mf_collection_scope();
+
     // now replace all parameters in email text
     $text = preg_replace('/#user_first_name#/', $user->getValue('FIRST_NAME'), $text);
     $text = preg_replace('/#user_last_name#/', $user->getValue('LAST_NAME'), $text);
@@ -1415,8 +1601,8 @@ function replace_emailparameter($text, $user)
     $text = preg_replace('/#mobile#/', $user->getValue('MOBILE'), $text);
     $text = preg_replace('/#birthday#/', $user->getValue('BIRTHDAY'), $text);
     $text = preg_replace('/#organization_long_name#/', $gCurrentOrganization->getValue('org_longname'), $text);
-    $text = preg_replace('/#fee#/', $user->getValue('FEE' . $gCurrentOrgId), $text);
-    $text = preg_replace('/#due_day#/', $user->getValue('DUEDATE' . $gCurrentOrgId), $text);
+    $text = preg_replace('/#fee#/', $user->getValue($scope->field(CollectionScope::FIELD_FEE)), $text);
+    $text = preg_replace('/#due_day#/', $user->getValue($scope->field(CollectionScope::FIELD_DUEDATE)), $text);
     $text = preg_replace('/#mandate_id#/', $user->getValue('MANDATEID' . $gCurrentOrgId), $text);
     $text = preg_replace('/#mandate_date#/', $user->getValue('MANDATEDATE' . $gCurrentOrgId), $text);
     $text = preg_replace('/#creditor_id#/', $pPreferences->config['Kontodaten']['ci'], $text);
@@ -1428,7 +1614,7 @@ function replace_emailparameter($text, $user)
     } else {
         $text = preg_replace('/#debtor#/', $user->getValue('FIRST_NAME') . ' ' . $user->getValue('LAST_NAME'), $text);
     }
-    $text = preg_replace('/#membership_fee_text#/', $user->getValue('CONTRIBUTORY_TEXT' . $gCurrentOrgId), $text);
+    $text = preg_replace('/#membership_fee_text#/', $user->getValue($scope->field(CollectionScope::FIELD_TEXT)), $text);
     $text = preg_replace('/#iban_obfuscated#/', obfuscate_iban($user->getValue('IBAN')), $text);
     $text = preg_replace('/#membernumber#/', $user->getValue('MEMBERNUMBER' . $gCurrentOrgId), $text);
 

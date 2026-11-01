@@ -51,7 +51,7 @@ class BookingStore
 
     private const RUN_COLUMNS = array(
         'mfr_file_name', 'mfr_msg_id', 'mfr_format', 'mfr_due_dates', 'mfr_count', 'mfr_amount',
-        'mfr_status', 'mfr_paid_date'
+        'mfr_status', 'mfr_paid_date', 'mfr_kind'
     );
 
     private static bool $tablesChecked = false;
@@ -255,6 +255,11 @@ class BookingStore
         // Version 6.3.0: Herkunft importierter Positionen (z. B. WINNER-1140) nachruesten
         if ($gDb->queryPrepared('SELECT mfb_import_ref FROM ' . self::bookingsTable() . ' WHERE 1 = 0', array(), false) === false) {
             $gDb->queryPrepared('ALTER TABLE ' . self::bookingsTable() . ' ADD mfb_import_ref varchar(50)');
+        }
+
+        // Version 6.4.0: Buchungskreis des Einzugs (mf = Mitgliedsbeitrag, ad = Arbeitsdienst) nachruesten
+        if ($gDb->queryPrepared('SELECT mfr_kind FROM ' . self::runsTable() . ' WHERE 1 = 0', array(), false) === false) {
+            $gDb->queryPrepared('ALTER TABLE ' . self::runsTable() . ' ADD mfr_kind varchar(10) NOT NULL DEFAULT \'mf\'');
         }
 
         // Version 6.2.0 (erste Fassung): Spalte fuer die Art der Datei (xml = SEPA-Datei, ctl = Kontrolldatei) nachruesten

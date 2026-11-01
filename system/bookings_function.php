@@ -173,3 +173,82 @@ function mf_render_bookings(int $usrId, string $userUuid, bool $withActions = tr
 
     return $html;
 }
+
+/**
+ * Abschnitt "Arbeitsdienst" fuer Profil-Registerkarte und Buchungshistorie: aktuelles Soll, je Leistungsjahr
+ * geleistete Stunden, Ersatzbeitrag (Position im Buchungskreis Arbeitsdienst) und die einzelnen Einsaetze.
+ */
+function mf_render_work(int $usrId): string
+{
+    global $gL10n, $gProfileFields, $gDb, $gCurrentOrgId;
+
+    $orgId = (int) $gCurrentOrgId;
+    \Plugins\MembershipFee\classes\Work\WorkHoursStore::ensureTable();
+    $entries = \Plugins\MembershipFee\classes\Work\WorkHoursStore::getByUser($usrId);
+    $positions = \Plugins\MembershipFee\classes\Bookings\CollectionScope::work($orgId)->filterPositions(BookingStore::getByUser($usrId));
+
+    // aktuelles Soll aus dem Profilfeld
+    $target = '';
+    $targetUsfId = (int) $gProfileFields->getProperty(\Plugins\MembershipFee\classes\Work\WorkProfileFields::targetField($orgId), 'usf_id');
+    if ($targetUsfId > 0) {
+        $target = (string) $gDb->queryPrepared('SELECT usd_value FROM ' . TBL_USER_DATA . ' WHERE usd_usr_id = ? AND usd_usf_id = ?', array($usrId, $targetUsfId))->fetchColumn();
+    }
+    if (count($entries) === 0 && count($positions) === 0 && $target === '') {
+        return '';
+    }
+
+    // je Jahr: Stunden, Einsaetze, Ersatzbeitrag
+    $years = array();
+    foreach ($entries as $entry) {
+        $year = (int) $entry['mfw_year'];
+        $years[$year]['hours'] = ($years[$year]['hours'] ?? 0.0) + (float) $entry['mfw_hours'];
+        $years[$year]['entries'][] = $entry;
+    }
+    foreach ($positions as $position) {
+        if ($position['mfb_status'] === BookingStore::STATUS_CANCELLED) {
+            continue;
+        }
+        $year = (int) $position['mfb_year'];
+        $years[$year]['positions'][] = $position;
+    }
+    $currentYear = (int) date('Y');
+    if (!isset($years[$currentYear]) && $target !== '') {
+        $years[$currentYear] = array();
+    }
+    krsort($years);
+
+    $html = '<h5 class="mt-4"><i class="bi bi-tools"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_SETTINGS') . '</h5>';
+    if ($target !== '') {
+        $html .= '<p>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_PROFILE_TARGET', array(
+            $currentYear,
+            \Plugins\MembershipFee\classes\Work\WorkRules::formatHours((float) str_replace(',', '.', $target))
+        )) . '</p>';
+    }
+    $html .= '<div class="table-responsive"><table class="table table-condensed"><thead><tr>'
+        . '<th>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_YEAR') . '</th>'
+        . '<th style="text-align: right;">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_COL_DONE') . '</th>'
+        . '<th>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_COL_FEE') . '</th>'
+        . '<th>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_ENTRIES_SHORT') . '</th>'
+        . '</tr></thead><tbody>';
+    foreach ($years as $year => $data) {
+        $fees = array();
+        foreach ($data['positions'] ?? array() as $position) {
+            $fees[] = mf_format_amount($position['mfb_amount']) . ' <small class="text-muted">(' . mf_booking_label((string) $position['mfb_status']) . ')</small>';
+        }
+        $list = '';
+        if (count($data['entries'] ?? array()) > 0) {
+            $items = array();
+            foreach (array_reverse($data['entries']) as $entry) {
+                $items[] = '<li>' . mf_format_date((string) $entry['mfw_date']) . ' &middot; ' . SecurityUtils::encodeHTML((string) $entry['mfw_activity'])
+                    . ' &middot; ' . \Plugins\MembershipFee\classes\Work\WorkRules::formatHours((float) $entry['mfw_hours']) . '</li>';
+            }
+            $list = '<details><summary>' . $gL10n->get(count($data['entries']) === 1 ? 'PLG_MEMBERSHIPFEE_WORK_PROFILE_ENTRY_ONE' : 'PLG_MEMBERSHIPFEE_WORK_PROFILE_ENTRIES_MANY', array(count($data['entries']))) . '</summary><ul class="mb-0">' . implode('', $items) . '</ul></details>';
+        }
+        $html .= '<tr><td>' . (int) $year . '</td>'
+            . '<td style="text-align: right;">' . \Plugins\MembershipFee\classes\Work\WorkRules::formatHours((float) ($data['hours'] ?? 0.0)) . '</td>'
+            . '<td>' . (count($fees) > 0 ? implode('<br/>', $fees) : '&ndash;') . '</td>'
+            . '<td>' . ($list !== '' ? $list : '&ndash;') . '</td></tr>';
+    }
+    $html .= '</tbody></table></div>';
+    return $html;
+}

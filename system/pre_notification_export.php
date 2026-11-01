@@ -16,9 +16,13 @@ use Admidio\Infrastructure\Utils\FileSystemUtils;
 use Admidio\Infrastructure\Exception;
 use Admidio\Users\Entity\User;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
+use Plugins\MembershipFee\classes\Bookings\CollectionScope;
 
 require_once(__DIR__ . '/../../../system/common.php');
 require_once(__DIR__ . '/common_function.php');
+
+// Buchungskreis (Mitgliedsbeitrag oder Arbeitsdienst), siehe mf_collection_scope()
+$mfScope = mf_collection_scope();
 
 // only authorized user are allowed to start this module
 if (!isUserAuthorized())
@@ -146,9 +150,9 @@ foreach ($_SESSION['pMembershipFee']['checkedArray'] as $UserId => $dummy)
     $columnValues[] = $user->getValue('IBAN');
     $columnValues[] = $user->getValue('MANDATEDATE'.$gCurrentOrgId);
     $columnValues[] = $user->getValue('MANDATEID'.$gCurrentOrgId);
-    $columnValues[] = $user->getValue('DUEDATE'.$gCurrentOrgId);
-    $columnValues[] = $user->getValue('FEE'.$gCurrentOrgId);
-    $columnValues[] = $user->getValue('CONTRIBUTORY_TEXT'.$gCurrentOrgId);
+    $columnValues[] = $user->getValue($mfScope->field(CollectionScope::FIELD_DUEDATE));
+    $columnValues[] = $user->getValue($mfScope->field(CollectionScope::FIELD_FEE));
+    $columnValues[] = $user->getValue($mfScope->field(CollectionScope::FIELD_TEXT));
     
     if ($exportMode === 'csv')
     {

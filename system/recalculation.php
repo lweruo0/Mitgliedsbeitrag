@@ -158,7 +158,9 @@ if ($getMode == 'preview') // Default
         ), 2, 'AND mem_usr_id IN (' . implode(',', array_map('intval', array_keys($plans))) . ')');
     }
 
-    $positionsByUser = BookingStore::getByUsers(array_keys($plans));
+    // nur Positionen des Mitgliedsbeitrags (Arbeitsdienst ist ein eigener Buchungskreis)
+    $membershipScope = \Plugins\MembershipFee\classes\Bookings\CollectionScope::membership((int) $gCurrentOrgId);
+    $positionsByUser = array_map(static fn (array $positions): array => array_values($membershipScope->filterPositions($positions)), BookingStore::getByUsers(array_keys($plans)));
 
     $changes = array();
     $waiting = array();

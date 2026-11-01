@@ -220,6 +220,57 @@ try {
             $pPreferences->config['Beitragsgruppen']['roles'] = $roleLists;
             break;
 
+        case 'workmenu':
+            // Menuepunkt "Arbeitsdienst erfassen" anlegen
+            mf_work_menu_create((int) ($pPreferences->config['install']['access_role_id'] ?? 0));
+            break;
+
+        case 'workservice':
+            $roles = array();
+            $hours = array();
+            for ($conf = 0; isset($_POST['work_hours' . $conf]) || isset($_POST['work_role' . $conf]); $conf ++) {
+                $rolId = (int) ($_POST['work_role' . $conf] ?? 0);
+                $hourValue = trim(str_replace(',', '.', (string) ($_POST['work_hours' . $conf] ?? '')));
+                if ($rolId <= 0 && $hourValue === '') {
+                    continue;
+                }
+                if ($rolId <= 0 || !is_numeric($hourValue) || (float) $hourValue < 0) {
+                    $ret = $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TARGET_INVALID', array($conf + 1));
+                    break 2;
+                }
+                if (in_array($rolId, $roles, true)) {
+                    $ret = $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TARGET_DUPLICATE', array($conf + 1));
+                    break 2;
+                }
+                $roles[] = $rolId;
+                $hours[] = rtrim(rtrim(number_format((float) $hourValue, 2, '.', ''), '0'), '.');
+            }
+            if (count($roles) === 0) {
+                $roles = array(' ');
+                $hours = array(' ');
+            }
+            $maxAge = trim((string) ($_POST['work_max_age'] ?? ''));
+            $rate = trim(str_replace(',', '.', (string) ($_POST['work_rate'] ?? '')));
+            if ($maxAge !== '' && (!ctype_digit($maxAge) || (int) $maxAge < 1)) {
+                $ret = $gL10n->get('PLG_MEMBERSHIPFEE_WORK_MAX_AGE_INVALID');
+                break;
+            }
+            if (!is_numeric($rate) || (float) $rate < 0) {
+                $ret = $gL10n->get('PLG_MEMBERSHIPFEE_WORK_RATE_INVALID');
+                break;
+            }
+            $exemptRoles = array_filter(array_map('intval', (array) ($_POST['work_exempt_roles'] ?? array())));
+            $exemptCategories = array_filter(array_map('intval', (array) ($_POST['work_exempt_categories'] ?? array())));
+            $includedRoles = array_filter(array_map('intval', (array) ($_POST['work_included_roles'] ?? array())));
+            $pPreferences->config['Arbeitsdienst']['soll_rollen'] = $roles;
+            $pPreferences->config['Arbeitsdienst']['soll_stunden'] = $hours;
+            $pPreferences->config['Arbeitsdienst']['ausnahme_rollen'] = count($exemptRoles) > 0 ? implode(',', $exemptRoles) : ' ';
+            $pPreferences->config['Arbeitsdienst']['ausnahme_kategorien'] = count($exemptCategories) > 0 ? implode(',', $exemptCategories) : ' ';
+            $pPreferences->config['Arbeitsdienst']['einschluss_rollen'] = count($includedRoles) > 0 ? implode(',', $includedRoles) : ' ';
+            $pPreferences->config['Arbeitsdienst']['altersgrenze'] = ($maxAge === '') ? ' ' : (int) $maxAge;
+            $pPreferences->config['Arbeitsdienst']['stundensatz'] = number_format((float) $rate, 2, '.', '');
+            break;
+
         case 'manualtemplates':
             $names = array();
             $amounts = array();
@@ -275,6 +326,15 @@ try {
             ));
             $text->setValue('txt_text', $_POST['pre_notification_text']);
             $text->save();
+
+            if (isset($_POST['pre_notification_ad_text'])) {
+                $text->readDataByColumns(array(
+                    'txt_name' => 'PMBMAIL_PRE_NOTIFICATION_AD',
+                    'txt_org_id' => $gCurrentOrgId
+                ));
+                $text->setValue('txt_text', $_POST['pre_notification_ad_text']);
+                $text->save();
+            }
 
             $text->readDataByColumns(array(
                 'txt_name' => 'PMBMAIL_BILL',

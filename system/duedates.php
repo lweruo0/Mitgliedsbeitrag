@@ -31,9 +31,13 @@ use Admidio\Infrastructure\Utils\SecurityUtils;
 use Admidio\Roles\Entity\Role;
 use Admidio\Users\Entity\User;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
+use Plugins\MembershipFee\classes\Bookings\CollectionScope;
 
 require_once (__DIR__ . '/../../../system/common.php');
 require_once (__DIR__ . '/common_function.php');
+
+// Buchungskreis (Mitgliedsbeitrag oder Arbeitsdienst), siehe mf_collection_scope()
+$mfScope = mf_collection_scope();
 
 // only authorized user are allowed to start this module
 if (! isUserAuthorized()) {
@@ -104,7 +108,7 @@ if ($getMode == 'assign') {
     if ($problem !== null && $getBulk !== 'remove') {
         foreach ($userArray as $data) {
             $user->readDataById($data);
-            if (strlen($user->getValue('DUEDATE' . $gCurrentOrgId)) === 0) {
+            if (strlen($user->getValue($mfScope->field(CollectionScope::FIELD_DUEDATE))) === 0) {
                 echo 'Das Fälligkeitsdatum ' . date('d.m.Y', (int) strtotime((string) $getDatumNeu)) . ' ist nicht möglich (' . $problem
                     . '). Bitte einen Bankarbeitstag wählen, z. B. ' . date('d.m.Y', (int) strtotime(mf_next_valid_duedate((string) $getDatumNeu))) . '.';
                 exit();
@@ -115,7 +119,7 @@ if ($getMode == 'assign') {
     try {
         foreach ($userArray as $dummy => $data) {
             $user->readDataById($data);
-            $hasDuedate = strlen($user->getValue('DUEDATE' . $gCurrentOrgId)) !== 0;
+            $hasDuedate = strlen($user->getValue($mfScope->field(CollectionScope::FIELD_DUEDATE))) !== 0;
 
             // Schaltflaechen „bei allen setzen/entfernen“: nur die Benutzer aendern, bei denen sich etwas aendert
             if (($getBulk === 'set' && $hasDuedate) || ($getBulk === 'remove' && !$hasDuedate)) {
@@ -131,16 +135,16 @@ if ($getMode == 'assign') {
                         . '). Bitte einen Bankarbeitstag wählen, z. B. ' . date('d.m.Y', (int) strtotime(mf_next_valid_duedate((string) $getDatumNeu))) . '.';
                     exit();
                 }
-                $user->setValue('DUEDATE' . $gCurrentOrgId, $getDatumNeu);
+                $user->setValue($mfScope->field(CollectionScope::FIELD_DUEDATE), $getDatumNeu);
 
                 $sequenceType = $getSequenceType === 'AUTO' ? ($autoTypes[(int) $data] ?? 'FRST') : $getSequenceType;
                 if ($sequenceType != '') {
-                    $user->setValue('SEQUENCETYPE' . $gCurrentOrgId, $sequenceType);
+                    $user->setValue($mfScope->field(CollectionScope::FIELD_SEQUENCETYPE), $sequenceType);
                 }
                 $resultTypes[] = $sequenceType;
             } else {
                 // er hat bereits ein Faelligkeitsdatum, deshalb das vorhandene loeschen
-                $user->setValue('DUEDATE' . $gCurrentOrgId, '');
+                $user->setValue($mfScope->field(CollectionScope::FIELD_DUEDATE), '');
             }
 
             $user->save();
@@ -174,10 +178,10 @@ if ($getMode == 'assign') {
     // Sequenztyp werden beim Anklicken per JavaScript aktualisiert); fehlen sie in der Spaltenkonfiguration,
     // werden sie vorne ergänzt
     $requiredFields = array();
-    foreach (array('DUEDATE', 'SEQUENCETYPE', 'FEE') as $fieldName) {
-        $usfIdRequired = (int) $gProfileFields->getProperty($fieldName . $gCurrentOrgId, 'usf_id');
+    foreach (array(CollectionScope::FIELD_DUEDATE, CollectionScope::FIELD_SEQUENCETYPE, CollectionScope::FIELD_FEE) as $fieldName) {
+        $usfIdRequired = (int) $gProfileFields->getProperty($mfScope->field($fieldName), 'usf_id');
         if ($usfIdRequired > 0 && !in_array('p' . $usfIdRequired, $membersListFields, true)
-            && !in_array($fieldName . $gCurrentOrgId, $membersListFields, true)) {
+            && !in_array($mfScope->field($fieldName), $membersListFields, true)) {
             $requiredFields[] = 'p' . $usfIdRequired;
         }
     }
@@ -193,13 +197,13 @@ if ($getMode == 'assign') {
          AND mandatedate.usd_usf_id = ' . $gProfileFields->getProperty('MANDATEDATE' . $gCurrentOrgId, 'usf_id') . '
         LEFT JOIN ' . TBL_USER_DATA . ' AS duedate
           ON duedate.usd_usr_id = usr_id
-         AND duedate.usd_usf_id = ' . $gProfileFields->getProperty('DUEDATE' . $gCurrentOrgId, 'usf_id') . '
+         AND duedate.usd_usf_id = ' . $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_DUEDATE), 'usf_id') . '
         LEFT JOIN ' . TBL_USER_DATA . ' AS paid
           ON paid.usd_usr_id = usr_id
-         AND paid.usd_usf_id = ' . $gProfileFields->getProperty('PAID' . $gCurrentOrgId, 'usf_id') . '
+         AND paid.usd_usf_id = ' . $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_PAID), 'usf_id') . '
         LEFT JOIN ' . TBL_USER_DATA . ' AS fee
           ON fee.usd_usr_id = usr_id
-         AND fee.usd_usf_id = ' . $gProfileFields->getProperty('FEE' . $gCurrentOrgId, 'usf_id') . '
+         AND fee.usd_usf_id = ' . $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_FEE), 'usf_id') . '
         LEFT JOIN ' . TBL_USER_DATA . ' AS iban
           ON iban.usd_usr_id = usr_id
          AND iban.usd_usf_id = ' . $gProfileFields->getProperty('IBAN', 'usf_id') . '
@@ -232,6 +236,7 @@ if ($getMode == 'assign') {
     $gNavigation->addUrl(CURRENT_URL, $headline);
 
     $page = new HtmlPage('plg-mitgliedsbeitrag-duedates', $headline);
+    $page->addHtml(mf_collection_banner($mfScope));
     $page->setContentFullWidth();
 
     // gesperrte Tage (Bankfeiertage) fuer die Pruefung im Browser: Vorjahr bis zwei Jahre voraus
@@ -507,13 +512,13 @@ if ($getMode == 'assign') {
     $usfIdCountry = (int) $gProfileFields->getProperty('COUNTRY', 'usf_id');
     $usfIdLastName = (int) $gProfileFields->getProperty('LAST_NAME', 'usf_id');
     $usfIdFirstName = (int) $gProfileFields->getProperty('FIRST_NAME', 'usf_id');
-    $usfIdSequenceType = (int) $gProfileFields->getProperty('SEQUENCETYPE' . $gCurrentOrgId, 'usf_id');
-    $usfIdDuedate = (int) $gProfileFields->getProperty('DUEDATE' . $gCurrentOrgId, 'usf_id');
+    $usfIdSequenceType = (int) $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_SEQUENCETYPE), 'usf_id');
+    $usfIdDuedate = (int) $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_DUEDATE), 'usf_id');
 
     // user data
     foreach ($membersList as $member => $memberData) {
         $memberUuid = $userUuids[(int) $member] ?? '';
-        if (isset($memberData[$gProfileFields->getProperty('DUEDATE' . $gCurrentOrgId, 'usf_id')]) && strlen($memberData[$gProfileFields->getProperty('DUEDATE' . $gCurrentOrgId, 'usf_id')]) > 0) {
+        if (isset($memberData[$gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_DUEDATE), 'usf_id')]) && strlen($memberData[$gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_DUEDATE), 'usf_id')]) > 0) {
             $content = '<input type="checkbox" id="member_' . $member . '" name="member_' . $member . '" checked="checked" class="memlist_checkbox memlist_member" /><b id="loadindicator_member_' . $member . '"></b>';
         } else {
             $content = '<input type="checkbox" id="member_' . $member . '" name="member_' . $member . '" class="memlist_checkbox memlist_member" /><b id="loadindicator_member_' . $member . '"></b>';

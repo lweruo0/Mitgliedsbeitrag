@@ -9,6 +9,9 @@
  * Grundregel: Solange ein Mitglied keinen laufenden Einzug hat, ist das Profilfeld Beitrag
  * die Summe seiner offenen Positionen.
  *
+ * Alle Ablaeufe beziehen sich auf einen Buchungskreis (CollectionScope): Mitgliedsbeitrag (Standard)
+ * oder Arbeitsdienst. Positionen anderer Buchungskreise werden dabei nicht beruecksichtigt.
+ *
  * @copyright The Admidio Team
  * @see https://www.admidio.org/
  * @license https://www.gnu.org/licenses/gpl-2.0.html GNU General Public License v2.0 only
@@ -35,13 +38,57 @@ class BookingService
     /** Einzug, der beim letzten registerSepaExport() angelegt bzw. wiederverwendet wurde */
     private ?int $lastRunId = null;
 
+    /** Buchungskreis, auf den sich die Ablaeufe beziehen */
+    private CollectionScope $scope;
+
     /**
      * @param array<string, mixed> $config $pPreferences->config
+     * @param CollectionScope|null $scope Buchungskreis; null = Mitgliedsbeitrag
      */
-    public function __construct(array $config)
+    public function __construct(array $config, ?CollectionScope $scope = null)
     {
+        global $gCurrentOrgId;
+
         $this->config = $config;
+        $this->scope = $scope ?? CollectionScope::membership((int) $gCurrentOrgId);
         BookingStore::ensureTables();
+    }
+
+    public function getScope(): CollectionScope
+    {
+        return $this->scope;
+    }
+
+    /**
+     * Dieselbe Konfiguration fuer einen anderen Buchungskreis.
+     */
+    public function withScope(CollectionScope $scope): self
+    {
+        if ($scope->key() === $this->scope->key()) {
+            return $this;
+        }
+        $service = clone $this;
+        $service->scope = $scope;
+        $service->lastRunId = null;
+        return $service;
+    }
+
+    /**
+     * Positionen eines Mitglieds in diesem Buchungskreis.
+     * @param array<int, string> $status
+     * @return array<int, array<string, mixed>>
+     */
+    private function scopedPositions(int $usrId, array $status = array()): array
+    {
+        return array_values($this->scope->filterPositions(BookingStore::getByUser($usrId, $status)));
+    }
+
+    /**
+     * Interner Name eines Arbeitsfelds dieses Buchungskreises (siehe CollectionScope::FIELD_*).
+     */
+    private function field(string $name): string
+    {
+        return $this->scope->field($name);
     }
 
     // ------------------------------------------------------------------
@@ -50,6 +97,10 @@ class BookingService
 
     public function getPrefix(): string
     {
+        // der Text der Arbeitsdienst-Position ist schon vollstaendig (siehe WorkBillingPlanner::text())
+        if (!$this->scope->isMembership()) {
+            return '';
+        }
         return trim((string) ($this->config['Beitrag']['beitrag_prefix'] ?? ''));
     }
 
@@ -132,8 +183,11 @@ class BookingService
      */
     public function planRecalculation(?array $selectedRoleIds = null): array
     {
+        global $gCurrentOrgId;
+
         $year = getContributionYear();
         $roles = $this->getPlannerRoles();
+        $membership = CollectionScope::membership((int) $gCurrentOrgId);
 
         // Mitglieder je Rolle im Beitragsjahr
         $memberRoles = array();
@@ -144,7 +198,11 @@ class BookingService
         }
 
         // auch Mitglieder mit offenen Rollenpositionen (z. B. Rolle inzwischen beendet)
-        $allPositions = BookingStore::getByUsers(array());
+        // nur Positionen des Mitgliedsbeitrags (ein laufender Einzug im Arbeitsdienst blockiert die Neuberechnung nicht)
+        $allPositions = array();
+        foreach (BookingStore::getByUsers(array()) as $usrId => $positions) {
+            $allPositions[$usrId] = array_values($membership->filterPositions($positions));
+        }
         foreach ($allPositions as $usrId => $positions) {
             foreach ($positions as $position) {
                 if ($position['mfb_status'] === BookingStore::STATUS_OPEN && $position['mfb_source'] === BookingStore::SOURCE_ROLE && (int) $position['mfb_year'] === $year && !isset($memberRoles[$usrId])) {
@@ -203,9 +261,9 @@ class BookingService
      */
     public function syncWorkFields(int $usrId): void
     {
-        global $gDb, $gProfileFields, $gCurrentOrgId;
+        global $gDb, $gProfileFields;
 
-        $positions = BookingStore::getByUser($usrId);
+        $positions = $this->scopedPositions($usrId);
         $open = array();
         foreach ($positions as $position) {
             if ($position['mfb_status'] === BookingStore::STATUS_EXPORTED) {
@@ -217,21 +275,20 @@ class BookingService
         }
 
         $user = new User($gDb, $gProfileFields, $usrId);
-        $orgId = (int) $gCurrentOrgId;
 
         if (count($open) > 0) {
             $fields = ContributionPlanner::buildWorkFields($open, $this->getPrefix(), (string) ($this->config['Beitrag']['beitrag_role_separator'] ?? ''), $this->nameSuffix($user));
-            $user->setValue('FEE' . $orgId, $fields['fee']);
-            $user->setValue('CONTRIBUTORY_TEXT' . $orgId, $fields['text']);
-            if ((string) $user->getValue('PAID' . $orgId) !== '') {
+            $user->setValue($this->field(CollectionScope::FIELD_FEE), $fields['fee']);
+            $user->setValue($this->field(CollectionScope::FIELD_TEXT), $fields['text']);
+            if ((string) $user->getValue($this->field(CollectionScope::FIELD_PAID)) !== '') {
                 // neue offene Positionen nach einer Zahlung: Bezahlt-Datum leeren, damit wieder ein Faelligkeitsdatum gesetzt werden kann
-                $user->setValue('PAID' . $orgId, '');
+                $user->setValue($this->field(CollectionScope::FIELD_PAID), '');
             }
-        } elseif ((string) $user->getValue('PAID' . $orgId) === '') {
+        } elseif ((string) $user->getValue($this->field(CollectionScope::FIELD_PAID)) === '') {
             // nichts mehr offen und nichts bezahlt: Arbeitsfelder leeren
-            $user->setValue('FEE' . $orgId, '');
-            $user->setValue('CONTRIBUTORY_TEXT' . $orgId, '');
-            $user->setValue('DUEDATE' . $orgId, '');
+            $user->setValue($this->field(CollectionScope::FIELD_FEE), '');
+            $user->setValue($this->field(CollectionScope::FIELD_TEXT), '');
+            $user->setValue($this->field(CollectionScope::FIELD_DUEDATE), '');
         }
         $user->save();
     }
@@ -266,7 +323,9 @@ class BookingService
      */
     public function planIndividual(int $usrId, array $desired, array $configuredKeys): array
     {
-        $positions = BookingStore::getByUser($usrId);
+        global $gCurrentOrgId;
+
+        $positions = array_values(CollectionScope::membership((int) $gCurrentOrgId)->filterPositions(BookingStore::getByUser($usrId)));
         foreach ($positions as $position) {
             if ($position['mfb_status'] === BookingStore::STATUS_EXPORTED) {
                 return array();
@@ -279,9 +338,12 @@ class BookingService
     // SEPA-Export
     // ------------------------------------------------------------------
 
+    /**
+     * EndToEnd-ID im Mitgliedsbeitrag (bisheriges Format); fuer andere Buchungskreise CollectionScope::endToEndId().
+     */
     public static function endToEndId(string $orgShortName, int $usrId, string $dueDate): string
     {
-        return substr($orgShortName . '-' . $usrId . '-' . str_replace('-', '', $dueDate), 0, 35);
+        return CollectionScope::membership(0)->endToEndId($orgShortName, $usrId, $dueDate);
     }
 
     /**
@@ -312,9 +374,10 @@ class BookingService
             'mfr_due_dates' => mb_substr(implode(', ', $dueDateText), 0, 255),
             'mfr_count' => count($debtors),
             'mfr_amount' => $amount,
-            'mfr_status' => BookingStore::RUN_CREATED
+            'mfr_status' => BookingStore::RUN_CREATED,
+            'mfr_kind' => $this->scope->key()
         ));
-        $msgId = substr('MF-' . $orgShortName . '-' . $runId . '-' . date('YmdHis'), 0, 35);
+        $msgId = $this->scope->messageId($orgShortName, $runId, date('YmdHis'));
         BookingStore::updateRun($runId, array('mfr_msg_id' => $msgId));
         $this->lastRunId = $runId;
 
@@ -323,7 +386,7 @@ class BookingService
 
         foreach ($debtors as $usrId => $data) {
             $usrId = (int) $usrId;
-            $positions = BookingStore::getByUser($usrId);
+            $positions = $this->scopedPositions($usrId);
             $open = array();
             $alreadyExported = false;
             foreach ($positions as $position) {
@@ -353,7 +416,7 @@ class BookingService
                 $newId = BookingStore::insert(array(
                     'mfb_usr_id' => $usrId,
                     'mfb_year' => $year,
-                    'mfb_source' => BookingStore::SOURCE_MANUAL,
+                    'mfb_source' => $this->scope->manualSource(),
                     'mfb_rol_name' => $label,
                     'mfb_amount' => $difference,
                     'mfb_text' => (string) $data['text'],
@@ -462,11 +525,11 @@ class BookingService
         $orgId = (int) $gCurrentOrgId;
         $usrId = (int) $user->getValue('usr_id');
 
-        if ((string) $user->getValue('PAID' . $orgId) !== '') {
+        if ((string) $user->getValue($this->field(CollectionScope::FIELD_PAID)) !== '') {
             return false;
         }
 
-        $positions = BookingStore::getByUser($usrId);
+        $positions = $this->scopedPositions($usrId);
         $exported = array();
         $open = array();
         foreach ($positions as $position) {
@@ -487,7 +550,7 @@ class BookingService
             $this->updateRunStatus(array_unique(array_filter(array_column($exported, 'mfb_run_id'))), $date);
         } elseif ($runId === null) {
             // Zahlung ohne SEPA-Datei (Ueberweisung): offene Positionen mit Einzug MAN
-            $fee = round((float) str_replace(',', '.', (string) $user->getValue('FEE' . $orgId)), 2);
+            $fee = round((float) str_replace(',', '.', (string) $user->getValue($this->field(CollectionScope::FIELD_FEE))), 2);
             $sum = 0.0;
             foreach ($open as $position) {
                 $sum += (float) $position['mfb_amount'];
@@ -497,10 +560,10 @@ class BookingService
                 $newId = BookingStore::insert(array(
                     'mfb_usr_id' => $usrId,
                     'mfb_year' => getContributionYear(),
-                    'mfb_source' => BookingStore::SOURCE_MANUAL,
+                    'mfb_source' => $this->scope->manualSource(),
                     'mfb_rol_name' => count($open) === 0 ? self::LABEL_PROFILE_FEE : self::LABEL_PROFILE_CORRECTION,
                     'mfb_amount' => $difference,
-                    'mfb_text' => (string) $user->getValue('CONTRIBUTORY_TEXT' . $orgId),
+                    'mfb_text' => (string) $user->getValue($this->field(CollectionScope::FIELD_TEXT)),
                     'mfb_status' => BookingStore::STATUS_OPEN
                 ));
                 $open[] = BookingStore::find($newId);
@@ -517,13 +580,14 @@ class BookingService
         }
 
         // Profilfelder wie bisher (payments.php)
-        $user->setValue('PAID' . $orgId, $date);
+        $user->setValue($this->field(CollectionScope::FIELD_PAID), $date);
         // nach der Erstlastschrift (FRST, frueher als leerer Wert gespeichert) folgen Folgelastschriften
-        $currentSequenceType = (string) $user->getValue('SEQUENCETYPE' . $orgId);
-        if (($currentSequenceType === '' || $currentSequenceType === 'FRST') && strlen((string) $user->getValue('DUEDATE' . $orgId)) !== 0) {
-            $user->setValue('SEQUENCETYPE' . $orgId, 'RCUR');
+        $currentSequenceType = (string) $user->getValue($this->field(CollectionScope::FIELD_SEQUENCETYPE));
+        if (($currentSequenceType === '' || $currentSequenceType === 'FRST') && strlen((string) $user->getValue($this->field(CollectionScope::FIELD_DUEDATE))) !== 0) {
+            $user->setValue($this->field(CollectionScope::FIELD_SEQUENCETYPE), 'RCUR');
         }
-        foreach (array('ORIG_MANDATEID' . $orgId, 'ORIG_IBAN', 'ORIG_DEBTOR_AGENT', 'DUEDATE' . $orgId) as $field) {
+        // Mandatsaenderung (ORIG_*) gilt fuer das Mandat und damit fuer alle Buchungskreise
+        foreach (array('ORIG_MANDATEID' . $orgId, 'ORIG_IBAN', 'ORIG_DEBTOR_AGENT', $this->field(CollectionScope::FIELD_DUEDATE)) as $field) {
             if (strlen((string) $user->getValue($field)) !== 0) {
                 $user->setValue($field, '');
             }
@@ -636,10 +700,10 @@ class BookingService
         global $gCurrentOrgId;
         $orgId = (int) $gCurrentOrgId;
         $usrId = (int) $user->getValue('usr_id');
-        $paidDate = (string) $user->getValue('PAID' . $orgId, 'Y-m-d');
+        $paidDate = (string) $user->getValue($this->field(CollectionScope::FIELD_PAID), 'Y-m-d');
         $messages = array();
 
-        $positions = BookingStore::getByUser($usrId);
+        $positions = $this->scopedPositions($usrId);
         $restore = null;
         foreach ($positions as $position) {
             if ($position['mfb_status'] !== BookingStore::STATUS_COLLECTED || (string) $position['mfb_booking_date'] !== $paidDate) {
@@ -648,7 +712,7 @@ class BookingService
             // nicht zuruecksetzen, wenn fuer dieselbe Rolle danach schon neu exportiert/eingezogen wurde
             foreach ($positions as $later) {
                 if ($later['mfb_id'] > $position['mfb_id'] && $later['mfb_year'] === $position['mfb_year']
-                    && $later['mfb_rol_name'] === $position['mfb_rol_name'] && $position['mfb_source'] !== BookingStore::SOURCE_MANUAL
+                    && $later['mfb_rol_name'] === $position['mfb_rol_name'] && $position['mfb_source'] !== $this->scope->manualSource()
                     && in_array($later['mfb_status'], array(BookingStore::STATUS_EXPORTED, BookingStore::STATUS_COLLECTED), true)) {
                     $messages[] = $position['mfb_rol_name'];
                     continue 2;
@@ -662,11 +726,11 @@ class BookingService
             }
         }
 
-        $user->setValue('PAID' . $orgId, '');
+        $user->setValue($this->field(CollectionScope::FIELD_PAID), '');
         if ($restore !== null) {
-            $user->setValue('DUEDATE' . $orgId, (string) $restore['mfb_due_date']);
+            $user->setValue($this->field(CollectionScope::FIELD_DUEDATE), (string) $restore['mfb_due_date']);
             $sequenceType = (string) $restore['mfb_sequence_type'];
-            $user->setValue('SEQUENCETYPE' . $orgId, $sequenceType);
+            $user->setValue($this->field(CollectionScope::FIELD_SEQUENCETYPE), $sequenceType);
             $user->setValue('ORIG_MANDATEID' . $orgId, (string) $restore['mfb_orig_mandate_id']);
             $user->setValue('ORIG_IBAN', (string) $restore['mfb_orig_iban']);
             $user->setValue('ORIG_DEBTOR_AGENT', (string) $restore['mfb_orig_debtor_agent']);
@@ -695,6 +759,9 @@ class BookingService
         }
         $usrId = (int) $position['mfb_usr_id'];
         $note = '';
+        // Ablaeufe im Buchungskreis der Position (Arbeitsfelder, Profilsynchronisation)
+        $service = $this->withScope(CollectionScope::forSource((string) $position['mfb_source'], (int) $gCurrentOrgId));
+        $scope = $service->getScope();
 
         // zu stornierende Positionen bestimmen
         $toCancel = array($position);
@@ -734,13 +801,14 @@ class BookingService
 
         // Lastschrift aus einem laufenden Einzug zurueckgegangen: Faelligkeitsdatum leeren,
         // damit fuer den naechsten Versuch ein neues gesetzt wird
-        if ($wasExported && count(BookingStore::getByUser($usrId, array(BookingStore::STATUS_EXPORTED))) === 0) {
+        if ($wasExported && count($scope->filterPositions(BookingStore::getByUser($usrId, array(BookingStore::STATUS_EXPORTED)))) === 0) {
             $user = new User($gDb, $gProfileFields, $usrId);
-            $user->setValue('DUEDATE' . (int) $gCurrentOrgId, '');
+            $user->setValue($scope->field(CollectionScope::FIELD_DUEDATE), '');
             $user->save();
         }
 
-        // Erstlastschrift zurueckgegangen: Sequenztyp wieder auf FRST, wenn sonst nichts per SEPA eingezogen ist
+        // Erstlastschrift zurueckgegangen: Sequenztyp wieder auf FRST, wenn mit dem Mandat sonst nichts
+        // per SEPA eingezogen ist (ueber alle Buchungskreise, weil FRST/RCUR am Mandat haengt)
         if ($firstDebitReturned) {
             $otherSepa = false;
             foreach (BookingStore::getByUser($usrId, array(BookingStore::STATUS_COLLECTED)) as $other) {
@@ -751,7 +819,7 @@ class BookingService
             }
             if (!$otherSepa) {
                 $user = new User($gDb, $gProfileFields, $usrId);
-                $user->setValue('SEQUENCETYPE' . (int) $gCurrentOrgId, 'FRST');
+                $user->setValue($scope->field(CollectionScope::FIELD_SEQUENCETYPE), 'FRST');
                 $user->save();
             }
         }
@@ -759,9 +827,9 @@ class BookingService
         $templates = $this->getTemplates();
         if ($templateIndex !== null && isset($templates[$templateIndex])) {
             $template = $templates[$templateIndex];
-            $this->addManual(array($usrId), $template['name'], (float) str_replace(',', '.', $template['amount']), $template['text'] !== '' ? $template['text'] : $template['name'], (int) $position['mfb_year'], 'Zu ' . (string) ($position['mfb_reference'] ?: $position['mfb_rol_name']));
+            $service->addManual(array($usrId), $template['name'], (float) str_replace(',', '.', $template['amount']), $template['text'] !== '' ? $template['text'] : $template['name'], (int) $position['mfb_year'], 'Zu ' . (string) ($position['mfb_reference'] ?: $position['mfb_rol_name']));
         } else {
-            $this->syncWorkFields($usrId);
+            $service->syncWorkFields($usrId);
         }
         return $note;
     }
@@ -801,7 +869,7 @@ class BookingService
             BookingStore::insert(array(
                 'mfb_usr_id' => (int) $usrId,
                 'mfb_year' => $year,
-                'mfb_source' => BookingStore::SOURCE_MANUAL,
+                'mfb_source' => $this->scope->manualSource(),
                 'mfb_rol_name' => $label,
                 'mfb_amount' => $amount,
                 'mfb_text' => $text,

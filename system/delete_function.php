@@ -69,7 +69,9 @@ try
 
                     // Buchungshistorie: offene (noch nicht exportierte) Positionen entfallen mit dem Beitrag;
                     // exportierte, eingezogene und stornierte Positionen bleiben als Historie erhalten
-                    foreach (BookingStore::getByUser((int) $key, array(BookingStore::STATUS_OPEN)) as $position)
+                    // nur Positionen des Mitgliedsbeitrags; offene Positionen des Arbeitsdienstes bleiben
+                    $membershipScope = \Plugins\MembershipFee\classes\Bookings\CollectionScope::membership((int) $gCurrentOrgId);
+                    foreach ($membershipScope->filterPositions(BookingStore::getByUser((int) $key, array(BookingStore::STATUS_OPEN))) as $position)
                     {
                         BookingStore::delete((int) $position['mfb_id']);
                     }

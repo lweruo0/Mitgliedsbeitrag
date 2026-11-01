@@ -28,9 +28,13 @@ use Admidio\Infrastructure\Utils\SecurityUtils;
 use Admidio\Users\Entity\User;
 use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
+use Plugins\MembershipFee\classes\Bookings\CollectionScope;
 
 require_once (__DIR__ . '/../../../system/common.php');
 require_once (__DIR__ . '/common_function.php');
+
+// Buchungskreis (Mitgliedsbeitrag oder Arbeitsdienst), siehe mf_collection_scope()
+$mfScope = mf_collection_scope();
 
 // only authorized user are allowed to start this module
 if (! isUserAuthorized()) {
@@ -89,10 +93,10 @@ if ($getMode == 'mail' || $getMode == 'export') {
 
         LEFT JOIN ' . TBL_USER_DATA . ' AS paid
           ON paid.usd_usr_id = usr_id
-         AND paid.usd_usf_id = ' . $gProfileFields->getProperty('PAID' . $gCurrentOrgId, 'usf_id') . '
+         AND paid.usd_usf_id = ' . $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_PAID), 'usf_id') . '
         LEFT JOIN ' . TBL_USER_DATA . ' AS fee
           ON fee.usd_usr_id = usr_id
-         AND fee.usd_usf_id = ' . $gProfileFields->getProperty('FEE' . $gCurrentOrgId, 'usf_id') . '
+         AND fee.usd_usf_id = ' . $gProfileFields->getProperty($mfScope->field(CollectionScope::FIELD_FEE), 'usf_id') . '
         LEFT JOIN ' . TBL_USER_DATA . ' AS iban
           ON iban.usd_usr_id = usr_id
          AND iban.usd_usf_id = ' . $gProfileFields->getProperty('IBAN', 'usf_id') . '
@@ -109,6 +113,7 @@ if ($getMode == 'mail' || $getMode == 'export') {
              
        WHERE usr_id IN (SELECT mfb_usr_id FROM ' . BookingStore::bookingsTable() . '
                          WHERE mfb_org_id = ' . (int) $gCurrentOrgId . '
+                           AND ' . $mfScope->sourceSqlCondition() . '
                            AND mfb_status = \'' . BookingStore::STATUS_OPEN . '\')
                     ';
     if ($getMembersShow == 1) // Nur Benutzer anzeigen, bei denen eine E-Mail vorhanden ist
@@ -157,6 +162,7 @@ if ($getMode == 'mail' || $getMode == 'export') {
         $gNavigation->addUrl(CURRENT_URL, $headline);
 
         $page = new HtmlPage('plg-mitgliedsbeitrag-bill', $headline);
+        $page->addHtml(mf_collection_banner($mfScope));
         $page->setContentFullWidth();
 
         $page->addJavascript('

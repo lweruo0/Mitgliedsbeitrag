@@ -106,12 +106,14 @@ $text = new Text($gDb);
 //abhaengig vom aufrufenden Modul Text einlesen
 if (substr_count($gNavigation->getUrl(), 'pre_notification') === 1)
 {
-    $text->readDataByColumns(array('txt_name' => 'PMBMAIL_PRE_NOTIFICATION', 'txt_org_id' => $gCurrentOrgId));
+    // Arbeitsdienst: eigene Vorlage (Platzhalter #fee#, #due_day# usw. aus den Arbeitsdienst-Feldern)
+    $preNotificationKey = mf_collection_scope()->isMembership() ? 'PMBMAIL_PRE_NOTIFICATION' : 'PMBMAIL_PRE_NOTIFICATION_AD';
+    $text->readDataByColumns(array('txt_name' => $preNotificationKey, 'txt_org_id' => $gCurrentOrgId));
     //wenn noch nichts drin steht (=> "Einstellungen" und "Sichern" wurde noch nicht aufgerufen), dann vorbelegen (aber nicht speichern)
     if ($text->getValue('txt_text') == '')
     {
         // convert <br /> to a normal line feed
-        $value = preg_replace('/<br[[:space:]]*\/?[[:space:]]*>/', chr(13).chr(10), $gL10n->get('PLG_MEMBERSHIPFEE_PMBMAIL_PRE_NOTIFICATION'));
+        $value = preg_replace('/<br[[:space:]]*\/?[[:space:]]*>/', chr(13).chr(10), $gL10n->get('PLG_MEMBERSHIPFEE_' . $preNotificationKey));
         $text->setValue('txt_text', $value);
     }
 }

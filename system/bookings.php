@@ -50,6 +50,7 @@ try {
     }
 
     $page->addHtml(mf_render_bookings((int) $user->getValue('usr_id'), $getUserUuid, true));
+    $page->addHtml(mf_render_work((int) $user->getValue('usr_id')));
     $page->show();
 } catch (Exception $e) {
     $gMessage->show($e->getMessage());

@@ -1,0 +1,15 @@
+parameters:
+    level: 6
+    # Analysiert werden die Klassen ohne Datenbankzugriff; der uebrige Plugin-Code
+    # (Seiten in system/, Datenbankklassen) ist noch nicht auf PHPStan umgestellt.
+    paths:
+        - classes/Bookings/CollectionScope.php
+        - classes/Work
+    bootstrapFiles:
+        - tests/bootstrap.php
+    # Admidio-Klassen als Signaturen
+    scanFiles:
+        - stubs/admidio.php
+    excludePaths:
+        - stubs
+        - vendor (?)

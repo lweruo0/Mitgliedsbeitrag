@@ -36,6 +36,23 @@ $config_default['Beitragsgruppen'] = array(
     )
 );
 
+// Arbeitsdienst: Sollstunden je Rolle (parallele Listen), Ausnahmerollen und -kategorien (rol_ids bzw.
+// cat_ids, durch Komma getrennt), Altersgrenze (ab diesem Alter am 31.12. befreit, leer = keine) und
+// Ersatzbeitrag je Fehlstunde; siehe classes/Work/WorkRules.php
+$config_default['Arbeitsdienst'] = array(
+    'soll_rollen' => array(
+        ' '
+    ),
+    'soll_stunden' => array(
+        ' '
+    ),
+    'ausnahme_rollen' => ' ',
+    'ausnahme_kategorien' => ' ',
+    'einschluss_rollen' => ' ',
+    'altersgrenze' => 60,
+    'stundensatz' => 20
+);
+
 // Vorlagen fuer manuelle Positionen (z. B. Ruecklastschriftgebuehr)
 $config_default['Positionsvorlagen'] = array(
     'name' => array(

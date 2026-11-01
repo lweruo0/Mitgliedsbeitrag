@@ -28,8 +28,12 @@ use Admidio\Users\Entity\User;
 use Plugins\MembershipFee\classes\Bookings\BookingService;
 use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
+use Plugins\MembershipFee\classes\Bookings\CollectionScope;
 
 require_once (__DIR__ . '/common_function.php');
+
+// Buchungskreis (Mitgliedsbeitrag oder Arbeitsdienst), siehe mf_collection_scope()
+$mfScope = mf_collection_scope();
 require_once (__DIR__ . '/sepa_control_file.php');
 
 // only authorized user are allowed to start this module
@@ -69,7 +73,7 @@ $ctrlSum_Msg = 0; // Kontrollsumme der Beträge innerhalb der Message
 $now = time();
 $format1 = 'Y-m-d';
 $format2 = 'H:i:s';
-$filename_ext = '';
+$filename_ext = $mfScope->isMembership() ? '' : '_arbeitsdienst';   // eigene Dateinamen fuer den Arbeitsdienst
 
 foreach ($_POST['duedatesepatype'] as $dummy => $data) {
     $filename_ext .= '_' . substr($data, 0, 10) . '-' . substr($data, 10); // Erweiterung fuer den Dateinamen zusammensetzen
@@ -81,9 +85,9 @@ foreach ($_POST['duedatesepatype'] as $dummy => $data) {
 $members = list_members(array(
     'FIRST_NAME',
     'LAST_NAME',
-    'FEE' . $gCurrentOrgId,
-    'CONTRIBUTORY_TEXT' . $gCurrentOrgId,
-    'PAID' . $gCurrentOrgId,
+    $mfScope->field(CollectionScope::FIELD_FEE),
+    $mfScope->field(CollectionScope::FIELD_TEXT),
+    $mfScope->field(CollectionScope::FIELD_PAID),
     'STREET',
     'CITY',
     'POSTCODE',
@@ -99,16 +103,16 @@ $members = list_members(array(
     'MANDATEID' . $gCurrentOrgId,
     'ORIG_MANDATEID' . $gCurrentOrgId,
     'MANDATEDATE' . $gCurrentOrgId,
-    'DUEDATE' . $gCurrentOrgId,
-    'SEQUENCETYPE' . $gCurrentOrgId
+    $mfScope->field(CollectionScope::FIELD_DUEDATE),
+    $mfScope->field(CollectionScope::FIELD_SEQUENCETYPE)
 ), 0);
 
 // alle Mitglieder durchlaufen und das Array $zpflgt befuellen
 foreach ($members as $member => $memberdata) {
-    $dueDateMember = $memberdata['DUEDATE' . $gCurrentOrgId];
-    $sequenceTypeMember = (empty($memberdata['SEQUENCETYPE' . $gCurrentOrgId])) ? 'FRST' : $memberdata['SEQUENCETYPE' . $gCurrentOrgId];
+    $dueDateMember = $memberdata[$mfScope->field(CollectionScope::FIELD_DUEDATE)];
+    $sequenceTypeMember = (empty($memberdata[$mfScope->field(CollectionScope::FIELD_SEQUENCETYPE)])) ? 'FRST' : $memberdata[$mfScope->field(CollectionScope::FIELD_SEQUENCETYPE)];
 
-    if (! empty($memberdata['FEE' . $gCurrentOrgId]) && empty($memberdata['PAID' . $gCurrentOrgId]) && ! empty($memberdata['IBAN']) && in_array($dueDateMember . $sequenceTypeMember, $_POST['duedatesepatype']) && !isset($mfSepaExclude[(int) $member])) {
+    if (! empty($memberdata[$mfScope->field(CollectionScope::FIELD_FEE)]) && empty($memberdata[$mfScope->field(CollectionScope::FIELD_PAID)]) && ! empty($memberdata['IBAN']) && in_array($dueDateMember . $sequenceTypeMember, $_POST['duedatesepatype']) && !isset($mfSepaExclude[(int) $member])) {
         $zpflgt[$member]['duedate'] = '';
         $zpflgt[$member]['sequencetype'] = '';
         $zpflgt[$member]['name'] = '';
@@ -162,13 +166,13 @@ foreach ($members as $member => $memberdata) {
         $zpflgt[$member]['mandat_id'] = $members[$member]['MANDATEID' . $gCurrentOrgId]; // Mandats-ID
         $zpflgt[$member]['mandat_datum'] = $members[$member]['MANDATEDATE' . $gCurrentOrgId]; // Mandats-Datum
 
-        $fee = str_replace(',', '.', $members[$member]['FEE' . $gCurrentOrgId]);
+        $fee = str_replace(',', '.', $members[$member][$mfScope->field(CollectionScope::FIELD_FEE)]);
         if (strpos($fee, '.') !== false) {
             $fee = substr($fee, 0, strpos($fee, '.') + 3);
         }
 
         $zpflgt[$member]['betrag'] = $fee; // Amount of money
-        $zpflgt[$member]['text'] = substr(replace_sepadaten($members[$member]['CONTRIBUTORY_TEXT' . $gCurrentOrgId]), 0, 140); // Description of the transaction ("Verwendungszweck").
+        $zpflgt[$member]['text'] = substr(replace_sepadaten($members[$member][$mfScope->field(CollectionScope::FIELD_TEXT)]), 0, 140); // Description of the transaction ("Verwendungszweck").
         $zpflgt[$member]['orig_mandat_id'] = $members[$member]['ORIG_MANDATEID' . $gCurrentOrgId]; // urspruengliche Mandats-ID
         $zpflgt[$member]['orig_iban'] = strtoupper(str_replace(' ', '', $members[$member]['ORIG_IBAN'])); // urspruengliche IBAN
         $zpflgt[$member]['orig_dbtr_agent'] = $members[$member]['ORIG_DEBTOR_AGENT']; // urspruengliches Kreditinstitut, nur "SMNDA" moeglich
@@ -177,7 +181,7 @@ foreach ($members as $member => $memberdata) {
         $dueDateArr[$dueDateMember . $sequenceTypeMember]['ctrlSum_PmtInf'] += $zpflgt[$member]['betrag'];
         $ctrlSum_Msg += $zpflgt[$member]['betrag'];
 
-        $zpflgt[$member]['end2end_id'] = BookingService::endToEndId(replace_sepadaten($gCurrentOrganization->getValue('org_shortname')), (int) $member, $dueDateMember); // SEPA End2End-ID (max. 35)
+        $zpflgt[$member]['end2end_id'] = $mfScope->endToEndId(replace_sepadaten($gCurrentOrganization->getValue('org_shortname')), (int) $member, $dueDateMember); // SEPA End2End-ID (max. 35)
     }
 }
 
@@ -192,7 +196,7 @@ $message_id = substr('Message-ID-' . replace_sepadaten($gCurrentOrganization->ge
 // Buchungshistorie: beim Erzeugen der XML-Datei einen Einzug anlegen und die Positionen auf "exportiert" setzen;
 // die Message-ID ist damit je Datei eindeutig
 if ($postExportFileMode === 'xml_file') {
-    $bookingService = new BookingService($pPreferences->config);
+    $bookingService = new BookingService($pPreferences->config, $mfScope);
     $gDb->startTransaction();
     $message_id = $bookingService->registerSepaExport($zpflgt, $pPreferences->config['SEPA']['dateiname'] . $filename_ext . '.xml', 'pain.008.001.08', replace_sepadaten($gCurrentOrganization->getValue('org_shortname')));
     $gDb->endTransaction();

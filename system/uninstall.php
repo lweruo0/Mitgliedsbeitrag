@@ -114,6 +114,11 @@ try {
                 if (count($access_roles_prefs) === 1 && $access_roles_prefs[0] == $pPreferences->config['install']['access_role_id']) {
                     $menu = new MenuEntry($gDb, (int) $pPreferences->config['install']['menu_item_id']);
                     $result_menu = $menu->delete();
+                    // Menuepunkt "Arbeitsdienst erfassen"
+                    if (mf_work_menu_id() > 0) {
+                        $workMenu = new MenuEntry($gDb, mf_work_menu_id());
+                        $workMenu->delete();
+                    }
                     $result .= ($result_menu ? $gL10n->get('PLG_MEMBERSHIPFEE_UNINST_MENU_ITEM_SUCCESS') : $gL10n->get('PLG_MEMBERSHIPFEE_UNINST_MENU_ITEM_ERROR'));
                 } else {
                     // Menüpunkt nicht entfernen, wenn er noch für eine andere Organisation verwendet wird
@@ -150,6 +155,8 @@ try {
             // Buchungshistorie: Daten dieser Organisation loeschen, leere Tabellen entfernen,
             // Registerkarte im Profil ausbauen
             $result_bookings = BookingStore::removeDataOfCurrentOrganization();
+            // Arbeitsdienst: erfasste Stunden dieser Organisation
+            \Plugins\MembershipFee\classes\Work\WorkHoursStore::removeDataOfCurrentOrganization();
             $result .= ($result_bookings ? $gL10n->get('PLG_MEMBERSHIPFEE_UNINST_BOOKINGS_TABLE_DELETED') : $gL10n->get('PLG_MEMBERSHIPFEE_UNINST_BOOKINGS_DATA_DELETED'));
             $addinError = ProfileAddin::uninstall();
             if ($addinError !== '') {
@@ -180,6 +187,10 @@ try {
             $fieldArray[] = 'ORIG_MANDATEID' . $gCurrentOrgId;
             $fieldArray[] = 'PAID' . $gCurrentOrgId;
             $fieldArray[] = 'SEQUENCETYPE' . $gCurrentOrgId;
+            // Arbeitsdienst (nur vorhandene Felder)
+            foreach (\Plugins\MembershipFee\classes\Work\WorkProfileFields::existingFields((int) $gCurrentOrgId) as $workField) {
+                $fieldArray[] = $workField;
+            }
 
             $profileField = new ProfileField($gDb);
             $category = new Category($gDb);
@@ -243,6 +254,7 @@ try {
             $catArray[] = 'MANDATE' . $gCurrentOrgId;
             $catArray[] = 'MEMBERSHIP' . $gCurrentOrgId;
             $catArray[] = 'MEMBERSHIP_FEE' . $gCurrentOrgId;
+            $catArray[] = \Plugins\MembershipFee\classes\Work\WorkProfileFields::categoryNameIntern((int) $gCurrentOrgId);
 
             $catId = $profileField->getValue('usf_cat_id');
             $category->readDataById((int) $catId);

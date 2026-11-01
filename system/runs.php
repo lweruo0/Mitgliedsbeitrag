@@ -19,6 +19,7 @@ use Admidio\Infrastructure\Utils\StringUtils;
 use Admidio\Infrastructure\Utils\SecurityUtils;
 use Plugins\MembershipFee\classes\Bookings\BookingService;
 use Plugins\MembershipFee\classes\Bookings\BookingStore;
+use Plugins\MembershipFee\classes\Bookings\CollectionScope;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
 try {
@@ -45,6 +46,8 @@ try {
         if ($run === null) {
             throw new Exception('SYS_INVALID_PAGE_VIEW');
         }
+        // Ablaeufe (eingezogen markieren, verwerfen) im Buchungskreis des Einzugs
+        $bookingService = $bookingService->withScope(CollectionScope::fromKey((string) ($run['mfr_kind'] ?? ''), (int) $gCurrentOrgId));
     }
 
     // ------------------------------------------------------------------
@@ -210,17 +213,23 @@ try {
             $page->addHtml('<p>' . $gL10n->get('PLG_MEMBERSHIPFEE_RUNS_NONE') . '</p>');
         } else {
             $runFiles = BookingStore::getRunFilesMeta();
+            // Spalte "Art" nur, wenn es Einzuege aus mehr als einem Buchungskreis gibt
+            $runKinds = array();
+            foreach ($runs as $row) {
+                $runKinds[CollectionScope::fromKey((string) ($row['mfr_kind'] ?? ''), (int) $gCurrentOrgId)->key()] = true;
+            }
+            $showKind = count($runKinds) > 1;
             $table = new HtmlTable('table_runs', $page, true, false, 'table table-condensed');
-            $table->setColumnAlignByArray(array('left', 'left', 'left', 'right', 'right', 'left', 'left'));
-            $table->addRowHeadingByArray(array(
-                $gL10n->get('PLG_MEMBERSHIPFEE_RUN_CREATED_AT'),
+            $table->setColumnAlignByArray(array_merge(array('left'), $showKind ? array('left') : array(), array('left', 'left', 'right', 'right', 'left', 'left')));
+            $table->addRowHeadingByArray(array_merge(array(
+                $gL10n->get('PLG_MEMBERSHIPFEE_RUN_CREATED_AT')), $showKind ? array($gL10n->get('PLG_MEMBERSHIPFEE_RUN_KIND')) : array(), array(
                 $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_SEPA_FILE'),
                 $gL10n->get('PLG_MEMBERSHIPFEE_RUN_DUEDATES'),
                 $gL10n->get('PLG_MEMBERSHIPFEE_NUMBER_TRANSACTIONS'),
                 $gL10n->get('PLG_MEMBERSHIPFEE_CONTROL_SUM'),
                 $gL10n->get('PLG_MEMBERSHIPFEE_STATUS'),
                 ''
-            ));
+            )));
             foreach ($runs as $row) {
                 $status = mf_booking_label((string) $row['mfr_status']);
                 if ($row['mfr_status'] === BookingStore::RUN_COLLECTED) {
@@ -250,8 +259,9 @@ try {
                         $fileIcons .= ' <i class="bi bi-share text-success" data-bs-toggle="tooltip" title="' . $gL10n->get('PLG_MEMBERSHIPFEE_SHARE_ACTIVE_UNTIL', array(mf_format_datetime($xmlMeta['mff_share_expires']))) . '"></i>';
                     }
                 }
-                $table->addRowByArray(array(
-                    mf_format_date(substr((string) $row['mfr_timestamp_create'], 0, 10)),
+                $kindLabel = $gL10n->get(CollectionScope::fromKey((string) ($row['mfr_kind'] ?? ''), (int) $gCurrentOrgId)->isMembership() ? 'PLG_MEMBERSHIPFEE_SCOPE_MF' : 'PLG_MEMBERSHIPFEE_SCOPE_AD');
+                $table->addRowByArray(array_merge(array(
+                    mf_format_date(substr((string) $row['mfr_timestamp_create'], 0, 10))), $showKind ? array($kindLabel) : array(), array(
                     '<a href="' . $detailUrl . '">' . SecurityUtils::encodeHTML((string) $row['mfr_file_name']) . '</a>' . $fileIcons . '<br/><small class="text-muted">' . SecurityUtils::encodeHTML((string) $row['mfr_msg_id']) . '</small>',
                     SecurityUtils::encodeHTML((string) $row['mfr_due_dates']),
                     (int) $row['mfr_count'],
@@ -259,7 +269,7 @@ try {
                     $status,
                     '<a class="btn btn-sm btn-secondary" href="' . $detailUrl . '">'
                         . ($row['mfr_status'] === BookingStore::RUN_CREATED ? $gL10n->get('PLG_MEMBERSHIPFEE_RUN_COLLECT') : $gL10n->get('PLG_MEMBERSHIPFEE_RUN_SHOW_POSITIONS')) . '</a>'
-                ));
+                )));
             }
             $page->addHtml($table->show(false));
         }

@@ -5,6 +5,8 @@ Membership fee is a plugin for the online membership management system Admidio (
 
 Contribution recalculation uses the full configured role fee for every member of a contribution role in the contribution year. Family roles and prorated fees are not supported.
 
+Since version 6.4.0 the plugin includes the work service (Arbeitsdienst): target hours per member (profile field), recording of work entries with its own access right, a yearly overview and a separate billing and SEPA collection run for the replacement fee. See `docs/arbeitsdienst.md` (German).
+
 Since version 6.2.0 the generated SEPA XML file is stored with its collection run (current contribution year only), can be downloaded again and shared with the treasurer via a protected, expiring download link sent by email.
 
 Since version 6.1.0 every contribution is stored as a booking item per member, role and contribution year
