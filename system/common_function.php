@@ -2227,7 +2227,7 @@ function mf_openiban_lookup(array $ibans): array
             $httpCode = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
             $curlError = curl_error($handle);
             curl_multi_remove_handle($multi, $handle);
-            curl_close($handle);
+            // kein curl_close(): seit PHP 8.0 ohne Wirkung, ab PHP 8.5 als veraltet gemeldet
 
             $data = is_string($body) ? json_decode($body, true) : null;
             if ($httpCode !== 200 || !is_array($data)) {
