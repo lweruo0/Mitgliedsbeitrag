@@ -655,6 +655,21 @@ if ($getMode == 'mail' || $getMode == 'export') {
         }
         $summaryHtml .= '</tfoot></table></div></div></div>';
 
+        // Rechnungen entstehen vor der Vorabinformation: Hinweis auf offene Positionen ohne Rechnung
+        if (\Plugins\MembershipFee\classes\Invoices\PdfBridge::isAvailable()) {
+            $withoutInvoice = array();
+            foreach (BookingStore::getByUsers(array(), array(BookingStore::STATUS_OPEN)) as $openUsrId => $openPositions) {
+                if (count(\Plugins\MembershipFee\classes\Invoices\InvoicePlanner::plan($mfScope->filterPositions($openPositions))) > 0) {
+                    $withoutInvoice[$openUsrId] = true;
+                }
+            }
+            if (count($withoutInvoice) > 0) {
+                $page->addHtml('<div class="alert alert-info" role="alert"><i class="bi bi-receipt"></i> '
+                    . $gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_MISSING_HINT', array(count($withoutInvoice),
+                        '<a href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/bill.php', array('invoice_filter' => 'pending', 'menu' => 1)) . '">', '</a>'))
+                    . '</div>');
+            }
+        }
         $page->addHtml($summaryHtml);
         $page->addHtml($filterHtml);
         $page->addHtml($buttonsHtml);

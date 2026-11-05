@@ -85,6 +85,13 @@ function describePlan(array $plan): string
             case 'delete':
                 $lines[] = '<span class="text-danger"><i class="bi bi-dash-circle"></i> ' . SecurityUtils::encodeHTML($op['before']['mfb_rol_name']) . ': ' . mf_format_amount($op['before']['mfb_amount']) . '</span>';
                 break;
+            case 'locked':
+                // Position steht schon auf einer Rechnung: wird nicht geaendert (erst stornieren)
+                $lines[] = '<span class="text-warning-emphasis"><i class="bi bi-lock"></i> ' . SecurityUtils::encodeHTML($op['before']['mfb_rol_name']) . ': '
+                    . $gL10n->get($op['change'] === 'delete' ? 'PLG_MEMBERSHIPFEE_RECALCULATION_LOCKED_DELETE' : 'PLG_MEMBERSHIPFEE_RECALCULATION_LOCKED_UPDATE',
+                        array((string) $op['before']['mfb_invoice_no'], mf_format_amount($op['before']['mfb_amount']), mf_format_amount($op['data']['mfb_amount'] ?? 0)))
+                    . '</span>';
+                break;
         }
     }
     foreach ($plan['info'] as $info) {
@@ -112,6 +119,9 @@ function recalculationRoleSummary(array $changes): string
     $roles = array();
     foreach ($changes as $data) {
         foreach ($data['plan']['ops'] as $op) {
+            if ($op['op'] === 'locked') {
+                continue;   // steht auf einer Rechnung, wird nicht geaendert
+            }
             $role = (string) ($op['op'] === 'delete' ? $op['before']['mfb_rol_name'] : $op['data']['mfb_rol_name']);
             $roles[$role] ??= array('count' => 0, 'new' => 0.0, 'changed' => 0.0);
             if ($op['op'] === 'insert') {

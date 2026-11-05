@@ -103,8 +103,19 @@ else
 // Subject und Body erzeugen
 $text = new Text($gDb);
 
+// aufrufende Seite: bill (3.0 Rechnungen), pre_notification (3.1 Vorabinformation) oder payments
+$mailContext = '';
+foreach (array('pre_notification', 'payments', 'bill') as $context)
+{
+    if (substr_count($gNavigation->getUrl(), $context) === 1)
+    {
+        $mailContext = $context;
+        break;
+    }
+}
+
 //abhaengig vom aufrufenden Modul Text einlesen
-if (substr_count($gNavigation->getUrl(), 'pre_notification') === 1)
+if ($mailContext === 'pre_notification')
 {
     // Arbeitsdienst: eigene Vorlage (Platzhalter #fee#, #due_day# usw. aus den Arbeitsdienst-Feldern)
     $preNotificationKey = mf_collection_scope()->isMembership() ? 'PMBMAIL_PRE_NOTIFICATION' : 'PMBMAIL_PRE_NOTIFICATION_AD';
@@ -117,7 +128,7 @@ if (substr_count($gNavigation->getUrl(), 'pre_notification') === 1)
         $text->setValue('txt_text', $value);
     }
 }
-elseif (substr_count($gNavigation->getUrl(), 'payments') === 1)
+elseif ($mailContext === 'payments')
 {
     $text->readDataByColumns(array('txt_name' => 'PMBMAIL_CONTRIBUTION_PAYMENTS', 'txt_org_id' => $gCurrentOrgId));
     //wenn noch nichts drin steht (=> "Einstellungen" und "Sichern" wurde noch nicht aufgerufen), dann vorbelegen (aber nicht speichern)
@@ -128,14 +139,16 @@ elseif (substr_count($gNavigation->getUrl(), 'payments') === 1)
         $text->setValue('txt_text', $value);
     }
 }
-elseif (substr_count($gNavigation->getUrl(), 'bill') === 1)
+elseif ($mailContext === 'bill')
 {
-    $text->readDataByColumns(array('txt_name' => 'PMBMAIL_BILL', 'txt_org_id' => $gCurrentOrgId));
+    // Arbeitsdienst: eigene Vorlage fuer Rechnungen
+    $billKey = mf_collection_scope()->isMembership() ? 'PMBMAIL_BILL' : 'PMBMAIL_BILL_AD';
+    $text->readDataByColumns(array('txt_name' => $billKey, 'txt_org_id' => $gCurrentOrgId));
     //wenn noch nichts drin steht (=> "Einstellungen" und "Sichern" wurde noch nicht aufgerufen), dann vorbelegen (aber nicht speichern)
     if ($text->getValue('txt_text') == '')
     {
         // convert <br /> to a normal line feed
-        $value = preg_replace('/<br[[:space:]]*\/?[[:space:]]*>/', chr(13).chr(10), $gL10n->get('PLG_MEMBERSHIPFEE_PMBMAIL_BILL'));
+        $value = preg_replace('/<br[[:space:]]*\/?[[:space:]]*>/', chr(13).chr(10), $gL10n->get('PLG_MEMBERSHIPFEE_' . $billKey));
         $text->setValue('txt_text', $value);
     }
 }
@@ -248,6 +261,13 @@ $gNavigation->addUrl(CURRENT_URL, $headline);
 
 $page = new HtmlPage('plg-mitgliedsbeitrag-message-write', $headline);
 
+// Testbetrieb: alle E-Mails gehen an den Testempfaenger
+if (mf_test_email() !== '')
+{
+    $page->addHtml('<div class="alert alert-warning" role="alert"><i class="bi bi-cone-striped"></i> '
+        . $gL10n->get('PLG_MEMBERSHIPFEE_TEST_EMAIL_ACTIVE', array(SecurityUtils::encodeHTML(mf_test_email()))) . '</div>');
+}
+
 // show form
 $form = new HtmlForm('mail_send_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER .'/system/message_send.php', array('user_uuid' => $getUserUuid, 'usf_uuid' => $getUsfUuid)), $page, array('enableFileUpload' => true));
 
@@ -300,6 +320,15 @@ else
 }
 
 $form->addCheckbox('carbon_copy', $gL10n->get('SYS_SEND_COPY'), $formValues['carbon_copy']);
+
+// Rechnung als PDF anhaengen (Rechnungen und Vorabinformation, nur mit PDF-Bibliothek)
+$form->addInput('mail_context', '', $mailContext, array('property' => HtmlForm::FIELD_HIDDEN));
+if (in_array($mailContext, array('bill', 'pre_notification'), true) && \Plugins\MembershipFee\classes\Invoices\PdfBridge::isAvailable())
+{
+    $form->addCheckbox('attach_invoice', $gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_ATTACH'), (bool) ($formValues['attach_invoice'] ?? true), array(
+        'helpTextId' => $mailContext === 'bill' ? 'PLG_MEMBERSHIPFEE_INVOICE_ATTACH_BILL_DESC' : 'PLG_MEMBERSHIPFEE_INVOICE_ATTACH_PRE_DESC'
+    ));
+}
 
 // if preference is set then show a checkbox where the user can request a delivery confirmation for the email
 if (( (int) $gSettingsManager->get('mail_delivery_confirmation') === 2) || (int) $gSettingsManager->get('mail_delivery_confirmation') === 1)

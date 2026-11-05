@@ -46,7 +46,7 @@ class BookingStore
         'mfb_usr_id', 'mfb_year', 'mfb_source', 'mfb_rol_id', 'mfb_rol_name', 'mfb_amount', 'mfb_text',
         'mfb_status', 'mfb_method', 'mfb_run_id', 'mfb_due_date', 'mfb_booking_date', 'mfb_reference',
         'mfb_mandate_id', 'mfb_sequence_type', 'mfb_orig_mandate_id', 'mfb_orig_iban', 'mfb_orig_debtor_agent',
-        'mfb_storno_date', 'mfb_storno_reason', 'mfb_role_revoked', 'mfb_comment', 'mfb_import_ref'
+        'mfb_storno_date', 'mfb_storno_reason', 'mfb_role_revoked', 'mfb_comment', 'mfb_import_ref', 'mfb_invoice_no'
     );
 
     private const RUN_COLUMNS = array(
@@ -257,6 +257,12 @@ class BookingStore
             $gDb->queryPrepared('ALTER TABLE ' . self::bookingsTable() . ' ADD mfb_import_ref varchar(50)');
         }
 
+        // Version 6.5.0: Rechnungsnummer an den Positionen (siehe classes/Invoices)
+        if ($gDb->queryPrepared('SELECT mfb_invoice_no FROM ' . self::bookingsTable() . ' WHERE 1 = 0', array(), false) === false) {
+            $gDb->queryPrepared('ALTER TABLE ' . self::bookingsTable() . ' ADD mfb_invoice_no varchar(20)');
+            $gDb->queryPrepared('CREATE INDEX ' . self::bookingsTable() . '_idx_invoice ON ' . self::bookingsTable() . ' (mfb_org_id, mfb_invoice_no)', array(), false);
+        }
+
         // Version 6.4.0: Buchungskreis des Einzugs (mf = Mitgliedsbeitrag, ad = Arbeitsdienst) nachruesten
         if ($gDb->queryPrepared('SELECT mfr_kind FROM ' . self::runsTable() . ' WHERE 1 = 0', array(), false) === false) {
             $gDb->queryPrepared('ALTER TABLE ' . self::runsTable() . ' ADD mfr_kind varchar(10) NOT NULL DEFAULT \'mf\'');
@@ -398,6 +404,10 @@ class BookingStore
             $sql .= ' AND b.mfb_run_id = ?';
             $params[] = (int) $filter['run_id'];
         }
+        if (!empty($filter['invoice_no'])) {
+            $sql .= ' AND b.mfb_invoice_no = ?';
+            $params[] = (string) $filter['invoice_no'];
+        }
         if (isset($filter['usr_ids']) && is_array($filter['usr_ids'])) {
             if (count($filter['usr_ids']) === 0) {
                 return array();
@@ -414,6 +424,38 @@ class BookingStore
             $result[] = self::normalizeBooking($row);
         }
         return $result;
+    }
+
+    /**
+     * Positionen einer Rechnung.
+     * @return array<int, array<string, mixed>>
+     */
+    public static function getByInvoice(string $invoiceNo): array
+    {
+        return $invoiceNo === '' ? array() : self::search(array('invoice_no' => $invoiceNo));
+    }
+
+    /**
+     * Rechnungsnummer an Positionen schreiben, die noch offen sind und keine Nummer haben.
+     * @param array<int, int> $bookingIds
+     * @return int Anzahl geaenderter Positionen
+     */
+    public static function assignInvoiceNo(array $bookingIds, string $invoiceNo): int
+    {
+        global $gDb, $gCurrentOrgId;
+        self::ensureTables();
+
+        if (count($bookingIds) === 0) {
+            return 0;
+        }
+        $ids = array_values(array_map('intval', $bookingIds));
+        return (int) $gDb->queryPrepared('UPDATE ' . self::bookingsTable() . '
+               SET mfb_invoice_no = ?, mfb_usr_id_change = ?, mfb_timestamp_change = ?
+             WHERE mfb_org_id = ?
+               AND mfb_status = ?
+               AND mfb_invoice_no IS NULL
+               AND mfb_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')',
+            array_merge(array($invoiceNo, self::currentUserId(), DATETIME_NOW, (int) $gCurrentOrgId, self::STATUS_OPEN), $ids))->rowCount();
     }
 
     /**
@@ -912,7 +954,7 @@ class BookingStore
      */
     private static function prepareValue(string $column, $value)
     {
-        if ($value === '' && in_array($column, array('mfb_rol_id', 'mfb_run_id', 'mfb_due_date', 'mfb_booking_date', 'mfb_storno_date', 'mfr_paid_date', 'mfb_method', 'mfb_reference'), true)) {
+        if ($value === '' && in_array($column, array('mfb_rol_id', 'mfb_run_id', 'mfb_due_date', 'mfb_booking_date', 'mfb_storno_date', 'mfr_paid_date', 'mfb_method', 'mfb_reference', 'mfb_invoice_no'), true)) {
             return null;
         }
         if ($column === 'mfb_amount' || $column === 'mfr_amount') {

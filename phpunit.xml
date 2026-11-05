@@ -14,6 +14,8 @@
         <include>
             <file>classes/Bookings/CollectionScope.php</file>
             <directory>classes/Work</directory>
+            <directory>classes/Invoices</directory>
+            <directory>classes/Checks</directory>
         </include>
     </source>
 </phpunit>

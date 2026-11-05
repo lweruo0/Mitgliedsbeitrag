@@ -1377,6 +1377,13 @@ try {
                 'defaultValue' => $pPreferences->config['Rechnungs-Export']['rechnung_dateityp'],
                 'showContextDependentFirstEntry' => false
             ));
+            $formExport->addInput('zahlungsziel', $gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_TERM_DAYS'), (int) ($pPreferences->config['Rechnung']['zahlungsziel'] ?? 14), array(
+                'type' => 'number',
+                'minNumber' => 0,
+                'maxNumber' => 365,
+                'step' => 1,
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_INVOICE_TERM_DAYS_DESC'
+            ));
             $formExport->closeGroupBox();
 
             $formExport->addDescription('');
@@ -1417,7 +1424,17 @@ try {
             <strong>#bank#</strong> - ' . $gL10n->get('PLG_MEMBERSHIPFEE_VARIABLE_BANK') . '<br />
             <strong>#debtor#</strong> - ' . $gL10n->get('PLG_MEMBERSHIPFEE_VARIABLE_DEBTOR') . '<br />
             <strong>#membership_fee_text#</strong> - ' . $gL10n->get('PLG_MEMBERSHIPFEE_VARIABLE_MEMBERSHIP_FEE_TEXT') . '<br />
-            <strong > # membernumber#</strong> - ' . $gL10n->get('PLG_MEMBERSHIPFEE_MEMBERNUMBER') . '</p>');
+            <strong>#membernumber#</strong> - ' . $gL10n->get('PLG_MEMBERSHIPFEE_MEMBERNUMBER') . '<br />
+            <strong>#invoice_no#</strong>, <strong>#invoice_date#</strong>, <strong>#invoice_due#</strong>, <strong>#invoice_amount#</strong> - ' . $gL10n->get('PLG_MEMBERSHIPFEE_VARIABLE_INVOICE') . '<br />
+            <strong>#invoice_link#</strong> - ' . $gL10n->get('PLG_MEMBERSHIPFEE_VARIABLE_INVOICE_LINK') . '<br />
+            <strong>#dunning_date#</strong>, <strong>#dunning_due#</strong> - ' . $gL10n->get('PLG_MEMBERSHIPFEE_VARIABLE_DUNNING') . '</p>');
+
+            // Testbetrieb: alle E-Mails an eine Testadresse
+            $formEmailNotifications->addInput('test_email', $gL10n->get('PLG_MEMBERSHIPFEE_TEST_EMAIL'), (string) ($pPreferences->config['Testbetrieb']['test_email'] ?? ''), array(
+                'type' => 'email',
+                'maxLength' => 100,
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_TEST_EMAIL_DESC'
+            ));
 
             $text = new Text($gDb);
             $text->readDataByColumns(array(
@@ -1485,6 +1502,22 @@ try {
                 ));
             }
             $formEmailNotifications->addMultilineTextInput('bill_text', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_MAIL_TEXT'), $text->getValue('txt_text'), 7);
+
+            // Rechnung Arbeitsdienst
+            $text->readDataByColumns(array(
+                'txt_name' => 'PMBMAIL_BILL_AD',
+                'txt_org_id' => $gCurrentOrgId
+            ));
+            if ($text->getValue('txt_text') == '') {
+                $value = preg_replace('/<br[[:space:]]*\/?[[:space:]]*>/', chr(13) . chr(10), $gL10n->get('PLG_MEMBERSHIPFEE_PMBMAIL_BILL_AD'));
+                $text->setValue('txt_text', $value);
+                $text->save();
+                $text->readDataByColumns(array(
+                    'txt_name' => 'PMBMAIL_BILL_AD',
+                    'txt_org_id' => $gCurrentOrgId
+                ));
+            }
+            $formEmailNotifications->addMultilineTextInput('bill_ad_text', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_AD_MAIL_TEXT'), $text->getValue('txt_text'), 7);
 
             $formEmailNotifications->addSubmitButton('btn_save_configurations', $gL10n->get('SYS_SAVE'), array(
                 'icon' => 'bi-check-lg',
@@ -1560,6 +1593,9 @@ try {
             $formTestsSetup->addLine();
 
             $formTestsSetup->addCheckbox('bic_check', $gL10n->get('PLG_MEMBERSHIPFEE_TEST') . ' "' . $gL10n->get('PLG_MEMBERSHIPFEE_BICCHECK') . '" ' . $gL10n->get('PLG_MEMBERSHIPFEE_ENABLE'), (bool) $pPreferences->config['tests_enable']['bic_check']);
+            $formTestsSetup->addLine();
+
+            $formTestsSetup->addCheckbox('onetime_roles', $gL10n->get('PLG_MEMBERSHIPFEE_TEST') . ' "' . $gL10n->get('PLG_MEMBERSHIPFEE_ONETIME_ROLES') . '" ' . $gL10n->get('PLG_MEMBERSHIPFEE_ENABLE'), (bool) ($pPreferences->config['tests_enable']['onetime_roles'] ?? 1));
             $formTestsSetup->addLine();
 
             $formTestsSetup->addSubmitButton('btn_save_configurations', $gL10n->get('SYS_SAVE'), array(

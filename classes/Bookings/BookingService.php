@@ -871,6 +871,8 @@ class BookingService
                     'mfb_amount' => (float) $item['mfb_amount'],
                     'mfb_text' => (string) $item['mfb_text'],
                     'mfb_status' => BookingStore::STATUS_OPEN,
+                    // gleiche Rechnung: die Forderung bleibt dieselbe (docs/konzept-rechnungen-pdf.md, 5.4)
+                    'mfb_invoice_no' => (string) ($item['mfb_invoice_no'] ?? ''),
                     'mfb_comment' => 'Erneuter Einzug nach ' . $reason . ' vom ' . date('d.m.Y', (int) strtotime($date))
                         . ((string) $item['mfb_reference'] !== '' ? ' (' . $item['mfb_reference'] . ')' : '')
                 ));
@@ -881,7 +883,9 @@ class BookingService
         $templates = $this->getTemplates();
         if ($templateIndex !== null && isset($templates[$templateIndex])) {
             $template = $templates[$templateIndex];
-            $service->addManual(array($usrId), $template['name'], (float) str_replace(',', '.', $template['amount']), $template['text'] !== '' ? $template['text'] : $template['name'], (int) $position['mfb_year'], 'Zu ' . (string) ($position['mfb_reference'] ?: $position['mfb_rol_name']));
+            // Zusatzposition (z. B. Ruecklastschriftgebuehr) gehoert zur Rechnung der stornierten Position
+            $service->addManual(array($usrId), $template['name'], (float) str_replace(',', '.', $template['amount']), $template['text'] !== '' ? $template['text'] : $template['name'], (int) $position['mfb_year'], 'Zu ' . (string) ($position['mfb_reference'] ?: $position['mfb_rol_name']),
+                (string) ($position['mfb_invoice_no'] ?? ''));
         }
         $service->syncWorkFields($usrId);
 
@@ -924,7 +928,7 @@ class BookingService
      * @param array<int, int> $usrIds
      * @return int Anzahl angelegter Positionen
      */
-    public function addManual(array $usrIds, string $label, float $amount, string $text, int $year, string $comment = ''): int
+    public function addManual(array $usrIds, string $label, float $amount, string $text, int $year, string $comment = '', string $invoiceNo = ''): int
     {
         $count = 0;
         foreach ($usrIds as $usrId) {
@@ -936,7 +940,8 @@ class BookingService
                 'mfb_amount' => $amount,
                 'mfb_text' => $text,
                 'mfb_status' => BookingStore::STATUS_OPEN,
-                'mfb_comment' => $comment
+                'mfb_comment' => $comment,
+                'mfb_invoice_no' => $invoiceNo
             ));
             $this->syncWorkFields((int) $usrId);
             $count++;

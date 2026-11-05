@@ -11,7 +11,7 @@
 <div id="plg-doc-de">
 
 <h1>Mitgliedsbeitrag &ndash; Dokumentation</h1>
-<p class="text-muted">Ein Plugin f&uuml;r die kostenlose Online-Mitgliederverwaltungssoftware Admidio. Autor: Rainer M. Binder. Angepasst f&uuml;r den BFV Ehingen, Stand Version 6.4.0 (01.11.2026).</p>
+<p class="text-muted">Ein Plugin f&uuml;r die kostenlose Online-Mitgliederverwaltungssoftware Admidio. Autor: Rainer M. Binder. Angepasst f&uuml;r den BFV Ehingen, Stand Version 6.5.0 (05.11.2026).</p>
 
 <div class="alert alert-info" role="alert">
     Verweise auf Men&uuml;punkte des Plugins sind so dargestellt:
@@ -129,7 +129,7 @@
 <ol>
     <li>Im Profil eines Mitglieds unter <em>Beitrag</em> die Zahl 99 eintragen. In der &Uuml;bersicht wird bei <em>Gesamtsumme</em> jetzt 99 angezeigt.
         Nach einer Neuberechnung erscheint das Mitglied mit offenen Positionen in den Modulen <em>Beitragszahlungen</em>
-        (&rarr; Beitragseinzug &ndash; 6b. Beitragszahlungen) und <em>Rechnungen</em> (&rarr; Beitragseinzug &ndash; 5b. Rechnungen erstellen).</li>
+        (&rarr; 5.1 Manuelle Zahlungen) und <em>Rechnungen</em> (&rarr; 3.0 Rechnungen erstellen).</li>
     <li>Das Modul <em>F&auml;lligkeitsdatum</em> ben&ouml;tigt: Beitrag, Mandatsreferenz, Mandatsdatum, IBAN und ein <em>leeres</em> Bezahlt-Datum.
         Diese Werte im Profil erg&auml;nzen und danach &rarr; Beitragseinzug &ndash; F&auml;lligkeitsdatum &ouml;ffnen.</li>
     <li>Die Checkbox in der ersten Spalte anklicken (als F&auml;lligkeitsdatum wird das aktuelle Datum eingetragen) und mit &bdquo;Zur&uuml;ck&ldquo; zur&uuml;ckgehen.
@@ -156,21 +156,21 @@
 
 <!-- ===================================================================== -->
 <h2 id="doc-menue">6. Die Men&uuml;struktur</h2>
-<p>Alle Funktionen sind &uuml;ber Reiter erreichbar. Oberhalb der Reiter wird der aktuelle Stand der Beitragsberechnung dargestellt.</p>
+<p>Links steht das gruppierte Men&uuml; (wie bei den Admidio-Einstellungen), rechts die gew&auml;hlte Seite.</p>
 <table class="table table-bordered table-sm">
-    <thead><tr><th>Reiter</th><th>Inhalt</th></tr></thead>
+    <thead><tr><th>Gruppe</th><th>Eintr&auml;ge</th></tr></thead>
     <tbody>
-        <tr><td>Beitragseinzug</td><td>Der Ablauf in nummerierten Schritten: 1. Pr&uuml;fungen, 2. Neuberechnung (danach ggf. Individualbeitr&auml;ge), 3. F&auml;lligkeitsdatum, 4. Vorabinformation, 5. SEPA-Datei erzeugen,
-            5b. Rechnungen erstellen, 6. Einzugs&uuml;bersicht (Teilen, als eingezogen markieren, stornieren), 6b. Beitragszahlungen; danach Beitragsanalyse, Rollen&uuml;bersicht, Buchungs&uuml;bersicht.
-            Mit Schritt 6 ist ein normaler Lastschrifteinzug abgeschlossen; 5b und 6b sind f&uuml;r Sonderf&auml;lle (&Uuml;berweiser, Barzahlung, Zahlung nach R&uuml;cklastschrift).</td></tr>
-        <tr><td>Arbeitsdienst</td><td>1. Sollstunden abgleichen, 2. Arbeitsdienst erfassen, 3. Arbeitsdienst abrechnen, 5. F&auml;lligkeitsdatum, 6. Vorabinformation,
-            7. SEPA-Datei erzeugen, 7b. Rechnungen erstellen, 8. Einzugs&uuml;bersicht, 8b. Beitragszahlungen (siehe <a href="#doc-arbeitsdienst">Arbeitsdienst</a>)</td></tr>
+        <tr><td>Beitragsberechnung</td><td>1.0 Pr&uuml;fungen, 1.1 Beitr&auml;ge berechnen (ggf. Individualbeitr&auml;ge)</td></tr>
+        <tr><td>Arbeitsdienstberechnung</td><td>1.0 Sollstunden abgleichen, 1.1 Arbeitsdienst erfassen, 1.2 Arbeitsdienst abrechnen (siehe <a href="#doc-arbeitsdienst">Arbeitsdienst</a>)</td></tr>
+        <tr><td>Einzug</td><td>2.0 F&auml;lligkeit, <strong>3.0 Rechnungen erstellen</strong>, 3.1 Vorabinformation, 4.0 SEPA-Datei erstellen, 5.0 Lastschrifteinzug, 5.1 Manuelle Zahlungen,
+            6.0 Beitragsanalyse, 7.0 Rollen&uuml;bersicht, 8.0 Buchungs&uuml;bersicht. Die Seiten gelten f&uuml;r Mitgliedsbeitrag und Arbeitsdienst; oben wird der Buchungskreis
+            umgeschaltet (mit Beitrags- bzw. Leistungsjahr im Button).</td></tr>
         <tr><td>Mandatsverwaltung</td><td>Mandatsreferenzen erzeugen, Mandate bearbeiten</td></tr>
         <tr><td>Einstellungen</td><td>Alle Grundeinstellungen, zuunterst die Plugininformationen (standardm&auml;&szlig;ig nur f&uuml;r Administratoren sichtbar)</td></tr>
         <tr><td>Dokumentation</td><td>Diese Dokumentation</td></tr>
     </tbody>
 </table>
-<p>Der fr&uuml;here Reiter <em>Export</em> entf&auml;llt; die Rechnung ist jetzt Schritt 5b.</p>
+<p>Ablauf eines Einzugs: F&auml;lligkeit setzen &rarr; Rechnungen erstellen &rarr; Vorabinformation &rarr; SEPA-Datei &rarr; Lastschrifteinzug (als eingezogen markieren).</p>
 
 <!-- ===================================================================== -->
 <h2 id="doc-rollen">7. Beitragsrollen</h2>
@@ -423,14 +423,33 @@
 <p>Unter &rarr; Einstellungen &ndash; E-Mail-Benachrichtigungen kann ein Nachrichtentext mit Platzhaltern definiert werden. Wird an <em>ein</em> markiertes Mitglied gesendet,
     enth&auml;lt der Text bereits eindeutige Angaben; bei <em>mehreren</em> Mitgliedern stehen Platzhalter im Text, die erst nach &bdquo;Abschicken&ldquo; ersetzt werden.</p>
 
-<h3>Rechnungen (Schritt 5b)</h3>
-<p>Hier k&ouml;nnen Dateien mit Daten zum Erzeugen von Rechnungen erstellt und &Uuml;berweisungsaufforderungen per E-Mail versendet werden. Angezeigt werden alle Mitglieder mit
-    <strong>offenen Positionen</strong>, unabh&auml;ngig von einer IBAN. Der Filter unterscheidet <em>alle</em>, <em>mit E-Mail</em> und <em>ohne E-Mail</em>; die Buttons stehen unterhalb des Filters.
-    Die angezeigten Spalten werden unter &rarr; Einstellungen &ndash; Ansichtsdefinitionen festgelegt (die Spalten E-Mail und KtoInh-E-Mail sollten immer aktiviert sein).</p>
+<h3>3.0 Rechnungen erstellen (ab Version 6.5.0)</h3>
+<p>Die Seite zeigt je Zeile eine Rechnung oder &ndash; f&uuml;r offene Positionen, die noch auf keiner Rechnung stehen &ndash; je Mitglied und Beitragsjahr eine Zeile
+    mit Status <em>ohne Rechnung</em>. Filter: Rechnung (offen mit und ohne Rechnung, noch ohne Rechnung, Rechnung offen oder im Einzug, &uuml;berf&auml;llig, bezahlt, storniert, alle),
+    Beitragsjahr und E-Mail (mit/ohne). Die Markierung gilt je Mitglied.</p>
 <ul>
-    <li><strong>Button Export:</strong> erstellt aus den markierten Mitgliedern eine Datei mit Daten f&uuml;r Serienbriefe (Struktur fest kodiert).</li>
-    <li><strong>Button E-Mail:</strong> sendet zuerst an die Kontoinhaber-E-Mail-Adresse; ist diese leer, an die Standard-E-Mail-Adresse. Weitere Adressen werden nicht abgefragt,
-        k&ouml;nnen aber &uuml;ber die Ansichtsdefinition &bdquo;Rechnung&ldquo; eingeblendet und per Briefsymbol angeschrieben werden.</li>
+    <li><strong>Rechnungen erstellen:</strong> f&uuml;r die markierten Mitglieder mit Status <em>ohne Rechnung</em>. Zuerst erscheint eine Vorschau (Anzahl, Summe, Warnungen bei fehlender
+        Anschrift oder fehlender F&auml;lligkeit bei Lastschrift-Zahlern), danach werden die Rechnungen in Paketen zu 20 Mitgliedern angelegt.
+        Je Mitglied und Beitragsjahr entsteht eine Rechnung mit fester Nummer: <code>2026-B-0012</code> (Mitgliedsbeitrag) bzw. <code>2026-AD-0003</code> (Arbeitsdienst).
+        Nummern werden nie wiederverwendet. Summen von 0 oder darunter werden nicht abgerechnet und gemeldet.</li>
+    <li><strong>Zahlart und F&auml;lligkeit:</strong> Mit IBAN und Mandats-ID ist es eine Lastschrift-Rechnung ohne Zahlungsziel (sie k&uuml;ndigt den Einzug zur F&auml;lligkeit an,
+        &bdquo;eine &Uuml;berweisung ist nicht notwendig&ldquo;). Sonst eine &Uuml;berweisungs-Rechnung mit F&auml;lligkeit aus 2.0 bzw. Rechnungsdatum + Zahlungsziel
+        (&rarr; Einstellungen &ndash; Export &ndash; Rechnung, Standard 14 Tage).</li>
+    <li><strong>Status</strong> wird aus den Positionen berechnet: offen, im Einzug (in einer SEPA-Datei), bezahlt, storniert; &uuml;berf&auml;llig, wenn offen und F&auml;lligkeit vorbei.</li>
+    <li><strong>Ausgestellte Rechnungen bleiben unver&auml;ndert:</strong> Positionen mit Rechnungsnummer &auml;ndert und entfernt die Neuberechnung nicht (Hinweis mit Schloss-Symbol);
+        manuelle Positionen mit Rechnungsnummer lassen sich nicht mehr bearbeiten oder l&ouml;schen, nur stornieren. Beim Storno mit &bdquo;Erneut einziehen&ldquo; und f&uuml;r die
+        R&uuml;cklastschriftgeb&uuml;hr bleibt die Nummer der Rechnung erhalten.</li>
+    <li><strong>E-Mail:</strong> sendet an die markierten Mitglieder (zuerst Kontoinhaber-E-Mail, sonst Standard-E-Mail). <strong>Export:</strong> Datei f&uuml;r Serienbriefe,
+        jetzt mit Rechnungsnummer, Rechnungsdatum, F&auml;lligkeit und Rechnungsbetrag.</li>
+    <li>Die angezeigten Mitgliedsspalten werden unter &rarr; Einstellungen &ndash; Ansichtsdefinitionen festgelegt.</li>
+    <li><strong>PDF</strong> (mit der Bibliothek <code>adm_plugins/wp-tc-lib-pdf</code> und PHP 8.5): entsteht beim Erstellen der Rechnung und wird unter <code>adm_my_files</code> abgelegt;
+        Spalte PDF zum Anzeigen. Lastschrift-Rechnungen k&uuml;ndigen den Einzug an (ohne Zahlungsziel und QR-Code), &Uuml;berweisungs-Rechnungen enthalten Bankverbindung und QR-Code.</li>
+    <li><strong>E-Mail mit Rechnung:</strong> &bdquo;Rechnung als PDF anh&auml;ngen&ldquo; h&auml;ngt je Empf&auml;nger die zuletzt erstellte offene Rechnung an (Mitglieder ohne Rechnung erhalten keine
+        Rechnungsmail). Die Vorabinformation (3.1) h&auml;ngt die Rechnung ebenfalls an. Platzhalter: <code>#invoice_no#</code>, <code>#invoice_date#</code>, <code>#invoice_due#</code>,
+        <code>#invoice_amount#</code>, <code>#invoice_link#</code> (Link ohne Anmeldung, 1 Jahr g&uuml;ltig). Eigene Vorlage &bdquo;Rechnung Arbeitsdienst&ldquo;. Der Versand wird an der Rechnung vermerkt.</li>
+    <li><strong>Testbetrieb:</strong> Unter &rarr; Einstellungen &ndash; E-Mail-Benachrichtigungen &ndash; <em>Testempf&auml;nger</em> eine Adresse eintragen: Alle E-Mails des Plugins gehen dann an
+        diese Adresse (Betreff &bdquo;[TEST an &hellip;]&ldquo;), nicht an die Mitglieder, und der Versand wird nicht vermerkt.</li>
+    <li>Druckstapel, Mahnung und Download im Profil folgen (siehe <code>docs/konzept-rechnungen-pdf.md</code>).</li>
 </ul>
 
 <!-- ===================================================================== -->
@@ -455,6 +474,9 @@
     <tbody>
         <tr><td>Rollenmitgliedschaft (Pflicht)</td><td>Pr&uuml;ft, ob sich ein Mitglied in mindestens einer Pflicht-Beitragsrolle befindet. Gepr&uuml;ft werden alle Mitglieder, die im Beitragsjahr in irgendeiner Rolle Mitglied waren.</td></tr>
         <tr><td>Rollenmitgliedschaft (Ausschluss)</td><td>Pr&uuml;ft, ob sich ein Mitglied in Rollen befindet, die sich gegenseitig ausschlie&szlig;en.</td></tr>
+        <tr><td>Einmalige Beitragsrollen</td><td>Mitgliedschaften in Beitragsrollen mit Zeitraum &bdquo;einmalig&ldquo; (Aufnahmegeb&uuml;hr, Erstbesatz) m&uuml;ssen am 01.01. beginnen und am 31.12.
+            desselben Jahres enden, sonst berechnet die Neuberechnung sie jedes Jahr erneut. Gemeldet werden ein sp&auml;teres Ende (Button &bdquo;Zum 31.12. beenden&ldquo;),
+            ein Beginn nicht am 01.01. und Positionen in mehreren Beitragsjahren.</td></tr>
         <tr><td>Kontodaten</td><td>Pr&uuml;ft, ob bei gef&uuml;lltem Feld Kontoinhaber auch die Adressdaten ausgef&uuml;llt sind.</td></tr>
         <tr><td>Mandatsverwaltung</td><td>Pr&uuml;ft, ob Mandats-ID und Mandatsdatum vorhanden sind (Voraussetzung: IBAN und Mitgliedsbeitrag sind gef&uuml;llt).</td></tr>
         <tr><td>IBAN-Test</td><td>Pr&uuml;fung auf korrekte IBAN.</td></tr>

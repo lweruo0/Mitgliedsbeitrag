@@ -103,7 +103,18 @@ $config_default['tests_enable'] = array(
     'account_details' => 1,
     'mandate_management' => 1,
     'iban_check' => 1,
-    'bic_check' => 1
+    'bic_check' => 1,
+    'onetime_roles' => 1
+);
+
+// Testbetrieb: alle E-Mails des Plugins an diese Adresse statt an die Mitglieder (leer = aus)
+$config_default['Testbetrieb'] = array(
+    'test_email' => ''
+);
+
+// Rechnungen (Zahlungsziel in Tagen fuer Ueberweiser und fuer die Mahnfrist)
+$config_default['Rechnung'] = array(
+    'zahlungsziel' => 14
 );
 
 // Rechnungs-Export

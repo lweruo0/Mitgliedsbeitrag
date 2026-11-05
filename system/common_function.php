@@ -1648,7 +1648,90 @@ function replace_emailparameter($text, $user)
     $text = preg_replace('/#iban_obfuscated#/', obfuscate_iban($user->getValue('IBAN')), $text);
     $text = preg_replace('/#membernumber#/', $user->getValue('MEMBERNUMBER' . $gCurrentOrgId), $text);
 
+    // Rechnung (zuletzt erstellte offene Rechnung des Buchungskreises, siehe mf_current_invoice())
+    if (strpos($text, '#invoice_') !== false || strpos($text, '#dunning_') !== false) {
+        $invoice = mf_current_invoice((int) $user->getValue('usr_id'), $scope);
+        $link = '';
+        if ($invoice !== null && strpos($text, '#invoice_link#') !== false) {
+            $link = \Plugins\MembershipFee\classes\Invoices\PdfBridge::signedUrl((string) $invoice['mfi_invoice_no'], (string) $invoice['mfi_kind'],
+                \Plugins\MembershipFee\classes\Invoices\PdfBridge::TYPE_INVOICE, '+1 year');
+        }
+        $values = array(
+            '#invoice_no#' => $invoice['mfi_invoice_no'] ?? '',
+            '#invoice_date#' => $invoice !== null ? mf_format_date($invoice['mfi_invoice_date']) : '',
+            '#invoice_due#' => $invoice !== null ? mf_format_date($invoice['mfi_due_date'] ?? '') : '',
+            '#invoice_amount#' => $invoice !== null ? mf_format_amount($invoice['mfi_amount']) : '',
+            '#invoice_link#' => $link,
+            '#dunning_date#' => $invoice !== null ? mf_format_date($invoice['mfi_dunning_date'] ?? '') : '',
+            '#dunning_due#' => $invoice !== null ? mf_format_date($invoice['mfi_dunning_due'] ?? '') : ''
+        );
+        $text = str_replace(array_keys($values), array_values($values), $text);
+    }
+
     return $text;
+}
+
+/**
+ * Zuletzt erstellte Rechnung eines Mitglieds im Buchungskreis, die noch offen oder im Einzug ist
+ * (fuer Platzhalter und PDF-Anhang in E-Mails).
+ *
+ * @return array<string, mixed>|null
+ */
+function mf_current_invoice(int $usrId, CollectionScope $scope): ?array
+{
+    static $cache = array();
+
+    $key = $scope->key() . ':' . $usrId;
+    if (!array_key_exists($key, $cache)) {
+        $cache[$key] = null;
+        foreach (\Plugins\MembershipFee\classes\Invoices\InvoiceStore::search(array('kind' => $scope->key(), 'usr_ids' => array($usrId))) as $invoice) {
+            if (!in_array($invoice['status'], array(\Plugins\MembershipFee\classes\Invoices\InvoiceStatus::OPEN, \Plugins\MembershipFee\classes\Invoices\InvoiceStatus::IN_COLLECTION), true)) {
+                continue;
+            }
+            if ($cache[$key] === null || $invoice['mfi_id'] > $cache[$key]['mfi_id']) {
+                $cache[$key] = $invoice;
+            }
+        }
+    }
+    return $cache[$key];
+}
+
+/**
+ * Testempfaenger (Einstellungen -> E-Mail-Benachrichtigungen): Ist eine Adresse eingetragen, gehen alle E-Mails
+ * des Plugins an diese Adresse statt an die Mitglieder.
+ */
+function mf_test_email(): string
+{
+    global $pPreferences;
+
+    $config = ($pPreferences instanceof ConfigTable) ? $pPreferences->config : null;
+    if ($config === null) {
+        $preferences = new ConfigTable();
+        $preferences->read();
+        $config = $preferences->config;
+    }
+    $email = trim((string) ($config['Testbetrieb']['test_email'] ?? ''));
+    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false ? $email : '';
+}
+
+/**
+ * Tatsaechlicher Empfaenger einer E-Mail: im Testbetrieb der Testempfaenger, der Betreff nennt dann den
+ * eigentlichen Empfaenger.
+ *
+ * @return array{email:string, name:string, subject_prefix:string, test:bool}
+ */
+function mf_mail_target(string $email, string $name): array
+{
+    $test = mf_test_email();
+    if ($test === '') {
+        return array('email' => $email, 'name' => $name, 'subject_prefix' => '', 'test' => false);
+    }
+    return array(
+        'email' => $test,
+        'name' => 'Test (' . $name . ')',
+        'subject_prefix' => '[TEST an ' . trim($name . ' <' . $email . '>') . '] ',
+        'test' => true
+    );
 }
 
 /**
@@ -1826,6 +1909,95 @@ function closeGroupBox()
  *            array with test result
  * @return string
  */
+/**
+ * Daten fuer die Pruefung "Einmalige Beitragsrollen" lesen und auswerten (siehe classes/Checks/OneTimeRoleCheck.php).
+ *
+ * @return array<int, array<string, mixed>> Funde
+ */
+function mf_onetime_role_findings(): array
+{
+    global $gDb, $gProfileFields, $gCurrentOrgId;
+
+    // einmalige Beitragsrollen der Organisation
+    $roleNames = array();
+    $statement = $gDb->queryPrepared('SELECT rol_id, rol_name
+          FROM ' . TBL_ROLES . '
+    INNER JOIN ' . TBL_CATEGORIES . ' ON cat_id = rol_cat_id
+         WHERE rol_valid = true
+           AND rol_cost IS NOT NULL
+           AND rol_cost_period = -1
+           AND cat_name_intern <> \'EVENTS\'
+           AND (cat_org_id = ? OR cat_org_id IS NULL)', array((int) $gCurrentOrgId));
+    while ($row = $statement->fetch()) {
+        $roleNames[(int) $row['rol_id']] = (string) $row['rol_name'];
+    }
+    if (count($roleNames) === 0) {
+        return array();
+    }
+    $roleIds = array_keys($roleNames);
+    $placeholders = implode(',', array_fill(0, count($roleIds), '?'));
+
+    // Namen aller gueltigen Benutzer mit Mitgliedschaft oder Position in diesen Rollen
+    $lastId = (int) $gProfileFields->getProperty('LAST_NAME', 'usf_id');
+    $firstId = (int) $gProfileFields->getProperty('FIRST_NAME', 'usf_id');
+    $names = array();
+    $nameOf = static function (int $usrId) use (&$names, $gDb, $lastId, $firstId): string {
+        if (!isset($names[$usrId])) {
+            $statement = $gDb->queryPrepared('SELECT usd_usf_id, usd_value FROM ' . TBL_USER_DATA . ' WHERE usd_usr_id = ? AND usd_usf_id IN (?, ?)',
+                array($usrId, $lastId, $firstId));
+            $parts = array('last' => '', 'first' => '');
+            while ($row = $statement->fetch()) {
+                $parts[(int) $row['usd_usf_id'] === $lastId ? 'last' : 'first'] = (string) $row['usd_value'];
+            }
+            $names[$usrId] = trim($parts['last'] . ', ' . $parts['first'], ', ');
+        }
+        return $names[$usrId];
+    };
+
+    $memberships = array();
+    $statement = $gDb->queryPrepared('SELECT mem_id, mem_usr_id, mem_rol_id, mem_begin, mem_end
+          FROM ' . TBL_MEMBERS . '
+    INNER JOIN ' . TBL_USERS . ' ON usr_id = mem_usr_id AND usr_valid = true
+         WHERE mem_rol_id IN (' . $placeholders . ')', $roleIds);
+    while ($row = $statement->fetch()) {
+        $memberships[] = array(
+            'mem_id' => (int) $row['mem_id'],
+            'usr_id' => (int) $row['mem_usr_id'],
+            'name' => $nameOf((int) $row['mem_usr_id']),
+            'rol_id' => (int) $row['mem_rol_id'],
+            'rol_name' => $roleNames[(int) $row['mem_rol_id']],
+            'begin' => (string) $row['mem_begin'],
+            'end' => (string) $row['mem_end']
+        );
+    }
+
+    // nicht stornierte Positionen je Mitglied, Rolle und Jahr (staerkster Status: eingezogen > exportiert > offen)
+    $rank = array(\Plugins\MembershipFee\classes\Bookings\BookingStore::STATUS_OPEN => 1,
+        \Plugins\MembershipFee\classes\Bookings\BookingStore::STATUS_EXPORTED => 2,
+        \Plugins\MembershipFee\classes\Bookings\BookingStore::STATUS_COLLECTED => 3);
+    $positionYears = array();
+    \Plugins\MembershipFee\classes\Bookings\BookingStore::ensureTables();
+    $statement = $gDb->queryPrepared('SELECT mfb_usr_id, mfb_rol_id, mfb_year, mfb_status
+          FROM ' . \Plugins\MembershipFee\classes\Bookings\BookingStore::bookingsTable() . '
+         WHERE mfb_org_id = ?
+           AND mfb_status <> ?
+           AND mfb_rol_id IN (' . $placeholders . ')',
+        array_merge(array((int) $gCurrentOrgId, \Plugins\MembershipFee\classes\Bookings\BookingStore::STATUS_CANCELLED), $roleIds));
+    while ($row = $statement->fetch()) {
+        $usrId = (int) $row['mfb_usr_id'];
+        $rolId = (int) $row['mfb_rol_id'];
+        $year = (int) $row['mfb_year'];
+        $status = (string) $row['mfb_status'];
+        $current = $positionYears[$usrId][$rolId][$year] ?? null;
+        if ($current === null || ($rank[$status] ?? 0) > ($rank[$current] ?? 0)) {
+            $positionYears[$usrId][$rolId][$year] = $status;
+        }
+        $nameOf($usrId);
+    }
+
+    return \Plugins\MembershipFee\classes\Checks\OneTimeRoleCheck::evaluate($memberships, $positionYears, $names, $roleNames);
+}
+
 function showTestResultWithScrollbar($testResult)
 {
     $size = sizeof($testResult);
@@ -2513,9 +2685,10 @@ function mf_menu_groups(): array
     };
     $groups[] = array('label' => $gL10n->get('PLG_MEMBERSHIPFEE_MENU_GROUP_COLLECTION'), 'entries' => array(
         $shared($page('collection_duedates', $num(2, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_DUEDATE'), 'bi-calendar-check', 'duedates.php')),
-        $shared($page('collection_prenotification', $num(3, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'), 'bi-envelope-paper', 'pre_notification.php')),
+        // Rechnungen entstehen vor der Vorabinformation (docs/konzept-rechnungen-pdf.md, Abschnitt 6)
+        $shared($page('collection_bill', $num(3, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_BILL'), 'bi-receipt', 'bill.php')),
+        $shared($page('collection_prenotification', $num(3, 1) . $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'), 'bi-envelope-paper', 'pre_notification.php')),
         $shared($main('collection_sepa', $num(4, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_SEPA'), 'bi-filetype-xml')),
-        $shared($page('collection_bill', $num(4, 1) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_BILL'), 'bi-file-earmark-spreadsheet', 'bill.php')),
         $shared($page('collection_runs', $num(5, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_DIRECT_DEBIT'), 'bi-bank', 'runs.php'), false),
         $shared($page('collection_payments', $num(5, 1) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_MANUAL_PAYMENTS'), 'bi-cash-coin', 'payments.php')),
         $shared($page('collection_analysis', $num(6, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ANALYSIS'), 'bi-bar-chart', 'analysis.php')),

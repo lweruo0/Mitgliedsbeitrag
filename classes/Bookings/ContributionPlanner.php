@@ -236,6 +236,7 @@ class ContributionPlanner
             $result['ops'][] = array('op' => 'delete', 'id' => (int) $position['mfb_id'], 'before' => $position);
         }
 
+        $result['ops'] = self::lockInvoiced($result['ops']);
         return $result;
     }
 
@@ -293,6 +294,24 @@ class ContributionPlanner
             }
             foreach ($existing as $position) {
                 $ops[] = array('op' => 'delete', 'id' => (int) $position['mfb_id'], 'before' => $position);
+            }
+        }
+        return self::lockInvoiced($ops);
+    }
+
+    /**
+     * Positionen, die schon auf einer Rechnung stehen (mfb_invoice_no), aendert und entfernt die Neuberechnung
+     * nicht, damit der Einzugsbetrag zum ausgestellten Beleg passt (docs/konzept-rechnungen-pdf.md, 5.4).
+     * Solche Aenderungen werden als op "locked" gemeldet und von applyOps() nicht ausgefuehrt.
+     *
+     * @param array<int, array<string, mixed>> $ops
+     * @return array<int, array<string, mixed>>
+     */
+    public static function lockInvoiced(array $ops): array
+    {
+        foreach ($ops as $index => $op) {
+            if (in_array($op['op'], array('update', 'delete'), true) && (string) ($op['before']['mfb_invoice_no'] ?? '') !== '') {
+                $ops[$index] = array('op' => 'locked', 'id' => (int) $op['id'], 'before' => $op['before'], 'data' => $op['data'] ?? null, 'change' => $op['op']);
             }
         }
         return $ops;

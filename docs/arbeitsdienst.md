@@ -33,7 +33,8 @@ Die Felder werden beim ersten Aufruf automatisch angelegt und bei der Deinstalla
 5. **Fälligkeitsdatum** (ADDUEDATE, Sequenztyp).
 6. **Vorabinformation**: E-Mail-Vorlage „Vorabinformation Arbeitsdienst“ (Einstellungen → E-Mail-Benachrichtigungen).
 7. **SEPA-Datei erzeugen**: eigene Datei `sepa_arbeitsdienst_<datum>-<typ>.xml`, Message-ID `AD-…`,
-   End-to-End-ID `BFV-AD-<usr>-<datum>`. 7b. Rechnungen erstellen.
+   End-to-End-ID `BFV-AD-<usr>-<datum>`.
+   Rechnungen (Nummer `JAHR-AD-NNNN`) unter 3.0 Rechnungen erstellen, vor der Vorabinformation.
 8. **Einzugsübersicht** (Spalte „Art“) und 8b. Beitragszahlungen.
 
 Sobald eine AD-Position eines Jahres exportiert ist, ist die Erfassung für dieses Jahr gesperrt.

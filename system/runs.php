@@ -143,9 +143,15 @@ try {
             if ($senderResult !== true) {
                 throw new Exception($senderResult);
             }
-            $email->setSubject(mf_language_plain_text('PLG_MEMBERSHIPFEE_SHARE_MAIL_SUBJECT', array((string) $gCurrentOrganization->getValue('org_shortname'), (string) $run['mfr_file_name'])));
-            foreach ($recipients as $address) {
-                $email->addRecipient($address);
+            // Testbetrieb: an den Testempfaenger statt an die eingetragenen Empfaenger
+            $testPrefix = mf_test_email() !== '' ? mf_mail_target(implode(', ', $recipients), '')['subject_prefix'] : '';
+            $email->setSubject($testPrefix . mf_language_plain_text('PLG_MEMBERSHIPFEE_SHARE_MAIL_SUBJECT', array((string) $gCurrentOrganization->getValue('org_shortname'), (string) $run['mfr_file_name'])));
+            if ($testPrefix !== '') {
+                $email->addRecipient(mf_test_email());
+            } else {
+                foreach ($recipients as $address) {
+                    $email->addRecipient($address);
+                }
             }
             $email->setText($body);
             $sendResult = $email->sendEmail();

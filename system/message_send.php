@@ -43,6 +43,8 @@ $postSubject               = StringUtils::strStripTags($_POST['msg_subject']);
 $postBody                  = admFuncVariableIsValid($_POST, 'msg_body', 'html');
 $postDeliveryConfirmation  = admFuncVariableIsValid($_POST, 'delivery_confirmation', 'bool');
 $postCarbonCopy            = admFuncVariableIsValid($_POST, 'carbon_copy', 'boolean', array('defaultValue' => 0));
+$postAttachInvoice         = admFuncVariableIsValid($_POST, 'attach_invoice', 'bool');
+$postMailContext           = admFuncVariableIsValid($_POST, 'mail_context', 'string', array('validValues' => array('', 'bill', 'pre_notification', 'payments')));
 
 // save form data in session for back navigation
 $_SESSION['pMembershipFee']['message_request'] = $_POST;
@@ -85,7 +87,15 @@ $sendMailResultMessage = '';
 $sendMailResultSendOK = array('<strong>'.$gL10n->get('PLG_MEMBERSHIPFEE_MAILSEND_OK').'</strong>');
 $sendMailResultMissingEmail = array('<strong>'.$gL10n->get('PLG_MEMBERSHIPFEE_MAILMISSING_EMAIL').'</strong>');
 $sendMailResultAnotherError = array('<strong>'.$gL10n->get('PLG_MEMBERSHIPFEE_MAILANOTHER_ERROR').'</strong>');
+$sendMailResultNoInvoice = array('<strong>'.$gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_MAIL_NONE').'</strong>');
 $sendResult  = false;
+
+// Rechnung als PDF anhaengen (siehe message_write.php); ohne PDF-Bibliothek nie
+$mfScope = mf_collection_scope();
+$attachInvoice = $postAttachInvoice && in_array($postMailContext, array('bill', 'pre_notification'), true)
+    && \Plugins\MembershipFee\classes\Invoices\PdfBridge::isAvailable();
+$invoiceService = new \Plugins\MembershipFee\classes\Invoices\InvoiceService($pPreferences->config, $mfScope);
+$testEmail = mf_test_email();
 
 $user = new User($gDb, $gProfileFields);
 $userField = new Entity($gDb, TBL_USER_FIELDS, 'usf'); 
@@ -133,9 +143,37 @@ foreach ($mailToArray as $userId => $usfUuid )
         continue;
     }
     
+    // Rechnung des Mitglieds (zuletzt erstellte offene Rechnung des Buchungskreises)
+    $invoice = null;
+    $invoicePath = '';
+    if ($attachInvoice)
+    {
+        $invoice = mf_current_invoice((int) $userId, $mfScope);
+        if ($invoice !== null)
+        {
+            $fileName = (string) ($invoice['mfi_pdf_file'] ?? '');
+            $invoicePath = \Plugins\MembershipFee\classes\Invoices\PdfBridge::filePath((string) $invoice['mfi_kind'], $fileName);
+            if ($invoicePath === '' && $invoiceService->createPdf((string) $invoice['mfi_invoice_no']) === '')
+            {
+                $invoice = \Plugins\MembershipFee\classes\Invoices\InvoiceStore::find((string) $invoice['mfi_invoice_no']);
+                $invoicePath = \Plugins\MembershipFee\classes\Invoices\PdfBridge::filePath((string) $invoice['mfi_kind'], (string) ($invoice['mfi_pdf_file'] ?? ''));
+            }
+        }
+        // Rechnungsmail ohne Rechnung wird nicht verschickt; die Vorabinformation geht auch ohne Anhang
+        if ($postMailContext === 'bill' && $invoicePath === '')
+        {
+            $sendMailResultNoInvoice[] = $receiverName;
+            continue;
+        }
+    }
+
     // evtl. definierte Parameter ersetzen
     $subject = replace_emailparameter($postSubject, $user);
-    $body = replace_emailparameter($postBody, $user);   
+    $body = replace_emailparameter($postBody, $user);
+
+    // Testbetrieb: Empfaenger durch den Testempfaenger ersetzen, Betreff nennt den eigentlichen Empfaenger
+    $target = mf_mail_target((string) $receiverEmail, (string) $receiverName);
+    $subject = $target['subject_prefix'] . $subject;
     
     // object to handle the current message in the database
     $message = new Message($gDb);
@@ -208,6 +246,12 @@ foreach ($mailToArray as $userId => $usfUuid )
                     }
                 }
             }
+
+            // Rechnung als PDF
+            if ($invoicePath !== '')
+            {
+                $email->addAttachment($invoicePath, 'Rechnung_' . $invoice['mfi_invoice_no'] . '.pdf', 'base64', 'application/pdf');
+            }
         }
         else
         {
@@ -231,8 +275,8 @@ foreach ($mailToArray as $userId => $usfUuid )
         $email->setCopyToSenderFlag();
     }
 
-    //den User dem Mailobjekt hinzufuegen...
-    $email->addRecipient($receiverEmail, $receiverName);
+    //den User dem Mailobjekt hinzufuegen (im Testbetrieb den Testempfaenger)...
+    $email->addRecipient($target['email'], $target['name']);
     
     // add confirmation mail to the sender
     if($postDeliveryConfirmation)
@@ -255,7 +299,17 @@ foreach ($mailToArray as $userId => $usfUuid )
 
     if ($sendMailResult === TRUE)
     {
-        $sendMailResultSendOK[] = $receiverName.' ('.$receiverEmail.')';
+        $sendMailResultSendOK[] = $receiverName.' ('.$receiverEmail.')'
+            . ($target['test'] ? ' &rarr; ' . $gL10n->get('PLG_MEMBERSHIPFEE_TEST_EMAIL_SENT_TO', array($target['email'])) : '')
+            . ($invoicePath !== '' ? ' &ndash; ' . $invoice['mfi_invoice_no'] : '');
+        // Versand an der Rechnung vermerken (nicht im Testbetrieb)
+        if ($invoice !== null && $invoicePath !== '' && !$target['test'])
+        {
+            \Plugins\MembershipFee\classes\Invoices\InvoiceStore::update((string) $invoice['mfi_invoice_no'], array_merge(
+                array('mfi_sent_mail' => DATETIME_NOW),
+                strpos($postBody, '#invoice_link#') !== false ? array('mfi_sent_link' => DATETIME_NOW) : array()
+            ));
+        }
     }
     else
     {
@@ -281,6 +335,14 @@ if(count($sendMailResultSendOK) > 1)
 if(count($sendMailResultMissingEmail) > 1)
 {
     foreach ($sendMailResultMissingEmail as $data)
+    {
+        $sendMailResultMessage .= $data.'<br/>';
+    }
+    $sendMailResultMessage .= '<br/>';
+}
+if(count($sendMailResultNoInvoice) > 1)
+{
+    foreach ($sendMailResultNoInvoice as $data)
     {
         $sendMailResultMessage .= $data.'<br/>';
     }

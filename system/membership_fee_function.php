@@ -91,6 +91,8 @@ try {
             $pPreferences->config['SEPA']['duedate_for_all'] = isset($_POST['duedate_for_all']) ? 1 : 0;
             $pPreferences->config['Rechnungs-Export']['rechnung_dateiname'] = $_POST['rechnung_dateiname'];
             $pPreferences->config['Rechnungs-Export']['rechnung_dateityp'] = $_POST['rechnung_dateityp'];
+            $termDays = (int) ($_POST['zahlungsziel'] ?? 14);
+            $pPreferences->config['Rechnung']['zahlungsziel'] = ($termDays >= 0 && $termDays <= 365) ? $termDays : 14;
             $pPreferences->config['SEPA-Freigabe']['email'] = trim((string) ($_POST['share_email'] ?? ''));
             $shareDays = (int) ($_POST['share_days'] ?? 14);
             $pPreferences->config['SEPA-Freigabe']['tage'] = ($shareDays >= 1 && $shareDays <= 365) ? $shareDays : 14;
@@ -113,6 +115,7 @@ try {
             $pPreferences->config['tests_enable']['mandate_management'] = isset($_POST['mandate_management']) ? 1 : 0;
             $pPreferences->config['tests_enable']['iban_check'] = isset($_POST['iban_check']) ? 1 : 0;
             $pPreferences->config['tests_enable']['bic_check'] = isset($_POST['bic_check']) ? 1 : 0;
+            $pPreferences->config['tests_enable']['onetime_roles'] = isset($_POST['onetime_roles']) ? 1 : 0;
 
             $fixrollen = beitragsrollen_einlesen('fix');
             foreach ($fixrollen as $key => $data) {
@@ -342,6 +345,23 @@ try {
             ));
             $text->setValue('txt_text', $_POST['bill_text']);
             $text->save();
+
+            if (isset($_POST['bill_ad_text'])) {
+                $text->readDataByColumns(array(
+                    'txt_name' => 'PMBMAIL_BILL_AD',
+                    'txt_org_id' => $gCurrentOrgId
+                ));
+                $text->setValue('txt_text', $_POST['bill_ad_text']);
+                $text->save();
+            }
+
+            // Testbetrieb: leer = aus, sonst gueltige E-Mail-Adresse
+            $testEmail = trim((string) ($_POST['test_email'] ?? ''));
+            if ($testEmail !== '' && filter_var($testEmail, FILTER_VALIDATE_EMAIL) === false) {
+                $ret = $gL10n->get('PLG_MEMBERSHIPFEE_TEST_EMAIL_INVALID');
+                break;
+            }
+            $pPreferences->config['Testbetrieb']['test_email'] = $testEmail;
             break;
 
         default:

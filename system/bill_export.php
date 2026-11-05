@@ -80,7 +80,24 @@ $columnValues[] = $gL10n->get('SYS_EMAIL');
 $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_FEE');
 $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTORY_TEXT');
 $columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_SUM');
+$columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_EXPORT_NO');
+$columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_EXPORT_DATE');
+$columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_EXPORT_DUE');
+$columnValues[] = $gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_EXPORT_AMOUNT');
 $rows[] = $columnValues;
+
+// neueste offene Rechnung (offen oder im Einzug) des Buchungskreises je Mitglied
+$latestInvoice = array();
+foreach (\Plugins\MembershipFee\classes\Invoices\InvoiceStore::search(array('kind' => $mfScope->key(),
+    'usr_ids' => array_map('intval', array_keys($_SESSION['pMembershipFee']['checkedArray'])))) as $invoice) {
+    if (!in_array($invoice['status'], array(\Plugins\MembershipFee\classes\Invoices\InvoiceStatus::OPEN, \Plugins\MembershipFee\classes\Invoices\InvoiceStatus::IN_COLLECTION), true)) {
+        continue;
+    }
+    $current = $latestInvoice[(int) $invoice['mfi_usr_id']] ?? null;
+    if ($current === null || $invoice['mfi_id'] > $current['mfi_id']) {
+        $latestInvoice[(int) $invoice['mfi_usr_id']] = $invoice;
+    }
+}
 
 if ($exportMode === 'csv')
 {
@@ -120,7 +137,12 @@ foreach ($_SESSION['pMembershipFee']['checkedArray'] as $UserId => $dummy)
     $columnValues[] = $user->getValue($mfScope->field(CollectionScope::FIELD_TEXT));
         
     $sum += $user->getValue($mfScope->field(CollectionScope::FIELD_FEE));
-    $columnValues[] = $sum;       
+    $columnValues[] = $sum;
+    $invoice = $latestInvoice[(int) $UserId] ?? null;
+    $columnValues[] = $invoice['mfi_invoice_no'] ?? '';
+    $columnValues[] = $invoice !== null ? mf_format_date($invoice['mfi_invoice_date']) : '';
+    $columnValues[] = $invoice !== null ? mf_format_date($invoice['mfi_due_date']) : '';
+    $columnValues[] = $invoice['mfi_amount'] ?? '';
         
     if ($exportMode === 'csv')
     {

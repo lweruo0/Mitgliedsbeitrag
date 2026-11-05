@@ -11,14 +11,18 @@
  *
  * openiban : 1 = IBANs zusaetzlich mit OpenIBAN abgleichen (nur auf Anforderung per Button)
  * mode     : (leer) Anzeige | openiban_fix (POST, per fetch): BIC und Bankname laut OpenIBAN ins Profil uebernehmen
+ *            | onetime_fix (POST, per fetch): Mitgliedschaften in einmaligen Beitragsrollen zum 31.12. beenden
  * usr_id[] : (POST, mode=openiban_fix) zu korrigierende Benutzer
+ * mem_id[] : (POST, mode=onetime_fix) zu korrigierende Mitgliedschaften
  *
  ***********************************************************************************************
  */
 
 use Admidio\Infrastructure\Exception;
 use Admidio\Infrastructure\Utils\SecurityUtils;
+use Admidio\Roles\Entity\Membership;
 use Admidio\Users\Entity\User;
+use Plugins\MembershipFee\classes\Checks\OneTimeRoleCheck;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
 require_once(__DIR__ . '/../../../system/common.php');
@@ -71,6 +75,46 @@ if (($_GET['mode'] ?? '') === 'openiban_fix') {
     exit();
 }
 
+// Einmalige Beitragsrollen: Mitgliedschaft zum 31.12. des Beginnjahres beenden
+if (($_GET['mode'] ?? '') === 'onetime_fix') {
+    try {
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            throw new Exception('SYS_INVALID_PAGE_VIEW');
+        }
+        SecurityUtils::validateCsrfToken((string) ($_POST['adm_csrf_token'] ?? ''));
+        // nur Mitgliedschaften, die die Pruefung meldet (einmalige Beitragsrollen dieser Organisation)
+        $allowed = array();
+        foreach (mf_onetime_role_findings() as $finding) {
+            if ($finding['type'] === OneTimeRoleCheck::END_LATE) {
+                $allowed[(int) $finding['mem_id']] = true;
+            }
+        }
+        $count = 0;
+        $gDb->startTransaction();
+        foreach (array_map('intval', (array) ($_POST['mem_id'] ?? array())) as $memId) {
+            if (!isset($allowed[$memId])) {
+                continue;
+            }
+            $membership = new Membership($gDb, $memId);
+            $newEnd = OneTimeRoleCheck::fixedEnd((string) $membership->getValue('mem_begin', 'Y-m-d'), (string) $membership->getValue('mem_end', 'Y-m-d'));
+            if ($newEnd === null) {
+                continue;
+            }
+            $membership->setValue('mem_end', $newEnd);
+            $membership->save();
+            $count++;
+        }
+        $gDb->endTransaction();
+        echo 'success:' . $count;
+    } catch (\Throwable $e) {
+        if (isset($gDb)) {
+            $gDb->rollback();
+        }
+        echo $e->getMessage();
+    }
+    exit();
+}
+
 $headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_TESTS'));
 $gNavigation->addUrl(CURRENT_URL, $headline);
 
@@ -94,6 +138,83 @@ if (in_array(1, $pPreferences->config['tests_enable']))
         $form->closeGroupBox();
     }
     
+    if (!empty($pPreferences->config['tests_enable']['onetime_roles'] ?? 1))
+    {
+        $form->openGroupBox('onetime_roles', $gL10n->get('PLG_MEMBERSHIPFEE_ONETIME_ROLES'));
+        $form->addDescription('<strong>' . $gL10n->get('PLG_MEMBERSHIPFEE_ONETIME_ROLES_DESC') . '</strong>');
+        $findings = mf_onetime_role_findings();
+        $formatDate = static function (string $date): string {
+            if ($date === '') {
+                return '';
+            }
+            if (str_starts_with($date, '9999')) {
+                return 'unbegrenzt';
+            }
+            $value = \DateTime::createFromFormat('Y-m-d', $date);
+            return $value ? $value->format('d.m.Y') : $date;
+        };
+        if (count($findings) === 0) {
+            $form->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_ONETIME_ROLES_OK'));
+        } else {
+            $fixable = array_values(array_filter($findings, static fn (array $f): bool => $f['type'] === OneTimeRoleCheck::END_LATE));
+            $html = '';
+            if (count($fixable) > 1) {
+                $html .= '<button type="button" class="btn btn-primary btn-sm my-2 mf-onetime-fix" data-mems="' . implode(',', array_column($fixable, 'mem_id')) . '">'
+                    . '<i class="bi bi-wrench"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_ONETIME_ROLES_FIX_ALL', array(count($fixable))) . '</button>';
+            }
+            $html .= '<div class="table-responsive" style="max-height: 400px; overflow: auto;"><table class="table table-sm table-striped"><thead><tr>'
+                . '<th>' . $gL10n->get('SYS_NAME') . '</th><th>' . $gL10n->get('SYS_ROLE') . '</th><th>' . $gL10n->get('SYS_START') . '</th><th>' . $gL10n->get('SYS_END') . '</th>'
+                . '<th>' . $gL10n->get('PLG_MEMBERSHIPFEE_ONETIME_ROLES_FINDING') . '</th><th></th></tr></thead><tbody>';
+            foreach ($findings as $finding) {
+                $profileUrl = SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_MODULES . '/profile/profile.php', array('user_uuid' => (new User($gDb, $gProfileFields, $finding['usr_id']))->getValue('usr_uuid')));
+                switch ($finding['type']) {
+                    case OneTimeRoleCheck::END_LATE:
+                        $text = $gL10n->get('PLG_MEMBERSHIPFEE_ONETIME_ROLES_END_LATE', array($formatDate($finding['target_end'])));
+                        if (count($finding['later_open']) > 0) {
+                            $text .= ' ' . $gL10n->get('PLG_MEMBERSHIPFEE_ONETIME_ROLES_LATER_OPEN', array(implode(', ', $finding['later_open'])));
+                        }
+                        $button = '<button type="button" class="btn btn-secondary btn-sm mf-onetime-fix text-nowrap" data-mems="' . (int) $finding['mem_id'] . '"><i class="bi bi-wrench"></i> '
+                            . $gL10n->get('PLG_MEMBERSHIPFEE_ONETIME_ROLES_FIX', array($formatDate($finding['target_end']))) . '</button>';
+                        break;
+                    case OneTimeRoleCheck::BEGIN:
+                        $text = $gL10n->get('PLG_MEMBERSHIPFEE_ONETIME_ROLES_BEGIN');
+                        $button = '';
+                        break;
+                    default:
+                        $text = $gL10n->get('PLG_MEMBERSHIPFEE_ONETIME_ROLES_YEARS', array(implode(', ', $finding['years'])));
+                        $button = '';
+                }
+                $html .= '<tr><td><a href="' . $profileUrl . '">' . SecurityUtils::encodeHTML($finding['name'] !== '' ? $finding['name'] : '–') . '</a></td>'
+                    . '<td>' . SecurityUtils::encodeHTML($finding['rol_name']) . '</td>'
+                    . '<td class="text-nowrap">' . $formatDate($finding['begin']) . '</td>'
+                    . '<td class="text-nowrap">' . $formatDate($finding['end']) . '</td>'
+                    . '<td>' . SecurityUtils::encodeHTML($text) . '</td><td>' . $button . '</td></tr>';
+            }
+            $html .= '</tbody></table></div><div id="mf_onetime_message" class="alert alert-danger d-none" role="alert"></div>';
+            $page->addJavascript('
+                $(".mf-onetime-fix").click(function() {
+                    var mems = String($(this).data("mems")).split(",");
+                    var body = new URLSearchParams();
+                    body.append("adm_csrf_token", "' . $gCurrentSession->getCsrfToken() . '");
+                    mems.forEach(function(id) { body.append("mem_id[]", id); });
+                    $(".mf-onetime-fix").prop("disabled", true);
+                    fetch("' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/tests.php', array('mode' => 'onetime_fix')) . '", {method: "POST", body: body, credentials: "same-origin"})
+                        .then(function(response) { return response.text(); })
+                        .then(function(text) {
+                            if (text.indexOf("success") === 0) {
+                                window.location.hash = "onetime_roles";
+                                window.location.reload();
+                            } else {
+                                $(".mf-onetime-fix").prop("disabled", false);
+                                $("#mf_onetime_message").text(text).removeClass("d-none");
+                            }
+                        });
+                });', true);
+            $form->addDescription($html);
+        }
+        $form->closeGroupBox();
+    }
+
     if ($pPreferences->config['tests_enable']['account_details'])
     {
         $form->openGroupBox('account_details', $gL10n->get('PLG_MEMBERSHIPFEE_ACCOUNT_DATA'));

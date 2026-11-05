@@ -73,6 +73,16 @@ try
                     $membershipScope = \Plugins\MembershipFee\classes\Bookings\CollectionScope::membership((int) $gCurrentOrgId);
                     foreach ($membershipScope->filterPositions(BookingStore::getByUser((int) $key, array(BookingStore::STATUS_OPEN))) as $position)
                     {
+                        if ((string) ($position['mfb_invoice_no'] ?? '') !== '') {
+                            // steht auf einer Rechnung: nicht loeschen, sondern stornieren (Beleg bleibt nachvollziehbar)
+                            BookingStore::update((int) $position['mfb_id'], array(
+                                'mfb_status' => BookingStore::STATUS_CANCELLED,
+                                'mfb_storno_date' => DATE_NOW,
+                                'mfb_storno_reason' => 'Sonstiges',
+                                'mfb_comment' => trim((string) $position['mfb_comment'] . "\nOffene Position beim Löschen der Beiträge entfallen")
+                            ));
+                            continue;
+                        }
                         BookingStore::delete((int) $position['mfb_id']);
                     }
                 }

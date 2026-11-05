@@ -109,6 +109,9 @@ try {
                 if ($position === null || $position['mfb_status'] !== BookingStore::STATUS_OPEN || $position['mfb_source'] !== BookingStore::SOURCE_MANUAL) {
                     throw new Exception('SYS_INVALID_PAGE_VIEW');
                 }
+                if ((string) ($position['mfb_invoice_no'] ?? '') !== '') {
+                    throw new Exception($gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_ON_INVOICE', array($position['mfb_invoice_no'])));
+                }
                 $label = trim((string) ($_POST['booking_label'] ?? ''));
                 $amount = mf_parse_amount((string) ($_POST['booking_amount'] ?? ''));
                 if ($label === '' || $amount === null) {
@@ -127,6 +130,9 @@ try {
             case 'save_delete':
                 if ($position === null || $position['mfb_status'] !== BookingStore::STATUS_OPEN || $position['mfb_source'] !== BookingStore::SOURCE_MANUAL) {
                     throw new Exception('SYS_INVALID_PAGE_VIEW');
+                }
+                if ((string) ($position['mfb_invoice_no'] ?? '') !== '') {
+                    throw new Exception($gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_ON_INVOICE', array($position['mfb_invoice_no'])));
                 }
                 BookingStore::delete((int) $position['mfb_id']);
                 $bookingService->syncWorkFields((int) $position['mfb_usr_id']);
