@@ -12,6 +12,7 @@ use Admidio\Infrastructure\Utils\SecurityUtils;
 use Admidio\Infrastructure\Utils\StringUtils;
 use Admidio\Roles\Entity\RolesRights;
 use Admidio\Users\Entity\User;
+use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Bookings\CollectionScope;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
 
@@ -329,17 +330,41 @@ function mf_sepa_duedate_overview(CollectionScope $scope): array
 }
 
 /**
- * Hinweis oben auf den Seiten des Einzugs, wenn im Buchungskreis Arbeitsdienst gearbeitet wird.
+ * Jahr, auf das sich ein Buchungskreis gerade bezieht (Anzeige in der Umschaltung Mitgliedsbeitrag/Arbeitsdienst).
+ * Mitgliedsbeitrag: Beitragsjahr aus den Einstellungen. Arbeitsdienst: Leistungsjahr(e) der offenen
+ * AD-Positionen, sonst das letzte Leistungsjahr mit AD-Positionen, sonst das Jahr, das "Arbeitsdienst
+ * abrechnen" vorschlaegt (bis Juni das Vorjahr).
  */
-function mf_collection_banner(CollectionScope $scope): string
+function mf_collection_year_label(CollectionScope $scope): string
 {
-    global $gL10n;
+    global $gDb, $gCurrentOrgId;
 
     if ($scope->isMembership()) {
-        return '';
+        return (string) getContributionYear();
     }
-    return '<div class="alert alert-info" role="alert"><i class="bi bi-tools"></i> <strong>' . $gL10n->get('PLG_MEMBERSHIPFEE_SCOPE_AD') . '</strong> &ndash; '
-        . $gL10n->get('PLG_MEMBERSHIPFEE_SCOPE_AD_BANNER') . '</div>';
+    try {
+        $years = array();
+        $statement = $gDb->queryPrepared('SELECT DISTINCT mfb_year FROM ' . BookingStore::bookingsTable()
+            . ' WHERE mfb_org_id = ? AND mfb_status = ? AND ' . $scope->sourceSqlCondition() . ' ORDER BY mfb_year',
+            array((int) $gCurrentOrgId, BookingStore::STATUS_OPEN));
+        while ($row = $statement->fetch()) {
+            $years[] = (int) $row['mfb_year'];
+        }
+        if (count($years) === 0) {
+            $statement = $gDb->queryPrepared('SELECT MAX(mfb_year) FROM ' . BookingStore::bookingsTable()
+                . ' WHERE mfb_org_id = ? AND ' . $scope->sourceSqlCondition(), array((int) $gCurrentOrgId));
+            $last = (int) $statement->fetchColumn();
+            if ($last > 0) {
+                $years[] = $last;
+            }
+        }
+    } catch (\Throwable $e) {
+        $years = array();
+    }
+    if (count($years) === 0) {
+        $years[] = ((int) date('n') <= 6) ? (int) date('Y') - 1 : (int) date('Y');
+    }
+    return implode('/', $years);
 }
 
 /** URL des Menuepunkts "Arbeitsdienst erfassen" (eigenes Recht ueber "Sichtbar für") */
@@ -783,12 +808,17 @@ function getCostPeriod($my_rol_cost_period)
  *         $ret['BEZAHLT_rech'] = Gesamtsumme mit Bezahlt und ohne Kto-Verbindung<br/>
  *         $ret['BEZAHLT_rech_anzahl'] = Anzahl mit Bezahlt und ohne Kto-Verbindung
  */
-function analyse_mem()
+function analyse_mem(?CollectionScope $scope = null)
 {
+    // Buchungskreis: Mitgliedsbeitrag (FEE/PAID) oder Arbeitsdienst (ADFEE/ADPAID)
+    $scope ??= CollectionScope::membership((int) $GLOBALS['gCurrentOrgId']);
+    $feeField = $scope->field(CollectionScope::FIELD_FEE);
+    $paidField = $scope->field(CollectionScope::FIELD_PAID);
+
     $members = list_members(array(
-        'FEE' . $GLOBALS['gCurrentOrgId'],
-        'CONTRIBUTORY_TEXT' . $GLOBALS['gCurrentOrgId'],
-        'PAID' . $GLOBALS['gCurrentOrgId'],
+        $feeField,
+        $scope->field(CollectionScope::FIELD_TEXT),
+        $paidField,
         'IBAN',
         'DEBTOR'
     ), 2); // alle Mitglieder: berechnete Beitraege gelten auch fuer inzwischen ausgetretene Mitglieder
@@ -807,7 +837,7 @@ function analyse_mem()
     // alle Mitglieder durchlaufen und im ersten Schritt alle Mitglieder,
     // bei denen kein Beitrag berechnet wurde, herausfiltern
     foreach ($members as $member => $memberdata) {
-        if (empty($memberdata['FEE' . $GLOBALS['gCurrentOrgId']])) {
+        if (empty($memberdata[$feeField])) {
             unset($members[$member]);
         }
     }
@@ -815,19 +845,19 @@ function analyse_mem()
     // jetzt wird gezaehlt
     foreach ($members as $member => $memberdata) {
         if (! empty($memberdata['IBAN'])) {
-            $ret['BEITRAG_kto'] += $memberdata['FEE' . $GLOBALS['gCurrentOrgId']];
+            $ret['BEITRAG_kto'] += $memberdata[$feeField];
             $ret['BEITRAG_kto_anzahl'] += 1;
         }
-        if ((! empty($memberdata['IBAN'])) && ! empty($memberdata['PAID' . $GLOBALS['gCurrentOrgId']])) {
-            $ret['BEZAHLT_kto'] += $memberdata['FEE' . $GLOBALS['gCurrentOrgId']];
+        if ((! empty($memberdata['IBAN'])) && ! empty($memberdata[$paidField])) {
+            $ret['BEZAHLT_kto'] += $memberdata[$feeField];
             $ret['BEZAHLT_kto_anzahl'] += 1;
         }
         if (empty($memberdata['IBAN'])) {
-            $ret['BEITRAG_rech'] += $memberdata['FEE' . $GLOBALS['gCurrentOrgId']];
+            $ret['BEITRAG_rech'] += $memberdata[$feeField];
             $ret['BEITRAG_rech_anzahl'] += 1;
         }
-        if (empty($memberdata['IBAN']) && ! empty($memberdata['PAID' . $GLOBALS['gCurrentOrgId']])) {
-            $ret['BEZAHLT_rech'] += $memberdata['FEE' . $GLOBALS['gCurrentOrgId']];
+        if (empty($memberdata['IBAN']) && ! empty($memberdata[$paidField])) {
+            $ret['BEZAHLT_rech'] += $memberdata[$feeField];
             $ret['BEZAHLT_rech_anzahl'] += 1;
         }
     }
@@ -1697,21 +1727,9 @@ function getEmailLink($value, $user_uuid, $usf_uuid)
  */
 function getMenuePanel($group, $id, $parentId, $title, $icon, $body)
 {
-    $html = '
-        <div class="card" id="panel_' . $id . '">
-            <div class="card-header">
-                <a type="button" data-bs-toggle="collapse" data-bs-target="#collapse_' . $id . '">
-                    <i class="' . $icon . ' bi-fw"></i>' . $title . '
-                </a>
-            </div>
-            <div id="collapse_' . $id . '" class="collapse" aria-labelledby="headingOne" data-bs-parent="#' . $parentId . '">
-                <div class="card-body">
-                    ' . $body . '
-                </div>
-            </div>
-        </div>
-    ';
-    return $html;
+    // Inhalt fuer die Anzeige rechts neben dem Menue merken (Schluessel wie in mf_menu_groups())
+    $GLOBALS['mfPanels'][$group . '_' . $id] = array('title' => '<i class="' . $icon . ' bi-fw"></i>' . $title, 'body' => $body);
+    return '';
 }
 
 /**
@@ -1755,11 +1773,7 @@ function getMenuePanelFooterOnly()
  */
 function openMenueTab($group, $parentId)
 {
-    $html = '
-        <div class="tab-pane fade" id="tabs-' . $group . '" role="tabpanel">
-            <div class="accordion" id="' . $parentId . '">
-    ';
-    return $html;
+    return '';   // keine Registerkarten mehr, siehe getMenuePanel()
 }
 
 /**
@@ -1770,7 +1784,7 @@ function openMenueTab($group, $parentId)
  */
 function closeMenueTab()
 {
-    return '</div></div>';
+    return '';
 }
 
 /**
@@ -2312,4 +2326,368 @@ function mf_openiban_check(): array
         return strcmp($a['name'], $b['name']);
     });
     return array('rows' => $rows, 'checked' => count($ibanByUser));
+}
+
+/**
+ * Beitragsrollen als Eintraege fuer eine Auswahlliste (nach Rollentyp gruppiert).
+ * @return array<int, array{0:int, 1:string, 2:string}>
+ */
+function mf_contribution_role_select_entries(): array
+{
+    $entries = array();
+    $sortArray = array();
+    foreach (beitragsrollen_einlesen() as $key => $data) {
+        $entries[$key] = array($key, $data['rolle'], expand_rollentyp($data['rollentyp']));
+        $sortArray[$key] = expand_rollentyp($data['rollentyp']);
+    }
+    array_multisort($sortArray, SORT_ASC, $entries);
+    return $entries;
+}
+
+/**
+ * Rollenfilter einer Seite (Neuberechnung, Faelligkeitsdatum, Beitragszahlungen).
+ *
+ * Das Auswahlfeld im Filter der Seite (mf_role_filter_add()) sendet rolefilter=<key> und die gewaehlten Rollen;
+ * die Auswahl wird in der Sitzung gespeichert (leer = alle Beitragsrollen) und die Seite per GET neu geladen,
+ * damit "Zurueck" und "Neu laden" das Formular nicht erneut senden. Ohne Formular gilt die gespeicherte Auswahl.
+ *
+ * @param string $key recalculation | duedates | payments
+ * @return array<int, int>|null gewaehlte rol_id oder null = alle Beitragsrollen
+ */
+function mf_role_filter_selection(string $key): ?array
+{
+    $sessionKey = $key . '_rol_sel';
+    if (($_POST['rolefilter'] ?? '') === $key) {
+        $selected = array();
+        if (isset($_POST[$key . '_roleselection']) && is_array($_POST[$key . '_roleselection'])) {
+            $selected = array_values(array_filter(array_map('intval', $_POST[$key . '_roleselection'])));
+        }
+        if (count($selected) > 0) {
+            $_SESSION['pMembershipFee'][$sessionKey] = $selected;
+        } else {
+            unset($_SESSION['pMembershipFee'][$sessionKey]);
+        }
+        admRedirect(CURRENT_URL);
+        exit();
+    }
+
+    $selected = $_SESSION['pMembershipFee'][$sessionKey] ?? null;
+    return (is_array($selected) && count($selected) > 0) ? array_map('intval', $selected) : null;
+}
+
+/**
+ * Auswahlfeld "Rollenauswahl" im Filter einer Seite (siehe mf_role_filter_selection()).
+ *
+ * Das Feld steht neben den uebrigen Filtern der Seite. Eine Aenderung wird ohne eigenen Button sofort
+ * uebernommen: die Seite wird mit der neuen Auswahl neu geladen (per POST, danach wieder per GET).
+ *
+ * @param HtmlForm $form       Filterformular der Seite (Typ navbar)
+ * @param string   $key        recalculation | duedates | payments (bzw. ad_duedates, ad_payments)
+ * @param string   $helpTextId Hilfetext zur Rollenauswahl
+ */
+function mf_role_filter_add(HtmlForm $form, HtmlPage $page, string $key, string $helpTextId): void
+{
+    global $gL10n, $gCurrentSession;
+
+    $fieldId = $key . '_roleselection';
+    $form->addSelectBox($fieldId, $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_SELECTION'), mf_contribution_role_select_entries(), array(
+        'defaultValue' => mf_role_filter_selection($key) ?? '',
+        'showContextDependentFirstEntry' => false,
+        'helpTextId' => $helpTextId,
+        'multiselect' => true
+    ));
+
+    // Aenderung sofort uebernehmen; kurz warten, solange die Auswahlliste noch offen ist
+    $page->addJavascript('
+        (function () {
+            var select = $("#' . $fieldId . '");
+            // breiter als die uebrigen Filter, damit mehrere Rollen nebeneinander Platz haben (auf dem Handy volle Breite)
+            // eigene Mindestbreite (auch ohne gewaehlte Rolle) und Zeilenumbruch in der Filterleiste statt Zusammendruecken
+            select.next(".select2-container").addClass("mf-rolefilter").css({"width": "100%"});
+            select.closest(".admidio-form-group").css({"flex": "1 1 20rem", "min-width": "min(20rem, 100%)"});
+            select.closest("form").css({"flex-wrap": "wrap", "row-gap": ".5rem"});
+            // Rollen unterhalb der Feldbezeichnung anzeigen und so kompakt, dass das Feld so hoch ist wie die uebrigen Filter
+            if (!document.getElementById("mf-rolefilter-style")) {
+                $("head").append("<style id=\"mf-rolefilter-style\">"
+                    + ".mf-rolefilter .select2-selection--multiple { min-height: calc(3.5rem + 2px) !important; padding: 1.65rem .75rem .4rem !important; }"
+                    + ".mf-rolefilter .select2-selection__rendered { display: flex !important; flex-wrap: wrap; gap: .35rem; margin: 0 !important; padding: 0 !important; }"
+                    + ".mf-rolefilter .select2-selection__choice { margin: 0 !important; padding: .1rem .5rem !important; font-size: .875rem !important; line-height: 1.45 !important; }"
+                    + ".mf-rolefilter .select2-search--inline, .mf-rolefilter .select2-search__field { margin: 0 !important; height: 1.5rem !important; line-height: 1.5rem !important; }"
+                    + "</style>");
+            }
+            var initial = JSON.stringify(select.val() || []);
+            var timer = null;
+            function applyRoleFilter() {
+                if (JSON.stringify(select.val() || []) === initial) {
+                    return;
+                }
+                var form = $("<form method=\"post\"></form>").attr("action", window.location.href);
+                form.append($("<input type=\"hidden\" name=\"rolefilter\">").val(' . json_encode($key) . '));
+                form.append($("<input type=\"hidden\" name=\"adm_csrf_token\">").val(' . json_encode($gCurrentSession->getCsrfToken()) . '));
+                $.each(select.val() || [], function (i, value) {
+                    form.append($("<input type=\"hidden\" name=\"' . $fieldId . '[]\">").val(value));
+                });
+                $("body").append(form);
+                form.trigger("submit");
+            }
+            function schedule() {
+                clearTimeout(timer);
+                timer = setTimeout(function () {
+                    var plugin = select.data("select2");
+                    if (plugin && plugin.isOpen()) {
+                        return;
+                    }
+                    applyRoleFilter();
+                }, 400);
+            }
+            select.on("change", schedule);
+            select.on("select2:close", schedule);
+        })();', true);
+}
+
+/**
+ * Menue des Plugins (linke Spalte auf allen Seiten, siehe classes/Ui/SidebarPage.php).
+ *
+ * Gruppen wie die frueheren Registerkarten; je Eintrag:
+ *  - key    eindeutiger Schluessel (Gruppe_Panel), zugleich Parameter show= der Hauptseite
+ *  - title  Bezeichnung mit Schrittnummer
+ *  - icon   Bootstrap-Icon
+ *  - url    Ziel: eigene Seite (Liste usw.) oder membership_fee.php?show=<key> (Inhalt auf der Hauptseite)
+ *  - script / collection  zum Markieren des aktiven Eintrags auf den eigenen Seiten
+ *
+ * @return array<int, array{label:string, entries:array<int, array{key:string, title:string, icon:string, url:string, script:string, collection:string}>}>
+ */
+function mf_menu_groups(): array
+{
+    global $gL10n, $gSettingsManager, $gCurrentUser;
+
+    $pPreferences = new ConfigTable();
+    $pPreferences->read();
+    $mf = \Plugins\MembershipFee\classes\Bookings\CollectionScope::MEMBERSHIP;
+    $ad = \Plugins\MembershipFee\classes\Bookings\CollectionScope::WORK;
+
+    $page = static function (string $key, string $title, string $icon, string $script, string $collection = ''): array {
+        // menu=1: Aufruf aus dem Menue, die Brotkrumen beginnen wieder bei "Mitgliedsbeitrag" (siehe mf_page_headline())
+        $params = array_merge($collection !== '' ? array('collection' => $collection) : array(), array('menu' => 1));
+        return array(
+            'key' => $key, 'title' => $title, 'icon' => $icon, 'script' => $script, 'collection' => $collection,
+            'url' => SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/' . $script, $params)
+        );
+    };
+    $main = static function (string $key, string $title, string $icon): array {
+        return array(
+            'key' => $key, 'title' => $title, 'icon' => $icon, 'script' => 'membership_fee.php', 'collection' => '',
+            'url' => SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', array('show' => $key))
+        );
+    };
+
+    $groups = array();
+
+    // Schrittnummern wie 1.0, 1.1, 2.0 (Hauptschritt.Unterschritt)
+    $num = static fn (int $major, int $minor): string => $major . '.' . $minor . ' ';
+
+    // Beitragsberechnung (Schritt 1 im Buchungskreis Mitgliedsbeitrag)
+    $minor = 0;
+    $entries = array();
+    if (in_array(1, (array) ($pPreferences->config['tests_enable'] ?? array()))) {
+        $entries[] = $page('fees_tests', $num(1, $minor++) . $gL10n->get('PLG_MEMBERSHIPFEE_TESTS'), 'bi-heart-pulse', 'tests.php', $mf);
+    }
+    $entries[] = $page('fees_recalculation', $num(1, $minor++) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_CALCULATE'), 'bi-calculator', 'recalculation.php', $mf);
+    if (!empty($pPreferences->config['individual_contributions']['access_to_module'])) {
+        $entries[] = $page('fees_individualcontributions', $num(1, $minor++) . $gL10n->get('PLG_MEMBERSHIPFEE_INDIVIDUAL_CONTRIBUTIONS'), 'bi-house-gear', 'individualcontributions.php', $mf);
+    }
+    $groups[] = array('label' => $gL10n->get('PLG_MEMBERSHIPFEE_MENU_GROUP_FEE_CALC'), 'entries' => $entries);
+
+    // Arbeitsdienstberechnung (Schritt 1 im Buchungskreis Arbeitsdienst)
+    $groups[] = array('label' => $gL10n->get('PLG_MEMBERSHIPFEE_MENU_GROUP_WORK'), 'entries' => array(
+        $page('workservice_worktargets', $num(1, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TARGETS'), 'bi-bullseye', 'work_targets.php', $ad),
+        $page('workservice_workinput', $num(1, 1) . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_INPUT'), 'bi-pencil-square', 'work_input.php', $ad),
+        $page('workservice_workbilling', $num(1, 2) . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING'), 'bi-receipt', 'work_billing.php', $ad)
+    ));
+
+    // Einzug (Schritte 2 bis 8, gemeinsam fuer Mitgliedsbeitrag und Arbeitsdienst). Ohne collection-Parameter
+    // gilt der zuletzt gewaehlte Buchungskreis; 'switch' blendet auf der Seite die Umschaltung ein.
+    $shared = static function (array $entry, bool $switch = true): array {
+        $entry['switch'] = $switch;
+        return $entry;
+    };
+    $groups[] = array('label' => $gL10n->get('PLG_MEMBERSHIPFEE_MENU_GROUP_COLLECTION'), 'entries' => array(
+        $shared($page('collection_duedates', $num(2, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_DUEDATE'), 'bi-calendar-check', 'duedates.php')),
+        $shared($page('collection_prenotification', $num(3, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'), 'bi-envelope-paper', 'pre_notification.php')),
+        $shared($main('collection_sepa', $num(4, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_SEPA'), 'bi-filetype-xml')),
+        $shared($page('collection_bill', $num(4, 1) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_BILL'), 'bi-file-earmark-spreadsheet', 'bill.php')),
+        $shared($page('collection_runs', $num(5, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_DIRECT_DEBIT'), 'bi-bank', 'runs.php'), false),
+        $shared($page('collection_payments', $num(5, 1) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_MANUAL_PAYMENTS'), 'bi-cash-coin', 'payments.php')),
+        $shared($page('collection_analysis', $num(6, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ANALYSIS'), 'bi-bar-chart', 'analysis.php')),
+        $shared($page('collection_roleoverview', $num(7, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_OVERVIEW'), 'bi-list-columns-reverse', 'roleoverview.php'), false),
+        $shared($page('collection_bookingoverview', $num(8, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_OVERVIEW'), 'bi-clock-history', 'booking_overview.php'))
+    ));
+
+    // Mandatsverwaltung
+    $groups[] = array('label' => $gL10n->get('PLG_MEMBERSHIPFEE_MANDATE_MANAGEMENT'), 'entries' => array(
+        $main('mandatemanagement_createmandateid', $gL10n->get('PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID'), 'bi-list-ol'),
+        $page('mandatemanagement_mandates', $gL10n->get('PLG_MEMBERSHIPFEE_MANDATE_EDIT'), 'bi-pen', 'mandates.php', $mf)
+    ));
+
+    // Einstellungen
+    if (isUserAuthorizedForPreferences()) {
+        $entries = array();
+        $preferences = array(
+            'contributionsettings' => array('PLG_MEMBERSHIPFEE_CONTRIBUTION_SETTINGS', 'bi-database-gear'),
+            'advancedroleediting' => array('PLG_MEMBERSHIPFEE_ADVANCED_ROLE_EDITING', 'bi-person-gear'),
+            'individualcontributions' => array('PLG_MEMBERSHIPFEE_INDIVIDUAL_CONTRIBUTIONS', 'bi-house-gear'),
+            'contributiongroups' => array('PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUPS', 'bi-diagram-3'),
+            'workservice' => array('PLG_MEMBERSHIPFEE_WORK_SETTINGS', 'bi-tools'),
+            'manualtemplates' => array('PLG_MEMBERSHIPFEE_MANUAL_TEMPLATES', 'bi-receipt'),
+            'profileaddin' => array('PLG_MEMBERSHIPFEE_PROFILE_ADDIN', 'bi-person-vcard'),
+            'accountdata' => array('PLG_MEMBERSHIPFEE_ACCOUNT_DATA', 'bi-bank'),
+            'mandatemanagement' => array('PLG_MEMBERSHIPFEE_MANDATE_MANAGEMENT', 'bi-sliders2'),
+            'columnset' => array('PLG_MEMBERSHIPFEE_VIEW_DEFINITIONS', 'bi-eyeglasses'),
+            'export' => array('PLG_MEMBERSHIPFEE_EXPORT', 'bi-download'),
+            'email_notifications' => array('PLG_MEMBERSHIPFEE_EMAIL_NOTIFICATIONS', 'bi-envelope'),
+            'testssetup' => array('PLG_MEMBERSHIPFEE_TESTS', 'bi-heart-pulse'),
+            'access_preferences' => array('PLG_MEMBERSHIPFEE_ACCESS_PREFERENCES', 'bi-key-fill'),
+            'delete' => array('PLG_MEMBERSHIPFEE_RESET', 'bi-trash'),
+            'uninstallation' => array('PLG_MEMBERSHIPFEE_UNINSTALLATION', 'bi-trash'),
+            'plugin_informations' => array('PLG_MEMBERSHIPFEE_PLUGIN_INFORMATION', 'bi-info-circle')
+        );
+        foreach ($preferences as $id => $definition) {
+            if ($id === 'profileaddin' && !$gCurrentUser->isAdministrator()) {
+                continue;
+            }
+            $entries[] = $main('preferences_' . $id, $gL10n->get($definition[0]), $definition[1]);
+        }
+        $groups[] = array('label' => $gL10n->get('SYS_SETTINGS'), 'entries' => $entries);
+    }
+
+    // Dokumentation (nur deutsch)
+    if (in_array($gSettingsManager->getString('system_language'), array('de', 'de-DE'), true)
+        && is_file(__DIR__ . '/../docs/documentation-de.html')) {
+        $groups[] = array('label' => $gL10n->get('PLG_MEMBERSHIPFEE_DOCUMENTATION'), 'entries' => array(
+            $main('documentation', $gL10n->get('PLG_MEMBERSHIPFEE_DOCUMENTATION'), 'bi-book')
+        ));
+    }
+
+    return $groups;
+}
+
+/**
+ * Aktiver Menueeintrag einer eigenen Seite: nach Dateiname und Buchungskreis (bei duedates.php usw.).
+ */
+function mf_menu_active_key(array $groups): string
+{
+    $script = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    // Folgeseiten eines Eintrags der Hauptseite
+    $aliases = array('create_mandate_id.php' => 'mandatemanagement_createmandateid');
+    if (isset($aliases[$script])) {
+        return $aliases[$script];
+    }
+    $collection = (string) ($_SESSION['pMembershipFee']['collection'] ?? \Plugins\MembershipFee\classes\Bookings\CollectionScope::MEMBERSHIP);
+    $fallback = '';
+    foreach ($groups as $group) {
+        foreach ($group['entries'] as $entry) {
+            if ($entry['script'] !== $script) {
+                continue;
+            }
+            if ($entry['collection'] === '' || $entry['collection'] === $collection) {
+                return $entry['key'];
+            }
+            $fallback = $fallback !== '' ? $fallback : $entry['key'];
+        }
+    }
+    return $fallback;
+}
+
+/**
+ * Seitenaufbau wie bei den Admidio-Einstellungen (Vorlage preferences/preferences.tpl): links die gruppierten
+ * Menueeintraege als senkrechte Registerkarten, rechts der Inhalt der Seite. Auf kleinen Bildschirmen steht
+ * das Menue zugeklappt ueber dem Inhalt.
+ */
+function mf_layout_html(array $groups, string $activeKey, string $content): string
+{
+    global $gL10n;
+
+    $activeTitle = '';
+    $items = '';
+    foreach ($groups as $group) {
+        $items .= '<li class="list-group-item group-heading" role="presentation"><h5 class="mb-0">' . SecurityUtils::encodeHTML($group['label']) . '</h5></li>';
+        $count = count($group['entries']);
+        foreach ($group['entries'] as $i => $entry) {
+            $active = $entry['key'] === $activeKey;
+            if ($active) {
+                $activeTitle = $entry['title'];
+            }
+            $items .= '<li class="list-group-item nav-item' . ($i === $count - 1 ? ' group-last' : '') . '" role="presentation">'
+                . '<a class="nav-link text-start' . ($active ? ' active' : '') . '" href="' . $entry['url'] . '"' . ($active ? ' aria-current="page"' : '') . '>'
+                . '<i class="bi ' . $entry['icon'] . ' me-1"></i>' . SecurityUtils::encodeHTML($entry['title']) . '</a></li>';
+        }
+    }
+
+    return '<button class="btn btn-secondary w-100 mb-3 d-md-none text-start" type="button" data-bs-toggle="collapse" data-bs-target="#mf_menu" aria-expanded="false" aria-controls="mf_menu">'
+        . '<i class="bi bi-list me-1"></i>' . $gL10n->get('SYS_MENU') . ($activeTitle !== '' ? ': ' . SecurityUtils::encodeHTML($activeTitle) : '') . '</button>'
+        . '<div class="tabs-x tabs-left tab-bordered mf-tabs" data-max-title-length="-1">'
+        . '<ul id="mf_menu" class="nav nav-tabs flex-column list-group admidio-preferences-group collapse d-md-flex">' . $items . '</ul>'
+        . '<div class="tab-content mf-tab-content">' . $content . '</div>'
+        . '</div>';
+}
+
+/**
+ * Umschaltung des Buchungskreises auf den gemeinsamen Einzugsseiten (Faelligkeit, Vorabinformation, SEPA-Datei,
+ * Rechnungen, Beitragszahlungen, Buchungsuebersicht): verlinkt dieselbe Seite mit collection=mf bzw. collection=ad.
+ */
+function mf_collection_switch_html(): string
+{
+    global $gL10n;
+
+    $current = mf_collection_scope()->key();
+    $params = array();
+    foreach ($_GET as $name => $value) {
+        if (is_string($value) && $name !== 'collection') {
+            $params[$name] = $value;
+        }
+    }
+    $script = ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/' . basename((string) ($_SERVER['SCRIPT_NAME'] ?? 'membership_fee.php'));
+
+    $html = '<div class="d-flex flex-wrap align-items-center gap-2 mb-3"><span class="text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_COLLECTION_SCOPE') . ':</span>'
+        . '<div class="btn-group" role="group">';
+    $buttons = array(
+        CollectionScope::MEMBERSHIP => array('PLG_MEMBERSHIPFEE_SCOPE_MF', 'bi-currency-euro'),
+        CollectionScope::WORK => array('PLG_MEMBERSHIPFEE_SCOPE_AD', 'bi-tools')
+    );
+    foreach ($buttons as $key => [$label, $icon]) {
+        $active = $key === $current;
+        $html .= '<a class="btn px-3 ' . ($active ? 'btn-primary' : 'btn-outline-primary') . '"' . ($active ? ' aria-current="true"' : '')
+            . ' href="' . SecurityUtils::encodeUrl($script, array_merge($params, array('collection' => $key))) . '">'
+            . '<i class="bi ' . $icon . '"></i> ' . $gL10n->get($label)
+            . ' <span class="badge ' . ($active ? 'bg-light text-primary' : 'bg-primary') . ' ms-1">' . mf_collection_year_label(CollectionScope::fromKey($key, (int) $GLOBALS['gCurrentOrgId'])) . '</span></a>';
+    }
+    return $html . '</div></div>';
+}
+
+/**
+ * Seitentitel einer Seite aus dem Menue: Nummer und Bezeichnung des aktiven Menueeintrags
+ * (z. B. "1.1 Beitraege berechnen"), damit Titel, Brotkrumen und Menue uebereinstimmen.
+ * Ohne Zugriff auf das Menue (z. B. Arbeitsdienstleiter) oder ohne passenden Eintrag gilt $default.
+ */
+function mf_page_headline(string $default): string
+{
+    global $gNavigation, $gL10n;
+
+    if (!isUserAuthorized()) {
+        return $default;
+    }
+    // aus dem Menue aufgerufen: Navigation neu beginnen, damit die Brotkrumen "Mitgliedsbeitrag / <Seite>" lauten
+    if (($_GET['menu'] ?? '') === '1' && isset($gNavigation)) {
+        $gNavigation->addStartUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', $gL10n->get('PLG_MEMBERSHIPFEE_MEMBERSHIP_FEE'), 'bi-currency-euro');
+    }
+    $groups = mf_menu_groups();
+    $key = mf_menu_active_key($groups);
+    foreach ($groups as $group) {
+        foreach ($group['entries'] as $entry) {
+            if ($entry['key'] === $key) {
+                return $entry['title'];
+            }
+        }
+    }
+    return $default;
 }

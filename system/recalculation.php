@@ -57,7 +57,7 @@ $bookingService = new BookingService($pPreferences->config);
 $user = new User($gDb, $gProfileFields);
 
 // set headline of the script
-$headline = $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION');
+$headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION'));
 
 $gNavigation->addUrl(CURRENT_URL, $headline);
 
@@ -100,6 +100,67 @@ function describePlan(array $plan): string
 }
 
 /**
+ * Rollenuebersicht der faellig werdenden Beitraege: je Rolle neue Positionen (Anzahl, Betrag) und
+ * Aenderungen bestehender offener Positionen (geaendert/entfallen), mit Gesamtsumme.
+ *
+ * @param array<int, array<string, mixed>> $changes je Mitglied der Plan (siehe planRecalculation())
+ */
+function recalculationRoleSummary(array $changes): string
+{
+    global $gL10n;
+
+    $roles = array();
+    foreach ($changes as $data) {
+        foreach ($data['plan']['ops'] as $op) {
+            $role = (string) ($op['op'] === 'delete' ? $op['before']['mfb_rol_name'] : $op['data']['mfb_rol_name']);
+            $roles[$role] ??= array('count' => 0, 'new' => 0.0, 'changed' => 0.0);
+            if ($op['op'] === 'insert') {
+                $roles[$role]['count']++;
+                $roles[$role]['new'] += (float) $op['data']['mfb_amount'];
+            } elseif ($op['op'] === 'update') {
+                $roles[$role]['changed'] += (float) $op['data']['mfb_amount'] - (float) $op['before']['mfb_amount'];
+            } elseif ($op['op'] === 'delete') {
+                $roles[$role]['changed'] -= (float) $op['before']['mfb_amount'];
+            }
+        }
+    }
+    if (count($roles) === 0) {
+        return '';
+    }
+    ksort($roles, SORT_NATURAL | SORT_FLAG_CASE);
+
+    // Darstellung wie die Zusammenfassung der Vorabinformation (pre_notification.php)
+    $showChanged = count(array_filter($roles, static fn (array $r): bool => abs($r['changed']) >= 0.005)) > 0;
+    $html = '<div class="card admidio-blog mb-4"><div class="card-header">' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_ROLE_SUMMARY')
+        . ' (' . count($changes) . ' Mitglieder)</div><div class="card-body p-0"><div class="table-responsive mb-0">'
+        . '<table class="table table-sm table-striped mb-0"><thead><tr>'
+        . '<th>' . $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ROLE_LABEL') . '</th>'
+        . '<th class="text-end">' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_SUMMARY_COUNT2') . '</th>'
+        . ($showChanged ? '<th class="text-end">' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_SUMMARY_NEW') . '</th>'
+            . '<th class="text-end">' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_SUMMARY_CHANGED') . '</th>' : '')
+        . '<th class="text-end">' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_SUMMARY_SUM') . '</th>'
+        . '</tr></thead><tbody>';
+    $total = array('count' => 0, 'new' => 0.0, 'changed' => 0.0);
+    foreach ($roles as $role => $r) {
+        $html .= '<tr><td>' . SecurityUtils::encodeHTML($role) . '</td>'
+            . '<td class="text-end">' . $r['count'] . '</td>'
+            . ($showChanged ? '<td class="text-end text-nowrap">' . mf_format_amount($r['new']) . '</td>'
+                . '<td class="text-end text-nowrap">' . (abs($r['changed']) >= 0.005 ? mf_format_amount($r['changed']) : '&ndash;') . '</td>' : '')
+            . '<td class="text-end text-nowrap">' . mf_format_amount($r['new'] + $r['changed']) . '</td></tr>';
+        $total['count'] += $r['count'];
+        $total['new'] += $r['new'];
+        $total['changed'] += $r['changed'];
+    }
+    $html .= '</tbody><tfoot><tr class="fw-bold"><td>' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_SUMMARY_TOTAL') . '</td>'
+        . '<td class="text-end">' . $total['count'] . '</td>'
+        . ($showChanged ? '<td class="text-end text-nowrap">' . mf_format_amount($total['new']) . '</td>'
+            . '<td class="text-end text-nowrap">' . mf_format_amount($total['changed']) . '</td>' : '')
+        . '<td class="text-end text-nowrap">' . mf_format_amount($total['new'] + $total['changed']) . '</td></tr></tfoot>'
+        . '</table></div></div></div>';
+    return $html;
+}
+
+/**
  * Berechnet den Beitrag nach Ausfuehrung des Plans (Summe der offenen Positionen).
  *
  * @param array<int, array<string, mixed>> $positions
@@ -132,19 +193,15 @@ if ($getMode == 'preview') // Default
     $message = '';
     $selectedRoleIds = null;
 
-    // pruefen, ob Eintraege in der Rollenauswahl bestehen
-    if (isset($_POST['recalculation_roleselection']) && is_array($_POST['recalculation_roleselection'])) {
-        $_SESSION['pMembershipFee']['recalculation_rol_sel'] = $_POST['recalculation_roleselection'];
-        $selectedRoleIds = array_map('intval', $_POST['recalculation_roleselection']);
-
+    // Rollenfilter der Seite (Formular oben auf der Seite, Auswahl bleibt in der Sitzung)
+    $selectedRoleIds = mf_role_filter_selection('recalculation');
+    if ($selectedRoleIds !== null) {
         $message .= '<strong>' . $gL10n->get('SYS_NOTE') . ':</strong> ' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_ROLLQUERY_INFO') . '<br/><br/>';
         foreach (beitragsrollen_einlesen() as $rol => $roldata) {
             if (in_array((int) $rol, $selectedRoleIds, true)) {
                 $message .= '- ' . SecurityUtils::encodeHTML($roldata['rolle']) . '<br/>';
             }
         }
-    } else {
-        unset($_SESSION['pMembershipFee']['recalculation_rol_sel']);
     }
 
     $plans = $bookingService->planRecalculation($selectedRoleIds);
@@ -183,12 +240,17 @@ if ($getMode == 'preview') // Default
     // save plan in session (for mode write and mode print)
     $_SESSION['pMembershipFee']['recalculation_plan'] = $changes;
 
-    $page = new HtmlPage('plg-mitgliedsbeitrag-recalculation-preview', $headline);
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-recalculation-preview', $headline);
     $page->setContentFullWidth();
 
     $page->addHtml('<p>' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_YEAR_INFO', array(getContributionYear())) . '</p>');
+    $filterForm = new HtmlForm('recalculation_filter_form', '', $page, array('type' => 'navbar', 'setFocus' => false));
+    mf_role_filter_add($filterForm, $page, 'recalculation', 'PLG_MEMBERSHIPFEE_RECALCULATION_ROLLQUERY_DESC');
+    $page->addHtml($filterForm->show(false));
 
     if (count($changes) > 0) {
+        $page->addHtml(recalculationRoleSummary($changes));
+
         $table = new HtmlTable('table_new_recalculation', $page, true, true, 'table table-condensed');
         $table->setDatatablesRowsPerPage($gSettingsManager->getInt('groups_roles_members_per_page'));
         $table->setColumnAlignByArray(array('left', 'left', 'left', 'right', 'right', 'center'));
@@ -218,7 +280,7 @@ if ($getMode == 'preview') // Default
         $formTop = new HtmlForm('recalculation_preview_form_top', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/recalculation.php', array(
             'mode' => 'write'
         )), $page);
-        $formTop->addSubmitButton('btn_next_page_top', $gL10n->get('SYS_SAVE'), array(
+        $formTop->addSubmitButton('btn_next_page_top', $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_POST'), array(
             'icon' => 'bi-check-lg',
             'class' => 'btn btn-primary'
         ));
@@ -230,7 +292,7 @@ if ($getMode == 'preview') // Default
         $form = new HtmlForm('recalculation_preview_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/recalculation.php', array(
             'mode' => 'write'
         )), $page);
-        $form->addSubmitButton('btn_next_page', $gL10n->get('SYS_SAVE'), array(
+        $form->addSubmitButton('btn_next_page', $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_POST'), array(
             'icon' => 'bi-check-lg',
             'class' => 'btn btn-primary'
         ));
@@ -257,7 +319,7 @@ if ($getMode == 'preview') // Default
         // => EXIT
     }
 
-    $page = new HtmlPage('plg-mitgliedsbeitrag-recalculation-write', $headline);
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-recalculation-write', $headline);
     $page->setContentFullWidth();
 
     $page->addPageFunctionsMenuItem('menu_item_print_view', $gL10n->get('SYS_PRINT_PREVIEW'), 'javascript:void(0);', 'bi-printer');

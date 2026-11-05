@@ -137,9 +137,9 @@ try {
     // ------------------------------------------------------------------
     // Vorschau
     // ------------------------------------------------------------------
-    $headline = $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING');
+    $headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING'));
     $gNavigation->addUrl(CURRENT_URL, $headline);
-    $page = new HtmlPage('plg-mitgliedsbeitrag-work-billing', $headline);
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-work-billing', $headline);
     $page->setContentFullWidth();
 
     $nextUrl = SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/duedates.php', array('collection' => CollectionScope::WORK));
@@ -165,9 +165,6 @@ try {
     }
     $page->addHtml('<p>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_YEAR') . ': ' . implode(' ', $yearLinks)
         . '<br/><small class="text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING_DESC', array($getYear)) . '</small></p>');
-    if ($getYear >= (int) date('Y')) {
-        $page->addHtml('<div class="alert alert-warning" role="alert"><i class="bi bi-exclamation-triangle"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING_EARLY', array($getYear)) . '</div>');
-    }
 
     $plans = $buildPlans($getYear);
     $stats = array('changes' => 0, 'open' => 0.0, 'billed' => 0.0, 'members' => 0);

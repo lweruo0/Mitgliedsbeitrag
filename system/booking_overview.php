@@ -46,6 +46,8 @@ try {
         'method' => $getMethod,
         'rol_name' => $getRoleName
     ));
+    // nur Positionen des gewaehlten Buchungskreises (Umschaltung Mitgliedsbeitrag/Arbeitsdienst ueber der Liste)
+    $bookings = array_values(mf_collection_scope()->filterPositions($bookings));
 
     // Namen der Mitglieder
     $names = array();
@@ -154,10 +156,10 @@ try {
     // ------------------------------------------------------------------
     // HTML
     // ------------------------------------------------------------------
-    $headline = $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_OVERVIEW');
+    $headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_OVERVIEW'));
     $gNavigation->addUrl(CURRENT_URL, $headline);
 
-    $page = new HtmlPage('plg-mitgliedsbeitrag-booking-overview', $headline);
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-booking-overview', $headline);
     $page->setContentFullWidth();
 
     $filterParams = array('year' => $getYear, 'status' => $getStatus, 'method' => $getMethod, 'rol_name' => $getRoleName, 'name' => $getName);

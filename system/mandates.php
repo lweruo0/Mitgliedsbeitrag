@@ -136,11 +136,11 @@ else
     $membersList = list_members($membersListFields, 0, $membersListSqlCondition);
 
     // set headline of the script
-    $headline = $gL10n->get('PLG_MEMBERSHIPFEE_MANDATES');
+    $headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_MANDATES'));
 
     $gNavigation->addUrl(CURRENT_URL, $headline);
 
-    $page = new HtmlPage('plg-mitgliedsbeitrag-mandates', $headline);
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-mandates', $headline);
     $page->setContentFullWidth(); 
     
     $javascriptCode = '

@@ -168,7 +168,7 @@ try {
         $shareSettings = $bookingService->getShareSettings();
         $headline = $gL10n->get('PLG_MEMBERSHIPFEE_SHARE_FILE');
         $gNavigation->addUrl(CURRENT_URL, $headline);
-        $page = new HtmlPage('plg-mitgliedsbeitrag-run-share', $headline . ' - ' . $run['mfr_file_name']);
+        $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-run-share', $headline . ' - ' . $run['mfr_file_name']);
 
         $form = new HtmlForm('run_share_form', SecurityUtils::encodeUrl($selfUrl, array('run_id' => $getRunId, 'mode' => 'share_send')), $page);
         $form->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_SHARE_DESC'));
@@ -192,13 +192,13 @@ try {
     // ------------------------------------------------------------------
     // Anzeige
     // ------------------------------------------------------------------
-    $headline = $gL10n->get('PLG_MEMBERSHIPFEE_RUNS');
-    if ($run !== null) {
-        $headline .= ' - ' . $run['mfr_file_name'];
-    }
+    // Liste: Titel wie im Menue (5.0 Beitragseinzug); einzelner Einzug: Einzugsuebersicht der Datei
+    $headline = $run !== null
+        ? $gL10n->get('PLG_MEMBERSHIPFEE_RUN_OPEN') . ' - ' . $run['mfr_file_name']
+        : mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_RUNS'));
     $gNavigation->addUrl(CURRENT_URL, $headline);
 
-    $page = new HtmlPage('plg-mitgliedsbeitrag-runs', $headline);
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-runs', $headline);
     $page->setContentFullWidth();
 
     if (isset($_SESSION['pMembershipFee']['booking_message'])) {
@@ -267,8 +267,9 @@ try {
                     (int) $row['mfr_count'],
                     mf_format_amount($row['mfr_amount']),
                     $status,
-                    '<a class="btn btn-sm btn-secondary" href="' . $detailUrl . '">'
-                        . ($row['mfr_status'] === BookingStore::RUN_CREATED ? $gL10n->get('PLG_MEMBERSHIPFEE_RUN_COLLECT') : $gL10n->get('PLG_MEMBERSHIPFEE_RUN_SHOW_POSITIONS')) . '</a>'
+                    // ein Button fuer alle Einzuege: oeffnet die Einzugsuebersicht (Positionen, Teilen, als eingezogen markieren)
+                    '<a class="btn btn-sm btn-secondary text-nowrap" href="' . $detailUrl . '"><i class="bi bi-list-check"></i> '
+                        . $gL10n->get('PLG_MEMBERSHIPFEE_RUN_OPEN') . '</a>'
                 )));
             }
             $page->addHtml($table->show(false));
@@ -277,8 +278,7 @@ try {
         exit();
     }
 
-    // Detail eines Einzugs
-    $page->addPageFunctionsMenuItem('menu_item_runs', $gL10n->get('PLG_MEMBERSHIPFEE_RUNS'), $selfUrl, 'bi-bank');
+    // Detail eines Einzugs (zurueck zur Liste ueber das Menue "5.0 Beitragseinzug" oder die Brotkrumen)
 
     $page->addHtml('<p>' . $gL10n->get('PLG_MEMBERSHIPFEE_RUN_DUEDATES') . ': <strong>' . SecurityUtils::encodeHTML((string) $run['mfr_due_dates']) . '</strong> &middot; '
         . $gL10n->get('PLG_MEMBERSHIPFEE_NUMBER_TRANSACTIONS') . ': <strong>' . (int) $run['mfr_count'] . '</strong> &middot; '
@@ -399,7 +399,12 @@ try {
         </tr>';
     }
 
-    $tableHtml = '<div class="table-responsive"><table class="table table-condensed table-hover"><thead><tr>
+    // Suchfeld ueber der Tabelle: blendet nicht passende Zeilen nur aus (Haken ausgeblendeter Zeilen bleiben erhalten)
+    $tableHtml = '<div class="d-flex justify-content-end align-items-center gap-2 mb-2">'
+        . '<label for="pmb_run_search" class="mb-0">' . $gL10n->get('PLG_MEMBERSHIPFEE_SEARCH') . ':</label>'
+        . '<input type="search" id="pmb_run_search" class="form-control form-control-sm" style="width: auto; min-width: 12rem;" placeholder="' . $gL10n->get('PLG_MEMBERSHIPFEE_SEARCH_PLACEHOLDER') . '" autocomplete="off" />'
+        . '<small id="pmb_run_search_info" class="text-muted text-nowrap"></small></div>'
+        . '<div class="table-responsive"><table id="pmb_run_positions" class="table table-condensed table-hover"><thead><tr>
         <th>' . ($hasExported ? '<input type="checkbox" class="form-check-input" id="pmb_collect_all" checked="checked" title="' . $gL10n->get('SYS_ALL') . '" />' : '') . '</th>
         <th>' . $gL10n->get('SYS_NAME') . '</th>
         <th>' . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_ROLE') . '</th>
@@ -409,10 +414,27 @@ try {
         <th>' . $gL10n->get('PLG_MEMBERSHIPFEE_STATUS') . '</th>
         </tr></thead><tbody>' . $rowsHtml . '</tbody></table></div>';
 
+    $page->addJavascript('
+        $("#pmb_run_search").on("input", function() {
+            var needle = $(this).val().toLowerCase().trim();
+            var rows = $("#pmb_run_positions tbody tr");
+            var shown = 0;
+            rows.each(function() {
+                var match = needle === "" || $(this).text().toLowerCase().indexOf(needle) !== -1;
+                $(this).toggle(match);
+                if (match) { shown++; }
+            });
+            $("#pmb_run_search_info").text(needle === "" ? "" : shown + " / " + rows.length);
+        }).on("keydown", function(event) {
+            // Enter im Suchfeld darf das Formular (als eingezogen markieren) nicht absenden
+            if (event.key === "Enter") { event.preventDefault(); }
+        });', true);
+
     if ($hasExported) {
         $page->addJavascript('
+            // "Alle" wirkt nur auf die angezeigten Zeilen (Suche beachten)
             $("#pmb_collect_all").change(function() {
-                $("input.pmb-collect").prop("checked", $(this).prop("checked"));
+                $("#pmb_run_positions tbody tr:visible input.pmb-collect").prop("checked", $(this).prop("checked"));
             });', true);
 
         // „Als eingezogen markieren“ und „Einzug verwerfen“ nebeneinander, oberhalb und unterhalb der Liste.

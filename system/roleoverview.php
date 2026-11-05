@@ -32,10 +32,10 @@ $pPreferences->read();
 
 $role = new Role($gDb);
 
-$headline = $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_OVERVIEW');
+$headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_ROLE_OVERVIEW'));
 $gNavigation->addUrl(CURRENT_URL, $headline);
 
-$page = new HtmlPage('plg-mitgliedsbeitrag-eoleoverview', $headline);
+$page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-eoleoverview', $headline);
   
 $datatable = true;
 $hoverRows = true;

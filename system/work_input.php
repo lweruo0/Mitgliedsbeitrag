@@ -142,9 +142,9 @@ try {
     // ------------------------------------------------------------------
     // Anzeige
     // ------------------------------------------------------------------
-    $headline = $gL10n->get('PLG_MEMBERSHIPFEE_WORK_INPUT');
+    $headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_WORK_INPUT'));
     $gNavigation->addUrl(CURRENT_URL, $headline);
-    $page = new HtmlPage('plg-mitgliedsbeitrag-work-input', $headline);
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-work-input', $headline);
     $page->setContentFullWidth();
 
     if (!empty($_SESSION['pMembershipFee']['work_message'])) {

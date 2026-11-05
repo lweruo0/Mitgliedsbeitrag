@@ -71,21 +71,16 @@ if ($paidDate === '') {
     $paidDate = $getDatumNeu;
 }
 
-// write role selection in session
-if (strpos($gNavigation->getUrl(), 'membership_fee.php') !== false)
+// vom Hauptmenue oder mit geaendertem Rollenfilter: Auswahl der Mitglieder zuruecksetzen
+if (strpos($gNavigation->getUrl(), 'membership_fee.php') !== false || in_array($_POST['rolefilter'] ?? '', array('payments', 'ad_payments'), true))
 {
     $_SESSION['pMembershipFee']['checkedArray'] = array();
     $_SESSION['pMembershipFee']['selectAll'] = true;
-    
-	if (isset($_POST['payments_roleselection']) )
-	{
-		$_SESSION['pMembershipFee']['payments_rol_sel'] = $_POST['payments_roleselection'];
-	}
-	else
-	{
-		unset($_SESSION['pMembershipFee']['payments_rol_sel']);
-	}
 }
+
+// Rollenfilter der Seite (Formular oben auf der Seite, Auswahl bleibt in der Sitzung, getrennt je Buchungskreis)
+$roleFilterKey = $mfScope->isMembership() ? 'payments' : 'ad_payments';
+$roleFilter = mf_role_filter_selection($roleFilterKey);
 
 // Seite direkt (z. B. per Lesezeichen oder nach Sitzungsablauf) aufgerufen: Auswahl initialisieren
 if (!isset($_SESSION['pMembershipFee']['checkedArray']) || !is_array($_SESSION['pMembershipFee']['checkedArray'])) {
@@ -174,12 +169,12 @@ else
 {
     $membersList = array();
   
-    if (isset($_SESSION['pMembershipFee']['payments_rol_sel']) )
+    if ($roleFilter !== null)
     {
     	// Rollenwahl ist vorhanden, deshalb Daten aufbereiten fuer list_members
     	$membersListRols = array();
     	$role = new Role($gDb);
-    	foreach ($_SESSION['pMembershipFee']['payments_rol_sel']as $rol_id)
+    	foreach ($roleFilter as $rol_id)
     	{
     		$role->readDataById($rol_id);
     		$membersListRols[$role->getValue('rol_name')] = 0;
@@ -291,12 +286,11 @@ else
     else
     {
         // set headline of the script
-        $headline = $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS');
+        $headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS'));
 
         $gNavigation->addUrl(CURRENT_URL, $headline);
 
-        $page = new HtmlPage('plg-mitgliedsbeitrag-payments', $headline);
-        $page->addHtml(mf_collection_banner($mfScope));
+        $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-payments', $headline);
         $page->setContentFullWidth(); 
         
         $page->addJavascript('
@@ -397,15 +391,11 @@ else
  
         $page->addJavascript($javascriptCode, true);
     
-        if (isset($_SESSION['pMembershipFee']['payments_rol_sel']))
-        {
-            $page->addHtml('<strong>'.$gL10n->get('PLG_MEMBERSHIPFEE_ROLLQUERY_ACTIV').'</strong>');
-        }
-
         $form = new HtmlForm('payments_filter_form', '', $page, array('type' => 'navbar', 'setFocus' => false));
     
         $selectBoxEntries = array('3' => $gL10n->get('PLG_MEMBERSHIPFEE_WITH_OPEN_AMOUNT'), '2' => $gL10n->get('PLG_MEMBERSHIPFEE_WITHOUT_PAID'), '1' => $gL10n->get('PLG_MEMBERSHIPFEE_WITH_PAID'), '0' => $gL10n->get('SYS_SHOW_ALL_CONTACTS'));
         $form->addSelectBox('mem_show', $gL10n->get('PLG_MEMBERSHIPFEE_FILTER'), $selectBoxEntries, array('defaultValue' => $getMembersShow, 'helpTextId' => 'PLG_MEMBERSHIPFEE_FILTER_DESC', 'showContextDependentFirstEntry' => false));
+        mf_role_filter_add($form, $page, $roleFilterKey, 'PLG_MEMBERSHIPFEE_PAYMENTS_ROLLQUERY_DESC');
  
         $page->addHtml($form->show(false));
 

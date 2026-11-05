@@ -245,12 +245,11 @@ if ($getMode == 'mail' || $getMode == 'export') {
         echo $ret_text;
     } else {
         // set headline of the script
-        $headline = $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION');
+        $headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'));
 
         $gNavigation->addUrl(CURRENT_URL, $headline);
 
-        $page = new HtmlPage('plg-mitgliedsbeitrag-pre-notification', $headline);
-        $page->addHtml(mf_collection_banner($mfScope));
+        $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-pre-notification', $headline);
         $page->setContentFullWidth();
 
         $page->addJavascript('

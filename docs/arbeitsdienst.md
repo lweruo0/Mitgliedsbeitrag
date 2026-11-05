@@ -24,9 +24,10 @@ Die Felder werden beim ersten Aufruf automatisch angelegt und bei der Deinstalla
 ## Ablauf (Reiter „Arbeitsdienst“)
 
 1. **Sollstunden abgleichen**: setzt ADTARGET für alle Mitglieder nach den Regeln (Vorschau, dann übernehmen).
+   Zeigt zugleich je Mitglied Ist, Fehlstunden, Ersatzbeitrag und Stand (Filter nach Stand, Suche, CSV-Export);
+   die frühere Jahresübersicht ist darin aufgegangen.
 2. **Arbeitsdienst erfassen**: Einsätze (Datum, Bezeichnung, Teilnehmer, Stunden). Eigene Seite mit eigenem
    Menüpunkt; Berechtigung über „Sichtbar für“ des Menüpunkts (z. B. Arbeitsdienstleiter).
-3. **Jahresübersicht**: Soll, Ist und Fehlstunden je Mitglied.
 4. **Arbeitsdienst abrechnen**: legt je Mitglied eine offene Position „Ersatzleistung Arbeitsdienst“ (Quelle `ad`)
    an, passt sie an oder entfernt sie. Bereits exportierte oder eingezogene Positionen bleiben unverändert.
 5. **Fälligkeitsdatum** (ADDUEDATE, Sequenztyp).

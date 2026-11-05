@@ -1,7 +1,10 @@
 <?php
 /**
  ***********************************************************************************************
- * Arbeitsdienst: Jahresuebersicht
+ * Arbeitsdienst: Jahresuebersicht (nur noch CSV-Export)
+ *
+ * Die Anzeige ist in "Sollstunden abgleichen" (work_targets.php) aufgegangen; ein Aufruf ohne mode=csv
+ * leitet dorthin weiter. Der CSV-Export wird von dort aus aufgerufen.
  *
  * Je Mitglied Soll (Profilfeld "Sollstunden Arbeitsdienst"), Ist (Summe der erfassten Stunden im
  * Leistungsjahr), Fehlstunden und der Ersatzbeitrag daraus (Stundensatz aus Einstellungen -> Arbeitsdienst).
@@ -43,6 +46,11 @@ try {
         $getYear = (int) date('Y');
     }
     $getFilter = admFuncVariableIsValid($_GET, 'filter', 'string', array('defaultValue' => 'all', 'validValues' => array('all', 'missing', 'done', 'exempt', 'none')));
+
+    if ($getMode !== 'csv') {
+        admRedirect(SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/work_targets.php', array('year' => $getYear, 'menu' => 1)));
+        // => EXIT
+    }
 
     $pPreferences = new ConfigTable();
     $pPreferences->read();
@@ -153,9 +161,9 @@ try {
     // ------------------------------------------------------------------
     // Anzeige
     // ------------------------------------------------------------------
-    $headline = $gL10n->get('PLG_MEMBERSHIPFEE_WORK_OVERVIEW');
+    $headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_WORK_OVERVIEW'));
     $gNavigation->addUrl(CURRENT_URL, $headline);
-    $page = new HtmlPage('plg-mitgliedsbeitrag-work-overview', $headline);
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-work-overview', $headline);
     $page->setContentFullWidth();
 
     // Leistungsjahr

@@ -163,7 +163,7 @@
         <tr><td>Beitragseinzug</td><td>Der Ablauf in nummerierten Schritten: 1. Pr&uuml;fungen, 2. Neuberechnung (danach ggf. Individualbeitr&auml;ge), 3. F&auml;lligkeitsdatum, 4. Vorabinformation, 5. SEPA-Datei erzeugen,
             5b. Rechnungen erstellen, 6. Einzugs&uuml;bersicht (Teilen, als eingezogen markieren, stornieren), 6b. Beitragszahlungen; danach Beitragsanalyse, Rollen&uuml;bersicht, Buchungs&uuml;bersicht.
             Mit Schritt 6 ist ein normaler Lastschrifteinzug abgeschlossen; 5b und 6b sind f&uuml;r Sonderf&auml;lle (&Uuml;berweiser, Barzahlung, Zahlung nach R&uuml;cklastschrift).</td></tr>
-        <tr><td>Arbeitsdienst</td><td>1. Sollstunden abgleichen, 2. Arbeitsdienst erfassen, 3. Jahres&uuml;bersicht, 4. Arbeitsdienst abrechnen, 5. F&auml;lligkeitsdatum, 6. Vorabinformation,
+        <tr><td>Arbeitsdienst</td><td>1. Sollstunden abgleichen, 2. Arbeitsdienst erfassen, 3. Arbeitsdienst abrechnen, 5. F&auml;lligkeitsdatum, 6. Vorabinformation,
             7. SEPA-Datei erzeugen, 7b. Rechnungen erstellen, 8. Einzugs&uuml;bersicht, 8b. Beitragszahlungen (siehe <a href="#doc-arbeitsdienst">Arbeitsdienst</a>)</td></tr>
         <tr><td>Mandatsverwaltung</td><td>Mandatsreferenzen erzeugen, Mandate bearbeiten</td></tr>
         <tr><td>Einstellungen</td><td>Alle Grundeinstellungen, zuunterst die Plugininformationen (standardm&auml;&szlig;ig nur f&uuml;r Administratoren sichtbar)</td></tr>
@@ -288,8 +288,12 @@
     <li><strong>Beitragszahlungen:</strong> &bdquo;Als bezahlt markieren&ldquo; setzt die exportierten Positionen auf eingezogen; ohne SEPA-Datei werden die offenen Positionen mit Einzug MAN (&Uuml;berweisung) eingezogen.
         &bdquo;Bezahlt zur&uuml;cknehmen&ldquo; setzt die eingezogenen Positionen zur&uuml;ck und stellt F&auml;lligkeitsdatum, Sequenztyp und Mandats&auml;nderungsdaten wieder her.</li>
     <li><strong>Stornieren / R&uuml;cklastschrift:</strong> In der Historie &bdquo;Stornieren&ldquo; w&auml;hlen; standardm&auml;&szlig;ig werden alle Positionen derselben Lastschrift storniert.
-        Optional wird die Rolle zum Stornodatum entzogen und eine zus&auml;tzliche Position aus einer Vorlage (z.B. R&uuml;cklastschriftgeb&uuml;hr) angelegt.
-        Ohne Rollenentzug legt die n&auml;chste Neuberechnung die Rolle wieder als offen an.</li>
+        Bei abgew&auml;hltem &bdquo;Alle Positionen&ldquo; lassen sich die zu stornierenden Positionen der Lastschrift einzeln ankreuzen.
+        Optional wird eine zus&auml;tzliche Position aus einer Vorlage (z.B. R&uuml;cklastschriftgeb&uuml;hr) angelegt.
+        Mit dem Haken <strong>Erneut einziehen</strong> (Standard bei R&uuml;cklastschrift) wird die Forderung sofort wieder als offene Position angelegt (gleicher Betrag, Text, Rolle und Jahr);
+        optional l&auml;sst sich gleich das neue F&auml;lligkeitsdatum eintragen. Eine Neuberechnung ist dann nicht n&ouml;tig, und neben der R&uuml;cklastschriftgeb&uuml;hr bleibt auch der Beitrag offen.
+        Ohne diesen Haken ist die Forderung erledigt; ist das Mitglied aber weiter in der Beitragsrolle, legt die n&auml;chste Neuberechnung sie wieder als offen an.
+        Soll die Forderung endg&uuml;ltig entfallen, vorher die Rollenmitgliedschaft beenden.</li>
     <li><strong>Manuelle Positionen:</strong> &bdquo;Position hinzuf&uuml;gen&ldquo; in der Historie oder f&uuml;r alle markierten Mitglieder in den Beitragszahlungen (z.B. Kleinbetr&auml;ge, Gutschriften mit negativem Betrag).
         Vorlagen unter &rarr; Einstellungen &ndash; Vorlagen f&uuml;r manuelle Positionen. Offene manuelle Positionen lassen sich bearbeiten oder l&ouml;schen.
         Offene manuelle Positionen erscheinen auch in den Rechnungen (5b).</li>
@@ -325,11 +329,11 @@
 
 <h3>Ablauf</h3>
 <ol>
-    <li><strong>Sollstunden abgleichen</strong> (zu Jahresbeginn und bei Rollen&auml;nderungen): Die Voransicht zeigt je Mitglied das neue Soll und den Grund; &bdquo;&Uuml;bernehmen&ldquo; schreibt es ins Profilfeld.</li>
+    <li><strong>Sollstunden abgleichen</strong> (zu Jahresbeginn und bei Rollen&auml;nderungen): Die Voransicht zeigt je Mitglied das neue Soll und den Grund; &bdquo;&Uuml;bernehmen&ldquo; schreibt es ins Profilfeld.
+        Dazu stehen je Mitglied Ist, Fehlstunden, voraussichtlicher Ersatzbeitrag und Stand (erf&uuml;llt, Fehlstunden, befreit, ohne Soll); Filter nach Stand, Suche und CSV-Export.</li>
     <li><strong>Arbeitsdienst erfassen</strong> (laufend): Einsatz mit Datum, Bezeichnung, Teilnehmern und Stunden. Die erfassten Eins&auml;tze sind nach Datum und Einsatz gruppiert;
         die Teilnehmer erscheinen beim Aufklappen, einzelne Eintr&auml;ge lassen sich &uuml;ber das M&uuml;lleimer-Symbol l&ouml;schen. Die Seite hat einen eigenen Men&uuml;punkt
         &bdquo;Arbeitsdienst erfassen&ldquo;: Wer ihn sehen darf (&bdquo;Sichtbar f&uuml;r&ldquo;, z.B. Arbeitsdienstleiter), darf erfassen &ndash; auch ohne Zugriff auf das &uuml;brige Plugin.</li>
-    <li><strong>Jahres&uuml;bersicht</strong>: Soll, Ist und Fehlstunden je Mitglied mit dem voraussichtlichen Ersatzbeitrag.</li>
     <li><strong>Arbeitsdienst abrechnen</strong> (nach Jahresende): Die Voransicht zeigt je Mitglied, ob eine Position neu angelegt, ge&auml;ndert oder entfernt wird; nach &bdquo;Speichern&ldquo;
         entsteht je Mitglied mit Fehlstunden eine offene Position, z.B. <code>Ersatzleistung Arbeitsdienst 2026: Soll 10 h, Ist 4 h, 6 h x 20,00 EUR</code>.
         Erneutes Abrechnen passt offene Positionen an; exportierte oder eingezogene Positionen bleiben unver&auml;ndert (Korrektur dann &uuml;ber Storno oder Gutschrift).</li>

@@ -30,10 +30,22 @@ try {
         'defaultValue' => ''
     ));
     $getConf = admFuncVariableIsValid($_GET, 'conf', 'numeric');
+    // angezeigter Inhalt rechts neben dem Menue (siehe mf_menu_groups()); Standard: Uebersicht
+    $getShow = admFuncVariableIsValid($_GET, 'show', 'string', array('defaultValue' => ''));
+    if ($getShow === '' && $getChoice !== '') {
+        $getShow = 'preferences_' . $getChoice;
+    }
+    // ohne Auswahl (Aufruf des Plugins): erster Eintrag des Menues, z. B. 1.0 Pruefungen
+    if ($getShow === '' || $getShow === 'overview' || preg_match('/^[a-z_]+$/', $getShow) !== 1) {
+        $menuGroups = mf_menu_groups();
+        admRedirect($menuGroups[0]['entries'][0]['url']);
+        // => EXIT
+    }
 
     // Einzugsseiten (Faelligkeit, Vorabinformation, ...) starten im Buchungskreis Mitgliedsbeitrag;
     // die Schritte der Registerkarte Arbeitsdienst uebergeben collection=ad (siehe mf_collection_scope())
-    $_SESSION['pMembershipFee']['collection'] = \Plugins\MembershipFee\classes\Bookings\CollectionScope::MEMBERSHIP;
+    // Buchungskreis: per collection-Parameter (Menue, Umschaltung) gewaehlt, sonst der zuletzt verwendete
+    $mfScope = mf_collection_scope();
 
     $pPreferences = new ConfigTable();
     $pPreferences->read();
@@ -170,20 +182,32 @@ try {
     $gNavigation->addStartUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', $headline, 'bi-currency-euro');
 
     // create html page object
-    $page = new HtmlPage('plg-membership-fee-main', $headline);
-
-    // open the modules tab if the options of a module should be shown
-    if ($getChoice != '') {
-        $page->addJavascript('
-        $("#tabs_nav_preferences").attr("class", "nav-link active");
-        $("#tabs-preferences").attr("class", "tab-pane fade show active");
-        $("#collapse_' . $getChoice . '").attr("class", "collapse show");
-        location.hash = "#" + "panel_' . $getChoice . '";', true);
-    } else {
-        $page->addJavascript('
-        $("#tabs_nav_fees").attr("class", "nav-link active");
-        $("#tabs-fees").attr("class", "tab-pane fade show active");', true);
+    // Seitentitel und Brotkrumen wie der gewaehlte Menueeintrag (z. B. "4.0 SEPA-Datei erstellen");
+    // die Startseite (Uebersicht) behaelt den Titel "Mitgliedsbeitrag"
+    $menuTitle = '';
+    if ($getShow !== 'overview') {
+        foreach (mf_menu_groups() as $menuGroup) {
+            foreach ($menuGroup['entries'] as $menuEntry) {
+                if ($menuEntry['key'] === $getShow) {
+                    $menuTitle = $menuEntry['title'];
+                }
+            }
+        }
+        if ($menuTitle !== '') {
+            $gNavigation->addUrl(CURRENT_URL, $menuTitle);
+        }
     }
+
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-membership-fee-main', $headline);
+    $page->setActiveMenuEntry($getShow);
+
+    if ($menuTitle !== '') {
+        $page->setHeadline($menuTitle);
+        $page->setTitle($menuTitle);
+    }
+
+    // Inhalte der Menueeintraege (Schluessel Gruppe_Panel), siehe getMenuePanel(); angezeigt wird nur der gewaehlte
+    $GLOBALS['mfPanels'] = array();
 
     $page->addJavascript('
     function cischieben(){
@@ -362,57 +386,28 @@ try {
     $page->addJavascript($javascriptCode);
 
     $beitrag = analyse_mem();
-    $page->addHtml('<table class="table table-condensed">
-    <tr>
-        <td style="text-align: left;">' . $gL10n->get('PLG_MEMBERSHIPFEE_TOTAL') . ':</td>
-        <td style="text-align: left;">' . ($beitrag['BEITRAG_kto'] + $beitrag['BEITRAG_rech']) . ' ' . $gSettingsManager->getString('system_currency') . '&#160;&#160;&#160;(#' . ($beitrag['BEITRAG_kto_anzahl'] + $beitrag['BEITRAG_rech_anzahl']) . ')</td>
-
-        <td style="text-align: center;">' . $gL10n->get('PLG_MEMBERSHIPFEE_ALREADY_PAID') . ':</td>
-        <td style="text-align: center;">' . ($beitrag['BEZAHLT_kto'] + $beitrag['BEZAHLT_rech']) . ' ' . $gSettingsManager->getString('system_currency') . '&#160;&#160;&#160;(#' . ($beitrag['BEZAHLT_kto_anzahl'] + $beitrag['BEZAHLT_rech_anzahl']) . ')</td>
-
-        <td style="text-align: right;">' . $gL10n->get('PLG_MEMBERSHIPFEE_PENDING') . ':</td>
-        <td style="text-align: right;">' . (($beitrag['BEITRAG_kto'] + $beitrag['BEITRAG_rech']) - ($beitrag['BEZAHLT_kto'] + $beitrag['BEZAHLT_rech'])) . ' ' . $gSettingsManager->getString('system_currency') . '&#160;&#160;&#160;(#' . (($beitrag['BEITRAG_kto_anzahl'] + $beitrag['BEITRAG_rech_anzahl']) - ($beitrag['BEZAHLT_kto_anzahl'] + $beitrag['BEZAHLT_rech_anzahl'])) . ')</td>
-    </tr>
-</table>');
+    // Stand des Beitragseinzugs als drei Kennzahlen (Betrag und Anzahl Mitglieder)
+    $currency = $gSettingsManager->getString('system_currency');
+    $summaryTile = static function (string $label, float $amount, int $count, string $class) use ($currency): string {
+        return '<div class="col-sm-4 mb-2"><div class="border rounded p-2 h-100">'
+            . '<div class="text-muted small">' . $label . '</div>'
+            . '<div class="fs-5 fw-bold text-nowrap ' . $class . '">' . number_format($amount, 2, ',', '.') . ' ' . $currency . '</div>'
+            . '<div class="text-muted small">' . $count . ' Mitglieder</div></div></div>';
+    };
+    $totalAmount = (float) ($beitrag['BEITRAG_kto'] + $beitrag['BEITRAG_rech']);
+    $totalCount = (int) ($beitrag['BEITRAG_kto_anzahl'] + $beitrag['BEITRAG_rech_anzahl']);
+    $paidAmount = (float) ($beitrag['BEZAHLT_kto'] + $beitrag['BEZAHLT_rech']);
+    $paidCount = (int) ($beitrag['BEZAHLT_kto_anzahl'] + $beitrag['BEZAHLT_rech_anzahl']);
+    $summaryHtml = '<div class="row">'
+        . $summaryTile($gL10n->get('PLG_MEMBERSHIPFEE_TOTAL'), $totalAmount, $totalCount, '')
+        . $summaryTile($gL10n->get('PLG_MEMBERSHIPFEE_ALREADY_PAID'), $paidAmount, $paidCount, 'text-success')
+        . $summaryTile($gL10n->get('PLG_MEMBERSHIPFEE_PENDING'), $totalAmount - $paidAmount, $totalCount - $paidCount, ($totalAmount - $paidAmount) > 0.004 ? 'text-danger' : '')
+        . '</div>';
 
     $showGermanDocumentation = in_array($gSettingsManager->getString('system_language'), array('de', 'de-DE'), true)
         && is_file(__DIR__ . '/../docs/documentation-de.html');
 
     if (count($rols) > 0) {
-        $page->addHtml('
-    <ul id="preferences_tabs" class="nav nav-tabs" role="tablist">
-        <li class="nav-item">
-            <a id="tabs_nav_fees" class="nav-link" href="#tabs-fees" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_TAB_COLLECTION') . '</a>
-        </li>
-        <li class="nav-item">
-            <a id="tabs_nav_workservice" class="nav-link" href="#tabs-workservice" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_SETTINGS') . '</a>
-        </li>
-        <li class="nav-item">
-            <a id="tabs_nav_mandatemanagement" class="nav-link" href="#tabs-mandatemanagement" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_MANDATE_MANAGEMENT') . '</a>
-        </li>
-    ');
-
-        if (isUserAuthorizedForPreferences()) {
-            $page->addHtml('
-            <li class="nav-item">
-                <a id="tabs_nav_preferences" class="nav-link" href="#tabs-preferences" data-bs-toggle="tab" role="tab">' . $gL10n->get('SYS_SETTINGS') . '</a>
-            </li>
-        ');
-        }
-
-        if ($showGermanDocumentation) {
-            $page->addHtml('
-            <li class="nav-item">
-                <a id="tabs_nav_documentation" class="nav-link" href="#tabs-documentation" data-bs-toggle="tab" role="tab">' . $gL10n->get('PLG_MEMBERSHIPFEE_DOCUMENTATION') . '</a>
-            </li>
-        ');
-        }
-
-        $page->addHtml('
-    </ul>
-
-    <div class="tab-content">
-    ');
 
         // TAB: FEES (Panels in der Reihenfolge des Ablaufs eines Beitragseinzugs, nummeriert)
         $page->addHtml(openMenueTab('fees', 'accordion_fees'));
@@ -437,17 +432,12 @@ try {
 
         unset($_SESSION['pMembershipFee']['recalculation_user']);
 
-        $formRecalculation = new HtmlForm('recalculation_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/recalculation.php', $page);
-
-        $formRecalculation->addSelectBox('recalculation_roleselection', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_SELECTION'), $selectBoxEntriesBeitragsrollen, array(
-            'defaultValue' => (isset($_SESSION['pMembershipFee']['recalculation_rol_sel']) ? $_SESSION['pMembershipFee']['recalculation_rol_sel'] : ''),
-            'showContextDependentFirstEntry' => false,
-            'helpTextId' => 'PLG_MEMBERSHIPFEE_RECALCULATION_ROLLQUERY_DESC',
-            'multiselect' => true
-        ));
-        $formRecalculation->addSubmitButton('btn_recalculation', $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION'), array(
+        // die Rollenauswahl steht im Filter der Seite selbst (siehe mf_role_filter_add())
+        $formRecalculation = new HtmlForm('recalculation_form', '', $page);
+        $formRecalculation->addButton('btn_recalculation', $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION'), array(
             'icon' => 'bi-calculator',
-            'class' => 'offset-sm-3'
+            'link' => 'recalculation.php',
+            'class' => 'btn-primary offset-sm-3'
         ));
         $formRecalculation->addCustomContent('', '<strong>' . $gL10n->get('SYS_NOTE') . ':</strong> ' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_BOOKINGS_NOTE'));
 
@@ -470,17 +460,11 @@ try {
 
         // PANEL: DUEDATES (Faelligkeitsdatum)
 
-        $formDuedates = new HtmlForm('duedates_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/duedates.php', $page);
-
-        $formDuedates->addSelectBox('duedates_roleselection', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_SELECTION'), $selectBoxEntriesBeitragsrollen, array(
-            'defaultValue' => (isset($_SESSION['pMembershipFee']['duedates_rol_sel']) ? $_SESSION['pMembershipFee']['duedates_rol_sel'] : ''),
-            'showContextDependentFirstEntry' => false,
-            'helpTextId' => 'PLG_MEMBERSHIPFEE_DUEDATE_ROLLQUERY_DESC',
-            'multiselect' => true
-        ));
-        $formDuedates->addSubmitButton('btn_duedates', $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), array(
+        $formDuedates = new HtmlForm('duedates_form', '', $page);
+        $formDuedates->addButton('btn_duedates', $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), array(
             'icon' => 'bi-calendar-check',
-            'class' => 'offset-sm-3'
+            'link' => 'duedates.php',
+            'class' => 'btn-primary offset-sm-3'
         ));
         $formDuedates->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE_EDIT_DESC'));
         $page->addHtml(getMenuePanel('fees', 'duedates', 'accordion_fees', (++$workflowStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), 'bi bi-calendar-check', $formDuedates->show()));
@@ -579,17 +563,11 @@ try {
 
         // PANEL: PAYMENTS
 
-        $formPayments = new HtmlForm('payments_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/payments.php', $page);
-
-        $formPayments->addSelectBox('payments_roleselection', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_SELECTION'), $selectBoxEntriesBeitragsrollen, array(
-            'defaultValue' => (isset($_SESSION['pMembershipFee']['payments_rol_sel']) ? $_SESSION['pMembershipFee']['payments_rol_sel'] : ''),
-            'showContextDependentFirstEntry' => false,
-            'helpTextId' => 'PLG_MEMBERSHIPFEE_PAYMENTS_ROLLQUERY_DESC',
-            'multiselect' => true
-        ));
-        $formPayments->addSubmitButton('btn_payments', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS_EDIT'), array(
+        $formPayments = new HtmlForm('payments_form', '', $page);
+        $formPayments->addButton('btn_payments', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS_EDIT'), array(
             'icon' => 'bi-cash-coin',
-            'class' => 'offset-sm-3'
+            'link' => 'payments.php',
+            'class' => 'btn-primary offset-sm-3'
         ));
         $formPayments->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_PAYMENTS_DESC'));
 
@@ -657,16 +635,6 @@ try {
         ));
         $formWorkInput->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_INPUT_DESC'));
         $page->addHtml(getMenuePanel('workservice', 'workinput', 'accordion_workservice', (++$workStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_INPUT'), 'bi bi-pencil-square', $formWorkInput->show()));
-
-        // PANEL: WORK_OVERVIEW (Jahresuebersicht Soll/Ist/Fehlstunden)
-        $formWorkOverview = new HtmlForm('workoverview_form', '', $page);
-        $formWorkOverview->addButton('btn_work_overview', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_OVERVIEW'), array(
-            'icon' => 'bi-clipboard-data',
-            'link' => 'work_overview.php',
-            'class' => 'btn-primary offset-sm-3'
-        ));
-        $formWorkOverview->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_OVERVIEW_DESC'));
-        $page->addHtml(getMenuePanel('workservice', 'workoverview', 'accordion_workservice', (++$workStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_OVERVIEW'), 'bi bi-clipboard-data', $formWorkOverview->show()));
 
         // Einzug im Buchungskreis Arbeitsdienst: dieselben Seiten wie beim Mitgliedsbeitrag mit collection=ad
         $workCollection = array('collection' => \Plugins\MembershipFee\classes\Bookings\CollectionScope::WORK);
@@ -1672,15 +1640,60 @@ try {
 
         // TAB: DOCUMENTATION (nur in deutscher Sprache vorhanden)
         if ($showGermanDocumentation) {
-            $page->addHtml('<div class="tab-pane fade" id="tabs-documentation" role="tabpanel">' . file_get_contents(__DIR__ . '/../docs/documentation-de.html') . '</div>');
+            $GLOBALS['mfPanels']['documentation'] = array('title' => '', 'body' => file_get_contents(__DIR__ . '/../docs/documentation-de.html'));
         }
-
-        $page->addHtml('</div>'); // end div class="tab-content"
     } else {
         $page->addHtml('<div class="alert alert-warning alert-small" role="alert"><i class="bi bi-exclamation-triangle"></i>' . $gL10n->get('PLG_MEMBERSHIPFEE_NO_CONTRIBUTION_ROLES_DEFINED') . '</div>');
+    }
+
+    // rechts: Uebersicht oder der Inhalt des gewaehlten Menueeintrags
+    // 4.0 SEPA-Datei erstellen gilt fuer beide Buchungskreise: Inhalt des gewaehlten Buchungskreises
+    $panelKey = $getShow === 'collection_sepa' ? ($mfScope->isMembership() ? 'fees_sepa' : 'workservice_worksepa') : $getShow;
+    $panel = $GLOBALS['mfPanels'][$panelKey] ?? null;
+    if ($panel === null) {
+        $page->addHtml('<div class="alert alert-warning" role="alert">' . $gL10n->get('SYS_INVALID_PAGE_VIEW') . '</div>');
+    } elseif ($getShow === 'documentation') {
+        $page->addHtml($panel['body']);
+    } else {
+        foreach (mf_menu_groups() as $menuGroup) {
+            foreach ($menuGroup['entries'] as $menuEntry) {
+                if ($menuEntry['key'] === $getShow) {
+                    $panel['title'] = '<i class="bi ' . $menuEntry['icon'] . ' bi-fw"></i>' . SecurityUtils::encodeHTML($menuEntry['title']);
+                }
+            }
+        }
+        $page->addHtml('<div class="card admidio-tabbed-field-group"><div class="card-header">' . $panel['title'] . '</div>'
+            . '<div class="card-body">' . $panel['body'] . '</div></div>');
     }
 
     $page->show();
 } catch (Exception $e) {
     $gMessage->show($e->getMessage());
+}
+
+/**
+ * Startseite rechts neben dem Menue: Stand des Beitragseinzugs und die Schritte als Links.
+ */
+function mf_overview_html(string $summaryHtml): string
+{
+    global $gL10n;
+
+    $html = '<div class="card admidio-tabbed-field-group"><div class="card-header"><i class="bi bi-speedometer2 bi-fw"></i>'
+        . $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_YEAR') . ' ' . getContributionYear() . '</div>'
+        . '<div class="card-body">' . $summaryHtml . '</div></div>';
+
+    $html .= '<div class="row">';
+    foreach (array_slice(mf_menu_groups(), 0, 3) as $group) {
+        $html .= '<div class="col-xl-4"><div class="card admidio-tabbed-field-group"><div class="card-header">' . SecurityUtils::encodeHTML($group['label']) . '</div>'
+            . '<div class="card-body"><div class="list-group">';
+        foreach ($group['entries'] as $entry) {
+            if ($entry['key'] === 'overview') {
+                continue;
+            }
+            $html .= '<a class="list-group-item list-group-item-action" href="' . $entry['url'] . '"><i class="bi ' . $entry['icon'] . ' me-2"></i>'
+                . SecurityUtils::encodeHTML($entry['title']) . '</a>';
+        }
+        $html .= '</div></div></div></div>';
+    }
+    return $html . '</div>';
 }

@@ -66,7 +66,7 @@ function describeIndividualOps(array $ops): string
 }
 
 // set headline of the script
-$headline = $gL10n->get('PLG_MEMBERSHIPFEE_INDIVIDUAL_CONTRIBUTIONS');
+$headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_INDIVIDUAL_CONTRIBUTIONS'));
 
 $gNavigation->addUrl(CURRENT_URL, $headline);
 
@@ -80,7 +80,7 @@ for ($i = 0; $i < count($pPreferences->config['individual_contributions']['desc'
 
 if ($getMode == 'preview')     //Default
 {
-    $page = new HtmlPage('plg-mitgliedsbeitrag-individualcontributions-preview', $headline);
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-individualcontributions-preview', $headline);
     $page->setContentFullWidth();
 
 	// Mitglieder der Rollen der Individualbeitraege im Beitragsjahr
@@ -205,7 +205,7 @@ if ($getMode == 'preview')     //Default
 }
 elseif ($getMode == 'write')
 {
-    $page = new HtmlPage('plg-mitgliedsbeitrag-individualcontributions-write', $headline);
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-individualcontributions-write', $headline);
     $page->setContentFullWidth();
 
  	$page->addPageFunctionsMenuItem('menu_item_print_view', $gL10n->get('SYS_PRINT_PREVIEW'), 'javascript:void(0);', 'bi-printer');

@@ -161,7 +161,26 @@ try {
                 $reason = in_array($_POST['storno_reason'] ?? '', $reasons, true) ? $_POST['storno_reason'] : 'Sonstiges';
                 $template = (isset($_POST['storno_template']) && $_POST['storno_template'] !== '') ? (int) $_POST['storno_template'] : null;
                 $gDb->startTransaction();
-                $message = $bookingService->cancel((int) $position['mfb_id'], $date, $reason, trim((string) ($_POST['storno_comment'] ?? '')), isset($_POST['storno_revoke']), $template, isset($_POST['storno_whole_debit']));
+                $newDueDate = '';
+                if (isset($_POST['storno_recollect']) && trim((string) ($_POST['storno_duedate'] ?? '')) !== '') {
+                    $newDueDate = mf_parse_date((string) $_POST['storno_duedate']);
+                    if ($newDueDate === '') {
+                        throw new Exception('SYS_DATE_INVALID', array($gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NEW_DUEDATE'), $gSettingsManager->getString('system_date')));
+                    }
+                }
+                // ohne "Alle Positionen dieser Lastschrift": die angehakten Positionen der Lastschrift
+                $wholeDebit = isset($_POST['storno_whole_debit']);
+                $positionIds = null;
+                if (!$wholeDebit && isset($_POST['storno_ids'])) {
+                    $positionIds = array_map('intval', (array) $_POST['storno_ids']);
+                    if (count($positionIds) === 0) {
+                        throw new Exception($gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NONE_SELECTED'));
+                    }
+                } elseif (!$wholeDebit && isset($_POST['storno_ids_present'])) {
+                    throw new Exception($gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NONE_SELECTED'));
+                }
+                $message = $bookingService->cancel((int) $position['mfb_id'], $date, $reason, trim((string) ($_POST['storno_comment'] ?? '')), false, $template, $wholeDebit,
+                    isset($_POST['storno_recollect']), $newDueDate, $positionIds);
                 $gDb->endTransaction();
                 break;
         }
@@ -315,16 +334,56 @@ try {
             $form->addMultilineTextInput('storno_comment', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_COMMENT'), '', 2, array(
                 'helpTextId' => 'PLG_MEMBERSHIPFEE_BOOKING_CANCEL_COMMENT_DESC'
             ));
-            if ($position['mfb_run_id'] !== null) {
+            $debitPositions = $bookingService->debitPositions($position);
+            if (count($debitPositions) > 1) {
                 $form->addCheckbox('storno_whole_debit', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_WHOLE_DEBIT'), true, array(
-                    'helpTextId' => 'PLG_MEMBERSHIPFEE_BOOKING_CANCEL_WHOLE_DEBIT_DESC'
+                    'helpTextId' => 'PLG_MEMBERSHIPFEE_BOOKING_CANCEL_WHOLE_DEBIT_HELP'
                 ));
+                // Auswahl der Positionen dieser Lastschrift (wirksam, wenn "Alle Positionen" abgewaehlt ist)
+                $items = '<input type="hidden" name="storno_ids_present" value="1" />';
+                foreach ($debitPositions as $item) {
+                    $id = (int) $item['mfb_id'];
+                    $items .= '<div class="form-check"><input class="form-check-input storno-id" type="checkbox" name="storno_ids[]" id="storno_id_' . $id . '" value="' . $id . '" checked="checked" />'
+                        . '<label class="form-check-label" for="storno_id_' . $id . '">' . SecurityUtils::encodeHTML((string) $item['mfb_rol_name'])
+                        . ' &ndash; ' . mf_format_amount($item['mfb_amount'])
+                        . (!in_array((string) $item['mfb_text'], array('', (string) $item['mfb_rol_name']), true) ? ' <small class="text-muted">' . SecurityUtils::encodeHTML((string) $item['mfb_text']) . '</small>' : '')
+                        . '</label></div>';
+                }
+                $form->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_POSITIONS'), '<div id="storno_positions">' . $items . '</div>');
+                $page->addJavascript('
+                    var stornoMainId = ' . (int) $position['mfb_id'] . ';
+                    function stornoPositionsToggle(initial) {
+                        var all = $("#storno_whole_debit").prop("checked");
+                        $("#storno_positions input.storno-id").prop("disabled", all);
+                        if (all) {
+                            $("#storno_positions input.storno-id").prop("checked", true);
+                        } else if (!initial) {
+                            // beim Abwaehlen zunaechst nur die Position, ueber die storniert wird
+                            $("#storno_positions input.storno-id").each(function() { $(this).prop("checked", parseInt($(this).val(), 10) === stornoMainId); });
+                        }
+                    }
+                    $("#storno_whole_debit").change(function() { stornoPositionsToggle(false); });
+                    stornoPositionsToggle(true);', true);
             }
-            if ($position['mfb_rol_id'] !== null && $position['mfb_source'] === BookingStore::SOURCE_ROLE) {
-                $form->addCheckbox('storno_revoke', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_REVOKE_ROLE', array($position['mfb_rol_name'])), false, array(
-                    'helpTextId' => 'PLG_MEMBERSHIPFEE_BOOKING_REVOKE_ROLE_DESC'
-                ));
-            }
+            $form->addCheckbox('storno_recollect', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_RECOLLECT'), true, array(
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_BOOKING_CANCEL_RECOLLECT_DESC'
+            ));
+            $form->addInput('storno_duedate', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NEW_DUEDATE'), '', array(
+                'type' => 'date',
+                'helpTextId' => 'PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NEW_DUEDATE_DESC'
+            ));
+            // "Erneut einziehen" passt zur Ruecklastschrift; bei Korrektur/Sonstiges abwaehlen
+            $page->addJavascript('
+                function stornoRecollectToggle() {
+                    var on = $("#storno_recollect").prop("checked");
+                    $("#storno_duedate").prop("disabled", !on); $("#storno_duedate_group").toggle(on);
+                }
+                $("#storno_reason").change(function() {
+                    $("#storno_recollect").prop("checked", $(this).val() === "Rücklastschrift");
+                    stornoRecollectToggle();
+                });
+                $("#storno_recollect").change(stornoRecollectToggle);
+                stornoRecollectToggle();', true);
             $templates = $bookingService->getTemplates();
             if (count($templates) > 0) {
                 $entries = array();

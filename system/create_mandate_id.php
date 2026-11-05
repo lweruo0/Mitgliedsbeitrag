@@ -43,13 +43,13 @@ $pPreferences->read();
 $user = new User($gDb, $gProfileFields);
 
 // set headline of the script
-$headline = $gL10n->get('PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID');
+$headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID'));
 
 $gNavigation->addUrl(CURRENT_URL, $headline);
 
 if ($getMode == 'preview')     //Default
 {
-    $page = new HtmlPage('plg-mitgliedsbeitrag-create-mandate-id-preview', $headline);
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-create-mandate-id-preview', $headline);
     
 	$referenz = '';
 	$errorMarker = false;
@@ -174,7 +174,7 @@ if ($getMode == 'preview')     //Default
 }
 elseif ($getMode == 'write')
 {
-    $page = new HtmlPage('plg-mitgliedsbeitrag-create-mandate-id-write', $headline);
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-create-mandate-id-write', $headline);
 
     $page->addPageFunctionsMenuItem('menu_item_print_view', $gL10n->get('SYS_PRINT_PREVIEW'), 'javascript:void(0);', 'bi-printer');
     

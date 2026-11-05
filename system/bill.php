@@ -157,12 +157,11 @@ if ($getMode == 'mail' || $getMode == 'export') {
         echo $ret_text;
     } else {
         // set headline of the script
-        $headline = $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT');
+        $headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT'));
 
         $gNavigation->addUrl(CURRENT_URL, $headline);
 
-        $page = new HtmlPage('plg-mitgliedsbeitrag-bill', $headline);
-        $page->addHtml(mf_collection_banner($mfScope));
+        $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-bill', $headline);
         $page->setContentFullWidth();
 
         $page->addJavascript('

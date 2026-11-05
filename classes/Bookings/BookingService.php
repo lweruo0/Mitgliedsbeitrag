@@ -744,12 +744,39 @@ class BookingService
     // ------------------------------------------------------------------
 
     /**
+     * Alle stornierbaren Positionen derselben Lastschrift wie die angegebene Position (gleicher Einzug und
+     * gleiche Referenz, exportiert oder eingezogen), die Position selbst zuerst. Ohne Einzug nur die Position.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function debitPositions(array $position): array
+    {
+        $result = array($position);
+        if ($position['mfb_run_id'] === null) {
+            return $result;
+        }
+        foreach (BookingStore::getByUser((int) $position['mfb_usr_id']) as $other) {
+            if ($other['mfb_id'] !== $position['mfb_id'] && $other['mfb_run_id'] === $position['mfb_run_id']
+                && (string) $other['mfb_reference'] === (string) $position['mfb_reference']
+                && in_array($other['mfb_status'], array(BookingStore::STATUS_EXPORTED, BookingStore::STATUS_COLLECTED), true)) {
+                $result[] = $other;
+            }
+        }
+        return $result;
+    }
+
+    /**
      * Storniert eine Position, optional mit Rollenentzug und zusaetzlicher Position aus einer Vorlage.
      *
      * @param bool $wholeDebit alle Positionen derselben Lastschrift (gleicher Einzug und gleiche Referenz) stornieren
+     * @param bool $recollect je stornierte Position sofort eine neue offene Position mit gleichem Betrag, Text,
+     *                        Rolle und Jahr anlegen (erneuter Einzug, z. B. nach einer Ruecklastschrift)
+     * @param string $newDueDate neues Faelligkeitsdatum (Y-m-d) fuer den erneuten Einzug, leer = keins setzen
+     * @param array<int, int>|null $positionIds ohne $wholeDebit: diese Positionen derselben Lastschrift stornieren
+     *                                          (Auswahl im Formular); null = nur die angegebene Position
      * @return string Hinweis (leer, wenn alles geklappt hat)
      */
-    public function cancel(int $bookingId, string $date, string $reason, string $comment, bool $revokeRole, ?int $templateIndex, bool $wholeDebit = false): string
+    public function cancel(int $bookingId, string $date, string $reason, string $comment, bool $revokeRole, ?int $templateIndex, bool $wholeDebit = false, bool $recollect = false, string $newDueDate = '', ?array $positionIds = null): string
     {
         global $gDb, $gProfileFields, $gCurrentOrgId;
 
@@ -765,17 +792,19 @@ class BookingService
 
         // zu stornierende Positionen bestimmen
         $toCancel = array($position);
-        if ($wholeDebit && $position['mfb_run_id'] !== null) {
-            foreach (BookingStore::getByUser($usrId) as $other) {
-                if ($other['mfb_id'] !== $position['mfb_id'] && $other['mfb_run_id'] === $position['mfb_run_id']
-                    && (string) $other['mfb_reference'] === (string) $position['mfb_reference']
-                    && in_array($other['mfb_status'], array(BookingStore::STATUS_EXPORTED, BookingStore::STATUS_COLLECTED), true)) {
-                    $toCancel[] = $other;
-                }
+        if ($wholeDebit) {
+            $toCancel = $this->debitPositions($position);
+        } elseif ($positionIds !== null) {
+            $ids = array_map('intval', $positionIds);
+            $toCancel = array_values(array_filter($this->debitPositions($position), static fn (array $item): bool => in_array((int) $item['mfb_id'], $ids, true)));
+            if (count($toCancel) === 0) {
+                return '';
             }
         }
+        $mainSelected = in_array($position['mfb_id'], array_column($toCancel, 'mfb_id'), true);
 
-        $revoke = $revokeRole && $position['mfb_rol_id'] !== null && $position['mfb_source'] === BookingStore::SOURCE_ROLE;
+        // Rollenentzug nur fuer die Position, ueber die storniert wird (und nur, wenn sie mit storniert wird)
+        $revoke = $revokeRole && $mainSelected && $position['mfb_rol_id'] !== null && $position['mfb_source'] === BookingStore::SOURCE_ROLE;
         $firstDebitReturned = false;
         $wasExported = false;
         foreach ($toCancel as $item) {
@@ -824,12 +853,45 @@ class BookingService
             }
         }
 
+        // Erneut einziehen: Forderung als neue offene Position wieder anlegen (gleiche Quelle und Rolle, damit
+        // die Neuberechnung sie als offene Rollenposition erkennt und nicht doppelt anlegt). Eine Position,
+        // deren Rolle gerade entzogen wurde, wird nicht erneut angelegt.
+        $recollected = 0;
+        if ($recollect) {
+            foreach ($toCancel as $item) {
+                if ($revoke && $item['mfb_id'] === $position['mfb_id']) {
+                    continue;
+                }
+                BookingStore::insert(array(
+                    'mfb_usr_id' => $usrId,
+                    'mfb_year' => (int) $item['mfb_year'],
+                    'mfb_source' => (string) $item['mfb_source'],
+                    'mfb_rol_id' => $item['mfb_rol_id'],
+                    'mfb_rol_name' => (string) $item['mfb_rol_name'],
+                    'mfb_amount' => (float) $item['mfb_amount'],
+                    'mfb_text' => (string) $item['mfb_text'],
+                    'mfb_status' => BookingStore::STATUS_OPEN,
+                    'mfb_comment' => 'Erneuter Einzug nach ' . $reason . ' vom ' . date('d.m.Y', (int) strtotime($date))
+                        . ((string) $item['mfb_reference'] !== '' ? ' (' . $item['mfb_reference'] . ')' : '')
+                ));
+                $recollected++;
+            }
+        }
+
         $templates = $this->getTemplates();
         if ($templateIndex !== null && isset($templates[$templateIndex])) {
             $template = $templates[$templateIndex];
             $service->addManual(array($usrId), $template['name'], (float) str_replace(',', '.', $template['amount']), $template['text'] !== '' ? $template['text'] : $template['name'], (int) $position['mfb_year'], 'Zu ' . (string) ($position['mfb_reference'] ?: $position['mfb_rol_name']));
-        } else {
-            $service->syncWorkFields($usrId);
+        }
+        $service->syncWorkFields($usrId);
+
+        // neues Faelligkeitsdatum fuer den erneuten Einzug (nur wenn wieder etwas offen ist und nichts mehr
+        // in einer erstellten SEPA-Datei steht)
+        if ($newDueDate !== '' && ($recollected > 0 || ($templateIndex !== null && isset($templates[$templateIndex])))
+            && count($scope->filterPositions(BookingStore::getByUser($usrId, array(BookingStore::STATUS_EXPORTED)))) === 0) {
+            $user = new User($gDb, $gProfileFields, $usrId);
+            $user->setValue($scope->field(CollectionScope::FIELD_DUEDATE), $newDueDate);
+            $user->save();
         }
         return $note;
     }

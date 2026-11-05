@@ -76,14 +76,9 @@ $getBulk = admFuncVariableIsValid($_GET, 'bulk', 'string', array(
     'validValues' => array('', 'set', 'remove')
 ));
 
-// write role selection in session
-if (strpos($gNavigation->getUrl(), 'membership_fee.php') !== false) {
-    if (isset($_POST['duedates_roleselection'])) {
-        $_SESSION['pMembershipFee']['duedates_rol_sel'] = $_POST['duedates_roleselection'];
-    } else {
-        unset($_SESSION['pMembershipFee']['duedates_rol_sel']);
-    }
-}
+// Rollenfilter der Seite (Formular oben auf der Seite, Auswahl bleibt in der Sitzung, getrennt je Buchungskreis)
+$roleFilterKey = $mfScope->isMembership() ? 'duedates' : 'ad_duedates';
+$roleFilter = ($getMode !== 'assign') ? mf_role_filter_selection($roleFilterKey) : null;
 
 if ($getMode == 'assign') {
     $ret_text = 'ERROR';
@@ -160,11 +155,11 @@ if ($getMode == 'assign') {
     $userArray = array();
     $membersList = array();
 
-    if (isset($_SESSION['pMembershipFee']['duedates_rol_sel'])) {
+    if ($roleFilter !== null) {
         // Rollenwahl ist vorhanden, deshalb Daten aufbereiten fuer list_members
         $membersListRols = array();
         $role = new Role($gDb);
-        foreach ($_SESSION['pMembershipFee']['duedates_rol_sel'] as $rol_id) {
+        foreach ($roleFilter as $rol_id) {
             $role->readDataById($rol_id);
             $membersListRols[$role->getValue('rol_name')] = 0;
         }
@@ -231,12 +226,11 @@ if ($getMode == 'assign') {
     $membersList = list_members($membersListFields, $membersListRols, $membersListSqlCondition);
 
     // set headline of the script
-    $headline = $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE');
+    $headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'));
 
     $gNavigation->addUrl(CURRENT_URL, $headline);
 
-    $page = new HtmlPage('plg-mitgliedsbeitrag-duedates', $headline);
-    $page->addHtml(mf_collection_banner($mfScope));
+    $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-duedates', $headline);
     $page->setContentFullWidth();
 
     // gesperrte Tage (Bankfeiertage) fuer die Pruefung im Browser: Vorjahr bis zwei Jahre voraus
@@ -297,12 +291,7 @@ if ($getMode == 'assign') {
                 alert($("#mf_duedate_problem").text() + " Bitte einen Bankarbeitstag wählen.");
                 return false;
             }
-            var question = bulk === "set"
-                ? "Fälligkeit " + mfFormatDate(datum) + " (Sequenztyp: " + $("#lastschrifttyp option:selected").text() + ") bei allen angezeigten Mitgliedern ohne Fälligkeit setzen?"
-                : "Fälligkeit bei allen angezeigten Mitgliedern entfernen?";
-            if (!confirm(question)) {
-                return false;
-            }
+            // ohne Rueckfrage ausfuehren
             var button = $(this);
             $(".mf-duedate-bulk").prop("disabled", true);
             button.find(".spinner-border").removeClass("d-none");
@@ -408,10 +397,6 @@ if ($getMode == 'assign') {
 
     $page->addJavascript($javascriptCode, true);
 
-    if (isset($_SESSION['pMembershipFee']['duedates_rol_sel'])) {
-        $page->addHtml('<strong>' . $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE_ROLLQUERY_ACTIV') . '</strong>');
-    }
-
     $form = new HtmlForm('duedates_filter_form', '', $page, array(
         'type' => 'navbar',
         'setFocus' => false
@@ -449,6 +434,7 @@ if ($getMode == 'assign') {
         'helpTextId' => 'PLG_MEMBERSHIPFEE_FILTER_DESC',
         'showContextDependentFirstEntry' => false
     ));
+    mf_role_filter_add($form, $page, $roleFilterKey, 'PLG_MEMBERSHIPFEE_DUEDATE_ROLLQUERY_DESC');
 
     $page->addHtml($form->show(false));
     $page->addHtml('<div class="mb-3">'

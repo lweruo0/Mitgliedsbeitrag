@@ -71,10 +71,10 @@ if (($_GET['mode'] ?? '') === 'openiban_fix') {
     exit();
 }
 
-$headline = $gL10n->get('PLG_MEMBERSHIPFEE_TESTS');
+$headline = mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_TESTS'));
 $gNavigation->addUrl(CURRENT_URL, $headline);
 
-$page = new HtmlPage('plg-mitgliedsbeitrag-tests', $headline);
+$page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-tests', $headline);
 
 //Prüfungen nur anzeigen, wenn mindestens ein Einzeltest aktiviert ist
 if (in_array(1, $pPreferences->config['tests_enable']))
