@@ -159,6 +159,40 @@ try {
                 if ($position === null || $position['mfb_status'] === BookingStore::STATUS_CANCELLED) {
                     throw new Exception('SYS_INVALID_PAGE_VIEW');
                 }
+                // offene Position: erlassen oder reduzieren (Rest bleibt auf derselben Rechnung, PDF neu)
+                if ($position['mfb_status'] === BookingStore::STATUS_OPEN) {
+                    $date = mf_parse_date((string) ($_POST['storno_date'] ?? ''));
+                    if ($date === '') {
+                        throw new Exception('SYS_DATE_INVALID', array($gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_DATE'), $gSettingsManager->getString('system_date')));
+                    }
+                    $remaining = mf_parse_amount((string) ($_POST['waive_remaining'] ?? '0'));
+                    if ($remaining === null || $remaining < 0) {
+                        throw new Exception($gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_WAIVE_AMOUNT_INVALID', array(mf_format_amount((float) $position['mfb_amount']))));
+                    }
+                    $invoiceNo = (string) ($position['mfb_invoice_no'] ?? '');
+                    if ($invoiceNo !== '') {
+                        $invoice = \Plugins\MembershipFee\classes\Invoices\InvoiceStore::find($invoiceNo);
+                        if ($invoice !== null && $invoice['status'] === \Plugins\MembershipFee\classes\Invoices\InvoiceStatus::IN_COLLECTION) {
+                            throw new Exception($gL10n->get('PLG_MEMBERSHIPFEE_PAYMETHOD_IN_COLLECTION', array($invoiceNo)));
+                        }
+                    }
+                    $reasons = array('Kulanz', 'Korrektur', 'Sonstiges');
+                    $reason = in_array($_POST['storno_reason'] ?? '', $reasons, true) ? $_POST['storno_reason'] : 'Sonstiges';
+                    $gDb->startTransaction();
+                    try {
+                        $message = $bookingService->waive((int) $position['mfb_id'], $date, $reason, trim((string) ($_POST['storno_comment'] ?? '')), (float) $remaining);
+                    } catch (\InvalidArgumentException $invalid) {
+                        throw new Exception($invalid->getMessage());
+                    }
+                    $gDb->endTransaction();
+                    // Rechnung mit dem neuen Betrag (Nummer bleibt)
+                    if ($invoiceNo !== '' && \Plugins\MembershipFee\classes\Invoices\PdfBridge::isAvailable()) {
+                        $invoiceScope = \Plugins\MembershipFee\classes\Bookings\CollectionScope::forSource((string) $position['mfb_source'], (int) $gCurrentOrgId);
+                        $pdfError = (new \Plugins\MembershipFee\classes\Invoices\InvoiceService($pPreferences->config, $invoiceScope))->createPdf($invoiceNo);
+                        $message .= $pdfError === '' ? ' ' . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_WAIVE_PDF', array($invoiceNo)) : ' ' . $pdfError;
+                    }
+                    break;
+                }
                 $date = mf_parse_date((string) ($_POST['storno_date'] ?? ''));
                 if ($date === '') {
                     throw new Exception('SYS_DATE_INVALID', array($gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_DATE'), $gSettingsManager->getString('system_date')));
@@ -208,6 +242,9 @@ try {
         'reference' => 'PLG_MEMBERSHIPFEE_BOOKING_REFERENCE_EDIT',
         'cancel' => 'PLG_MEMBERSHIPFEE_BOOKING_CANCEL'
     );
+    if ($getMode === 'cancel' && $position !== null && $position['mfb_status'] === BookingStore::STATUS_OPEN) {
+        $headlines['cancel'] = 'PLG_MEMBERSHIPFEE_BOOKING_WAIVE';
+    }
     $headline = $gL10n->get($headlines[$getMode]);
     $gNavigation->addUrl(CURRENT_URL, $headline);
 
@@ -325,6 +362,35 @@ try {
             break;
 
         case 'cancel':
+            if ($position['mfb_status'] === BookingStore::STATUS_OPEN) {
+                // offene Position: erlassen oder reduzieren
+                $form->addDescription($gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_WAIVE_DESC'));
+                $form->addInput('storno_date', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_DATE'), DATE_NOW, array(
+                    'type' => 'date',
+                    'property' => HtmlForm::FIELD_REQUIRED
+                ));
+                $isDiscount = str_starts_with((string) ($position['mfb_import_ref'] ?? ''), BookingService::WAIVE_REF_PREFIX);
+                if ($isDiscount) {
+                    // Nachlass-Position: nur zuruecknehmen
+                    $form->addInput('waive_remaining', '', '0,00', array('property' => HtmlForm::FIELD_HIDDEN));
+                } else {
+                    $form->addInput('waive_remaining', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_WAIVE_REMAINING') . ' ' . $gSettingsManager->getString('system_currency'), '0,00', array(
+                        'property' => HtmlForm::FIELD_REQUIRED,
+                        'helpTextId' => 'PLG_MEMBERSHIPFEE_BOOKING_WAIVE_REMAINING_DESC'
+                    ));
+                }
+                $form->addSelectBox('storno_reason', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_REASON'), array(
+                    'Kulanz' => $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_REASON_GOODWILL'),
+                    'Korrektur' => $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_REASON_CORRECTION'),
+                    'Sonstiges' => $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_REASON_OTHER')
+                ), array(
+                    'defaultValue' => 'Kulanz',
+                    'showContextDependentFirstEntry' => false
+                ));
+                $form->addMultilineTextInput('storno_comment', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_COMMENT'), '', 2);
+                $form->addSubmitButton('btn_cancel', $gL10n->get($isDiscount ? 'PLG_MEMBERSHIPFEE_BOOKING_WAIVE_UNDO' : 'PLG_MEMBERSHIPFEE_BOOKING_WAIVE'), array('icon' => 'bi-x-octagon'));
+                break;
+            }
             $form->addInput('storno_date', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_DATE'), DATE_NOW, array(
                 'type' => 'date',
                 'property' => HtmlForm::FIELD_REQUIRED

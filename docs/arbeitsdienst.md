@@ -30,12 +30,13 @@ Die Felder werden beim ersten Aufruf automatisch angelegt und bei der Deinstalla
    Menüpunkt; Berechtigung über „Sichtbar für“ des Menüpunkts (z. B. Arbeitsdienstleiter).
 4. **Arbeitsdienst abrechnen**: legt je Mitglied eine offene Position „Ersatzleistung Arbeitsdienst“ (Quelle `ad`)
    an, passt sie an oder entfernt sie. Bereits exportierte oder eingezogene Positionen bleiben unverändert.
-5. **Fälligkeitsdatum** (ADDUEDATE, Sequenztyp).
-6. **Vorabinformation**: E-Mail-Vorlage „Vorabinformation Arbeitsdienst“ (Einstellungen → E-Mail-Benachrichtigungen).
-7. **SEPA-Datei erzeugen**: eigene Datei `sepa_arbeitsdienst_<datum>-<typ>.xml`, Message-ID `AD-…`,
+5. **Rechnungen erstellen** (2.0): Rechnungen mit Nummer `JAHR-AD-NNNN`; Lastschrift-Zahler ohne Fälligkeit erhalten
+   dabei das Einzugsdatum aus dem Dialog (ADDUEDATE, Sequenztyp).
+6. **Rechnungen versenden** (2.1): Lastschrift mit der Vorlage „Vorabinformation Arbeitsdienst“, Überweisung mit
+   „Rechnung Arbeitsdienst“ (Einstellungen → E-Mail-Benachrichtigungen).
+7. **SEPA-Datei erzeugen** (oben in 3.0 Lastschrifteinzug): eigene Datei `sepa_arbeitsdienst_<datum>-<typ>.xml`, Message-ID `AD-…`,
    End-to-End-ID `BFV-AD-<usr>-<datum>`.
-   Rechnungen (Nummer `JAHR-AD-NNNN`) unter 3.0 Rechnungen erstellen, vor der Vorabinformation.
-8. **Einzugsübersicht** (Spalte „Art“) und 8b. Beitragszahlungen.
+8. **Einzugsübersicht** (3.0, Spalte „Art“) und 3.1 Manuelle Zahlungen.
 
 Sobald eine AD-Position eines Jahres exportiert ist, ist die Erfassung für dieses Jahr gesperrt.
 

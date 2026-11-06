@@ -1681,19 +1681,21 @@ function mf_current_invoice(int $usrId, CollectionScope $scope): ?array
 {
     static $cache = array();
 
-    $key = $scope->key() . ':' . $usrId;
-    if (!array_key_exists($key, $cache)) {
-        $cache[$key] = null;
-        foreach (\Plugins\MembershipFee\classes\Invoices\InvoiceStore::search(array('kind' => $scope->key(), 'usr_ids' => array($usrId))) as $invoice) {
+    // beim ersten Aufruf je Buchungskreis alle Rechnungen mit einer Abfrage laden (Listen mit vielen Mitgliedern)
+    $kind = $scope->key();
+    if (!isset($cache[$kind])) {
+        $cache[$kind] = array();
+        foreach (\Plugins\MembershipFee\classes\Invoices\InvoiceStore::search(array('kind' => $kind)) as $invoice) {
             if (!in_array($invoice['status'], array(\Plugins\MembershipFee\classes\Invoices\InvoiceStatus::OPEN, \Plugins\MembershipFee\classes\Invoices\InvoiceStatus::IN_COLLECTION), true)) {
                 continue;
             }
-            if ($cache[$key] === null || $invoice['mfi_id'] > $cache[$key]['mfi_id']) {
-                $cache[$key] = $invoice;
+            $member = (int) $invoice['mfi_usr_id'];
+            if (!isset($cache[$kind][$member]) || $invoice['mfi_id'] > $cache[$kind][$member]['mfi_id']) {
+                $cache[$kind][$member] = $invoice;
             }
         }
     }
-    return $cache[$key];
+    return $cache[$kind][$usrId] ?? null;
 }
 
 /**
@@ -2677,23 +2679,21 @@ function mf_menu_groups(): array
         $page('workservice_workbilling', $num(1, 2) . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING'), 'bi-receipt', 'work_billing.php', $ad)
     ));
 
-    // Einzug (Schritte 2 bis 8, gemeinsam fuer Mitgliedsbeitrag und Arbeitsdienst). Ohne collection-Parameter
+    // Einzug (Schritte 2 bis 5, gemeinsam fuer Mitgliedsbeitrag und Arbeitsdienst). Ohne collection-Parameter
     // gilt der zuletzt gewaehlte Buchungskreis; 'switch' blendet auf der Seite die Umschaltung ein.
     $shared = static function (array $entry, bool $switch = true): array {
         $entry['switch'] = $switch;
         return $entry;
     };
     $groups[] = array('label' => $gL10n->get('PLG_MEMBERSHIPFEE_MENU_GROUP_COLLECTION'), 'entries' => array(
-        $shared($page('collection_duedates', $num(2, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_DUEDATE'), 'bi-calendar-check', 'duedates.php')),
-        // Rechnungen entstehen vor der Vorabinformation (docs/konzept-rechnungen-pdf.md, Abschnitt 6)
-        $shared($page('collection_bill', $num(3, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_BILL'), 'bi-receipt', 'bill.php')),
-        $shared($page('collection_prenotification', $num(3, 1) . $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'), 'bi-envelope-paper', 'pre_notification.php')),
-        $shared($main('collection_sepa', $num(4, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_SEPA'), 'bi-filetype-xml')),
-        $shared($page('collection_runs', $num(5, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_DIRECT_DEBIT'), 'bi-bank', 'runs.php'), false),
-        $shared($page('collection_payments', $num(5, 1) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_MANUAL_PAYMENTS'), 'bi-cash-coin', 'payments.php')),
-        $shared($page('collection_analysis', $num(6, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ANALYSIS'), 'bi-bar-chart', 'analysis.php')),
-        $shared($page('collection_roleoverview', $num(7, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_OVERVIEW'), 'bi-list-columns-reverse', 'roleoverview.php'), false),
-        $shared($page('collection_bookingoverview', $num(8, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_OVERVIEW'), 'bi-clock-history', 'booking_overview.php'))
+        // Rechnungen erstellen setzt fuer Lastschrift-Zahler auch das Einzugsdatum (frueher eigener Schritt Faelligkeit)
+        $shared($page('collection_bill', $num(2, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_BILL'), 'bi-receipt', 'bill.php')),
+        $shared($page('collection_prenotification', $num(2, 1) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_DISPATCH'), 'bi-envelope-paper', 'pre_notification.php')),
+        // 3.0 Lastschrifteinzug enthaelt auch "SEPA-Dateien erzeugen" (frueher eigener Menuepunkt)
+        $shared($page('collection_runs', $num(3, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_DIRECT_DEBIT'), 'bi-bank', 'runs.php'), false),
+        $shared($page('collection_payments', $num(3, 1) . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_MANUAL_PAYMENTS'), 'bi-cash-coin', 'payments.php')),
+        $shared($page('collection_analysis', $num(4, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ANALYSIS'), 'bi-bar-chart', 'analysis.php')),
+        $shared($page('collection_bookingoverview', $num(5, 0) . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_OVERVIEW'), 'bi-clock-history', 'booking_overview.php'))
     ));
 
     // Mandatsverwaltung
@@ -2863,4 +2863,282 @@ function mf_page_headline(string $default): string
         }
     }
     return $default;
+}
+
+/**
+ * Schaltflaeche "Verschieben" einer Zeile in 2.0/2.1 (Tabellen Ueberweisung und SEPA-Einzug).
+ * Nach SEPA nur mit IBAN und Mandats-ID; Rechnungen im Einzug, bezahlt oder storniert bleiben, wo sie sind.
+ *
+ * @param string $group      aktuelle Tabelle (SEPA | MAN)
+ * @param string $autoMethod Zahlart aus dem Profil (InvoicePlanner::method())
+ * @param string $status     Status der Rechnung (offen bei Zeilen ohne Rechnung)
+ */
+function mf_paymethod_move_button(int $usrId, int $year, string $group, string $autoMethod, string $status): string
+{
+    global $gL10n;
+
+    if ($status === \Plugins\MembershipFee\classes\Invoices\InvoiceStatus::IN_COLLECTION) {
+        return '<i class="bi bi-lock text-muted" title="' . SecurityUtils::encodeHTML($gL10n->get('PLG_MEMBERSHIPFEE_PAYMETHOD_LOCKED')) . '"></i>';
+    }
+    if ($status !== \Plugins\MembershipFee\classes\Invoices\InvoiceStatus::OPEN) {
+        return '';
+    }
+    $target = $group === 'SEPA' ? 'MAN' : 'SEPA';
+    $label = $gL10n->get($target === 'SEPA' ? 'PLG_MEMBERSHIPFEE_PAYMETHOD_TO_SEPA' : 'PLG_MEMBERSHIPFEE_PAYMETHOD_TO_MAN');
+    $disabled = $target === 'SEPA' && $autoMethod !== 'SEPA';
+    $title = $disabled ? $gL10n->get('PLG_MEMBERSHIPFEE_PAYMETHOD_NO_MANDATE') : $gL10n->get('PLG_MEMBERSHIPFEE_PAYMETHOD_MOVE_DESC', array($year));
+    return '<button type="button" class="btn btn-sm btn-outline-secondary text-nowrap mf-move" data-usr="' . $usrId . '" data-year="' . $year
+        . '" data-target="' . $target . '" title="' . SecurityUtils::encodeHTML($title) . '"' . ($disabled ? ' disabled' : '') . '>'
+        . '<i class="bi bi-arrow-left-right"></i> ' . SecurityUtils::encodeHTML($label) . '</button>';
+}
+
+/**
+ * Dialog (Einzugsdatum fuer eine Rechnung, die nach SEPA wechselt) und JavaScript fuer die Schaltflaechen "Verschieben".
+ */
+function mf_paymethod_move_assets(HtmlPage $page, CollectionScope $scope): void
+{
+    global $gL10n, $gCurrentSession;
+
+    $blockedDays = array();
+    for ($holidayYear = (int) date('Y'); $holidayYear <= (int) date('Y') + 1; $holidayYear++) {
+        $blockedDays = array_merge($blockedDays, mf_bank_holidays($holidayYear));
+    }
+    $options = '';
+    foreach (array('AUTO' => 'PLG_MEMBERSHIPFEE_AUTO_DIRECT_DEBIT', 'RCUR' => 'PLG_MEMBERSHIPFEE_FOLLOW_DIRECT_DEBIT',
+        'FRST' => 'PLG_MEMBERSHIPFEE_FIRST_DIRECT_DEBIT', 'OOFF' => 'PLG_MEMBERSHIPFEE_ONETIMES_DIRECT_DEBIT',
+        'FNAL' => 'PLG_MEMBERSHIPFEE_FINAL_DIRECT_DEBIT') as $value => $label) {
+        $options .= '<option value="' . $value . '">' . SecurityUtils::encodeHTML($gL10n->get($label)) . '</option>';
+    }
+
+    $page->addHtml('<div class="modal fade" id="mf_move_modal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">'
+        . '<div class="modal-header"><h5 class="modal-title">' . $gL10n->get('PLG_MEMBERSHIPFEE_PAYMETHOD_TO_SEPA') . '</h5>'
+        . '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>'
+        . '<div class="modal-body"><p>' . $gL10n->get('PLG_MEMBERSHIPFEE_PAYMETHOD_NEED_DATE') . '</p>'
+        . '<label class="form-label" for="mf_move_date">' . $gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_DEBIT_DATE') . '</label>'
+        . '<input type="date" class="form-control mb-2" id="mf_move_date" min="' . DATE_NOW . '">'
+        . '<label class="form-label" for="mf_move_sequencetype">' . $gL10n->get('PLG_MEMBERSHIPFEE_SEQUENCETYPE') . '</label>'
+        . '<select class="form-select" id="mf_move_sequencetype">' . $options . '</select>'
+        . '<div id="mf_move_problem" class="text-danger fw-bold mt-2"></div></div>'
+        . '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">' . $gL10n->get('SYS_CANCEL') . '</button>'
+        . '<button type="button" class="btn btn-primary" id="mf_move_confirm"><i class="bi bi-check-lg"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_PAYMETHOD_TO_SEPA') . '</button></div>'
+        . '</div></div></div>');
+
+    $url = SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/paymethod.php', array('collection' => $scope->key()));
+    $page->addJavascript('
+        var mfMoveToken = ' . json_encode($gCurrentSession->getCsrfToken()) . ';
+        var mfMoveHolidays = ' . json_encode($blockedDays, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) . ';
+        var mfMoveToday = ' . json_encode(DATE_NOW) . ';
+        var mfMovePending = null;
+        function mfMoveProblem(value) {
+            if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) { return "kein gültiges Datum"; }
+            if (value < mfMoveToday) { return "liegt in der Vergangenheit"; }
+            var parts = value.split("-");
+            var day = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getDay();
+            if (day === 6) { return "Samstag"; }
+            if (day === 0) { return "Sonntag"; }
+            return mfMoveHolidays[value] || "";
+        }
+        function mfMoveSend(data, button) {
+            data.adm_csrf_token = mfMoveToken;
+            $(button).prop("disabled", true);
+            $.post(' . json_encode($url) . ', data, function(result) {
+                if (result.ok) {
+                    if (result.pdf_errors && result.pdf_errors.length > 0) {
+                        alert(result.pdf_errors.join("\\n"));
+                    }
+                    window.location.reload();
+                    return;
+                }
+                $(button).prop("disabled", false);
+                if (result.need_date) {
+                    mfMovePending = data;
+                    $("#mf_move_date").val(result.debit_default);
+                    $("#mf_move_problem").text("");
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById("mf_move_modal")).show();
+                    return;
+                }
+                alert(result.message);
+            }, "json").fail(function() { $(button).prop("disabled", false); alert(' . json_encode($gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_FAILED')) . '); });
+        }
+        $(document).on("click", ".mf-move", function() {
+            mfMoveSend({usr_id: $(this).data("usr"), year: $(this).data("year"), target: $(this).data("target")}, this);
+        });
+        $("#mf_move_confirm").click(function() {
+            var value = $("#mf_move_date").val() || "";
+            var problem = mfMoveProblem(value);
+            if (problem !== "") {
+                $("#mf_move_problem").text(value.split("-").reverse().join(".") + " ist als Einzugsdatum nicht möglich (" + problem + ").");
+                return;
+            }
+            var data = $.extend({}, mfMovePending, {debit_date: value, sequencetype: $("#mf_move_sequencetype").val()});
+            mfMoveSend(data, this);
+        });
+    ', true);
+}
+
+/**
+ * Mitglieder, die per "Verschieben" fuer ein Beitragsjahr mit offenen (oder exportierten) Positionen auf
+ * Ueberweisung gestellt sind. Sie gehoeren nicht in die SEPA-Datei.
+ *
+ * @return array<int, true> usr_id => true
+ */
+function mf_paymethod_override_users(CollectionScope $scope): array
+{
+    $overrides = \Plugins\MembershipFee\classes\Invoices\PaymentMethodStore::all($scope->key());
+    if (count($overrides) === 0) {
+        return array();
+    }
+    $result = array();
+    foreach (BookingStore::getByUsers(array_keys($overrides), array(BookingStore::STATUS_OPEN, BookingStore::STATUS_EXPORTED)) as $usrId => $positions) {
+        foreach ($scope->filterPositions($positions) as $position) {
+            if (($overrides[(int) $usrId][(int) $position['mfb_year']] ?? null) === \Plugins\MembershipFee\classes\Invoices\InvoicePlanner::METHOD_MANUAL) {
+                $result[(int) $usrId] = true;
+                break;
+            }
+        }
+    }
+    return $result;
+}
+
+/**
+ * Ueberweiser unter den angegebenen Mitgliedern: ohne IBAN oder Mandats-ID oder per "Verschieben" auf Ueberweisung.
+ *
+ * @param array<int, int> $usrIds
+ * @return array<int, true> usr_id => true
+ */
+function mf_paymethod_transfer_users(CollectionScope $scope, array $usrIds): array
+{
+    global $gDb, $gProfileFields, $gCurrentOrgId;
+
+    $usrIds = array_values(array_unique(array_map('intval', $usrIds)));
+    $result = mf_paymethod_override_users($scope);
+    if (count($usrIds) === 0) {
+        return array();
+    }
+    $usfIban = (int) $gProfileFields->getProperty('IBAN', 'usf_id');
+    $usfMandate = (int) $gProfileFields->getProperty('MANDATEID' . (int) $gCurrentOrgId, 'usf_id');
+    $sepa = array();
+    foreach (array_chunk($usrIds, 500) as $chunk) {
+        $statement = $gDb->queryPrepared('SELECT iban.usd_usr_id
+              FROM ' . TBL_USER_DATA . ' iban
+              JOIN ' . TBL_USER_DATA . ' mandate ON mandate.usd_usr_id = iban.usd_usr_id AND mandate.usd_usf_id = ? AND mandate.usd_value <> \'\'
+             WHERE iban.usd_usf_id = ? AND iban.usd_value <> \'\'
+               AND iban.usd_usr_id IN (' . implode(',', array_fill(0, count($chunk), '?')) . ')', array_merge(array($usfMandate, $usfIban), $chunk));
+        while ($row = $statement->fetch()) {
+            $sepa[(int) $row['usd_usr_id']] = true;
+        }
+    }
+    $transfer = array();
+    foreach ($usrIds as $usrId) {
+        if (!isset($sepa[$usrId]) || isset($result[$usrId])) {
+            $transfer[$usrId] = true;
+        }
+    }
+    return $transfer;
+}
+
+/**
+ * Profilwerte vieler Mitglieder mit wenigen Abfragen (statt je Mitglied User::readDataById()), roh aus der
+ * Datenbank. Liefert zusaetzlich 'usr_uuid'. Fehlende Felder sind ''.
+ *
+ * @param array<int, int> $usrIds
+ * @param array<int, string> $fieldNames interne Feldnamen (usf_name_intern)
+ * @return array<int, array<string, string>> usr_id => (Feldname => Wert)
+ */
+function mf_profile_values(array $usrIds, array $fieldNames): array
+{
+    global $gDb, $gProfileFields;
+
+    $usrIds = array_values(array_unique(array_map('intval', $usrIds)));
+    $result = array();
+    if (count($usrIds) === 0) {
+        return $result;
+    }
+    $fieldIds = array();
+    foreach ($fieldNames as $name) {
+        $fieldIds[(int) $gProfileFields->getProperty($name, 'usf_id')] = $name;
+    }
+    unset($fieldIds[0]);
+    foreach (array_chunk($usrIds, 500) as $chunk) {
+        $placeholders = implode(',', array_fill(0, count($chunk), '?'));
+        $statement = $gDb->queryPrepared('SELECT usr_id, usr_uuid FROM ' . TBL_USERS . ' WHERE usr_id IN (' . $placeholders . ')', $chunk);
+        while ($row = $statement->fetch()) {
+            $result[(int) $row['usr_id']] = array_fill_keys($fieldNames, '') + array('usr_uuid' => (string) $row['usr_uuid']);
+        }
+        if (count($fieldIds) > 0) {
+            $statement = $gDb->queryPrepared('SELECT usd_usr_id, usd_usf_id, usd_value FROM ' . TBL_USER_DATA
+                . ' WHERE usd_usr_id IN (' . $placeholders . ') AND usd_usf_id IN (' . implode(',', array_fill(0, count($fieldIds), '?')) . ')',
+                array_merge($chunk, array_keys($fieldIds)));
+            while ($row = $statement->fetch()) {
+                if (isset($result[(int) $row['usd_usr_id']])) {
+                    $result[(int) $row['usd_usr_id']][$fieldIds[(int) $row['usd_usf_id']]] = (string) $row['usd_value'];
+                }
+            }
+        }
+    }
+    return $result;
+}
+
+/**
+ * Block "SEPA-Dateien erzeugen" eines Buchungskreises (Lastschrifteinzug, frueher eigener Menuepunkt):
+ * Tabelle der Faelligkeiten je Sequenztyp, Schalter "zusammenfassen" und Button mit der Anzahl der Dateien.
+ * Ohne offene Lastschriften nur ein Hinweis.
+ */
+function mf_sepa_create_block(HtmlPage $page, CollectionScope $scope): string
+{
+    global $gL10n, $pPreferences;
+
+    $duedates = mf_sepa_duedate_overview($scope);
+    if (count($duedates) === 0) {
+        return '<div class="alert alert-info" role="alert"><i class="bi bi-info-circle"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_NONE_OPEN') . '</div>';
+    }
+
+    $formId = 'sepa_export_form_' . $scope->key();
+    $html = '<style>#' . $formId . ' label.col-sm-3 { display: none; } #' . $formId . ' .col-sm-9 { flex: 0 0 100%; max-width: 100%; margin-left: 0; }</style>'
+        . '<table class="table table-condensed"><thead><tr><th style="text-align: center;">' . $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE') . '</th>';
+    foreach (array('FRST', 'RCUR', 'FNAL', 'OOFF') as $sequenceType) {
+        $html .= '<th style="text-align: center;">' . $sequenceType . '</th>';
+    }
+    $html .= '</tr></thead><tbody>';
+    // Dateien: zusammengefasst je Faelligkeitsdatum eine, sonst je Faelligkeitsdatum und Sequenztyp (siehe sepa_create.php)
+    $fileCounts = array('combined' => 0, 'separate' => 0);
+    foreach ($duedates as $duedate => $counts) {
+        $html .= '<tr><td style="text-align: center;">' . mf_format_date($duedate) . '</td>';
+        foreach ($counts as $count) {
+            $html .= '<td style="text-align: center;">' . ($count > 0 ? $count : '<span class="text-muted">–</span>') . '</td>';
+        }
+        $html .= '</tr>';
+        $types = count(array_filter(array_map('intval', array_values($counts))));
+        $fileCounts['combined'] += $types > 0 ? 1 : 0;
+        $fileCounts['separate'] += $types;
+    }
+    $html .= '</tbody></table>';
+
+    $form = new HtmlForm($formId, ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/sepa_create.php', $page);
+    $form->addCustomContent('', '<input type="hidden" name="collection" value="' . $scope->key() . '" />');
+    $form->addCheckbox('combine_sequence_types', $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_COMBINE'), (bool) ($pPreferences->config['SEPA']['combine_sequence_types'] ?? 1), array(
+        'helpTextId' => 'PLG_MEMBERSHIPFEE_SEPA_COMBINE_DESC'
+    ));
+    $form->addSubmitButton('btn_create_export_file_' . $scope->key(), $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILES'), array(
+        'icon' => 'bi-filetype-xml',
+        'class' => 'btn-primary'
+    ));
+    $html .= $form->show();
+
+    // Beschriftung "x SEPA-Dateien erzeugen", abhaengig vom Schalter
+    $html .= '<script>$(function() {
+        var form = $("#' . $formId . '"), counts = ' . json_encode($fileCounts) . ';
+        var one = ' . json_encode($gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILE_ONE')) . ', many = ' . json_encode($gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILES_COUNT')) . ';
+        form.find("button[type=submit]").each(function() {
+            var icon = $(this).find("i").first().prop("outerHTML") || "";
+            $(this).html(icon + " <span class=\"mf-sepa-label\"></span>");
+        });
+        function update() {
+            var n = form.find("input[name=combine_sequence_types]").prop("checked") ? counts.combined : counts.separate;
+            form.find(".mf-sepa-label").text(n === 1 ? one : many.replace("#VAR1#", n));
+        }
+        form.on("change", "input[name=combine_sequence_types]", update);
+        update();
+    });</script>';
+    return $html;
 }

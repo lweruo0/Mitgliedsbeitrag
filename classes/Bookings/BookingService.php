@@ -900,6 +900,82 @@ class BookingService
         return $note;
     }
 
+    /** Kennung in mfb_import_ref einer Nachlass-Position: NACHLASS-<mfb_id der reduzierten Position> */
+    public const WAIVE_REF_PREFIX = 'NACHLASS-';
+
+    /** Stornogrund einer ganz erlassenen Position (Rechnung zeigt Betrag und Nachlass) */
+    public const WAIVE_REASON_PREFIX = 'Nachlass ';
+
+    /**
+     * Offene Position erlassen oder reduzieren (z. B. Ruecklastschriftgebuehr aus Kulanz). Reduzieren: eine
+     * negative Position "Nachlass auf ..." auf derselben Rechnung. Ganz erlassen: die Position (und ihre
+     * Nachlaesse) werden storniert, Stornogrund "Nachlass ..." (die Rechnung zeigt Betrag und Nachlass).
+     * Eine Nachlass-Position selbst wird nur zurueckgenommen (storniert). Das PDF erzeugt der Aufrufer neu.
+     *
+     * @param float $remaining verbleibender Betrag (0 = ganz erlassen, kleiner als der bisher offene Betrag)
+     * @return string Meldung fuer die Anzeige, leer wenn nichts geaendert wurde
+     */
+    public function waive(int $bookingId, string $date, string $reason, string $comment, float $remaining): string
+    {
+        global $gL10n, $gCurrentOrgId;
+
+        $position = BookingStore::find($bookingId);
+        if ($position === null || $position['mfb_status'] !== BookingStore::STATUS_OPEN) {
+            return '';
+        }
+        $usrId = (int) $position['mfb_usr_id'];
+        $service = $this->withScope(CollectionScope::forSource((string) $position['mfb_source'], (int) $gCurrentOrgId));
+        $note = trim($reason . ($comment !== '' ? ': ' . $comment : ''));
+
+        // Nachlass-Position zuruecknehmen
+        if (str_starts_with((string) ($position['mfb_import_ref'] ?? ''), self::WAIVE_REF_PREFIX)) {
+            BookingStore::update($bookingId, array('mfb_status' => BookingStore::STATUS_CANCELLED, 'mfb_storno_date' => $date,
+                'mfb_storno_reason' => 'Korrektur', 'mfb_comment' => trim((string) $position['mfb_comment'] . "\n" . 'Nachlass zurückgenommen (' . $note . ')')));
+            $service->syncWorkFields($usrId);
+            return $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_WAIVE_UNDONE', array((string) $position['mfb_rol_name']));
+        }
+
+        // bisher offener Betrag: Position abzueglich ihrer offenen Nachlaesse
+        $discounts = array_values(array_filter(BookingStore::getByUser($usrId, array(BookingStore::STATUS_OPEN)),
+            static fn (array $item): bool => (string) ($item['mfb_import_ref'] ?? '') === self::WAIVE_REF_PREFIX . $bookingId));
+        $effective = round((float) $position['mfb_amount'] + array_sum(array_map(static fn (array $item): float => (float) $item['mfb_amount'], $discounts)), 2);
+        $remaining = round($remaining, 2);
+        if ($remaining < 0 || $remaining >= $effective) {
+            throw new \InvalidArgumentException($gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_WAIVE_AMOUNT_INVALID', array(mf_format_amount($effective))));
+        }
+        $label = (string) $position['mfb_rol_name'];
+
+        if ($remaining > 0) {
+            BookingStore::insert(array(
+                'mfb_usr_id' => $usrId,
+                'mfb_year' => (int) $position['mfb_year'],
+                'mfb_source' => $service->getScope()->isMembership() ? BookingStore::SOURCE_MANUAL : CollectionScope::SOURCE_WORK_MANUAL,
+                'mfb_rol_name' => mb_substr('Nachlass auf ' . $label . ' (' . $reason . ')', 0, 100),
+                'mfb_amount' => -round($effective - $remaining, 2),
+                'mfb_text' => mb_substr('Nachlass ' . $label, 0, 140),
+                'mfb_status' => BookingStore::STATUS_OPEN,
+                'mfb_invoice_no' => (string) ($position['mfb_invoice_no'] ?? ''),
+                'mfb_import_ref' => self::WAIVE_REF_PREFIX . $bookingId,
+                'mfb_comment' => 'Nachlass vom ' . date('d.m.Y', (int) strtotime($date)) . ' (' . $note . ')'
+            ));
+            $message = $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_WAIVE_REDUCED', array($label, mf_format_amount($remaining)));
+        } else {
+            foreach ($discounts as $discount) {
+                BookingStore::update((int) $discount['mfb_id'], array('mfb_status' => BookingStore::STATUS_CANCELLED,
+                    'mfb_storno_date' => $date, 'mfb_storno_reason' => 'Korrektur'));
+            }
+            BookingStore::update($bookingId, array(
+                'mfb_status' => BookingStore::STATUS_CANCELLED,
+                'mfb_storno_date' => $date,
+                'mfb_storno_reason' => mb_substr(self::WAIVE_REASON_PREFIX . $reason, 0, 20),
+                'mfb_comment' => trim((string) $position['mfb_comment'] . "\n" . 'Erlassen (' . $note . ')')
+            ));
+            $message = $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_WAIVE_DONE', array($label));
+        }
+        $service->syncWorkFields($usrId);
+        return $message;
+    }
+
     /**
      * Beendet die Mitgliedschaft in einer Rolle zum angegebenen Datum.
      */

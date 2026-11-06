@@ -160,7 +160,9 @@ function mf_render_bookings(int $usrId, string $userUuid, bool $withActions = tr
                 $actions[] = '<a class="admidio-icon-link" href="' . SecurityUtils::encodeUrl($editUrl, array('mode' => 'reference', 'mfb_id' => $position['mfb_id'])) . '"><i class="bi bi-tag" title="' . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_REFERENCE_EDIT') . '"></i></a>';
             }
             if ($status !== BookingStore::STATUS_CANCELLED && !$editable) {
-                $actions[] = '<a class="admidio-icon-link" href="' . SecurityUtils::encodeUrl($editUrl, array('mode' => 'cancel', 'mfb_id' => $position['mfb_id'])) . '"><i class="bi bi-x-octagon" title="' . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL') . '"></i></a>';
+                // offene Position auf einer Rechnung: erlassen/reduzieren; sonst Storno der Lastschrift
+                $cancelTitle = $gL10n->get($status === BookingStore::STATUS_OPEN ? 'PLG_MEMBERSHIPFEE_BOOKING_WAIVE' : 'PLG_MEMBERSHIPFEE_BOOKING_CANCEL');
+                $actions[] = '<a class="admidio-icon-link" href="' . SecurityUtils::encodeUrl($editUrl, array('mode' => 'cancel', 'mfb_id' => $position['mfb_id'])) . '"><i class="bi bi-x-octagon" title="' . $cancelTitle . '"></i></a>';
             }
             $html .= '<td style="white-space: nowrap;">' . implode(' ', $actions) . '</td>';
         }

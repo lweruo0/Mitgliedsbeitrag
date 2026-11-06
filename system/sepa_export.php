@@ -83,6 +83,9 @@ foreach ($_POST['duedatesepatype'] as $dummy => $data)
 	
 $members = list_members(array('FIRST_NAME', 'LAST_NAME', $mfScope->field(CollectionScope::FIELD_FEE), $mfScope->field(CollectionScope::FIELD_TEXT), $mfScope->field(CollectionScope::FIELD_PAID), 'STREET', 'CITY', 'DEBTOR', 'DEBTOR_CITY', 'DEBTOR_STREET', 'IBAN', 'ORIG_IBAN', 'BIC', 'BANK', 'ORIG_DEBTOR_AGENT', 'MANDATEID'.$gCurrentOrgId, 'ORIG_MANDATEID'.$gCurrentOrgId, 'MANDATEDATE'.$gCurrentOrgId, $mfScope->field(CollectionScope::FIELD_DUEDATE), $mfScope->field(CollectionScope::FIELD_SEQUENCETYPE)), 0);
 		
+// per "Verschieben" auf Ueberweisung gestellte Mitglieder gehoeren nicht in die SEPA-Datei (2.0/2.1)
+$mfTransferExclude = mf_paymethod_override_users($mfScope);
+
 //alle Mitglieder durchlaufen und das Array $zpflgt befuellen
 foreach ($members as $member => $memberdata)
 {
@@ -92,7 +95,7 @@ foreach ($members as $member => $memberdata)
     if  (!empty($memberdata[$mfScope->field(CollectionScope::FIELD_FEE)])
         && empty($memberdata[$mfScope->field(CollectionScope::FIELD_PAID)])
         && !empty($memberdata['IBAN'])
-        && in_array($dueDateMember . $sequenceTypeMember, $_POST['duedatesepatype']) && !isset($mfSepaExclude[(int) $member]) )
+        && in_array($dueDateMember . $sequenceTypeMember, $_POST['duedatesepatype']) && !isset($mfSepaExclude[(int) $member]) && !isset($mfTransferExclude[(int) $member]) )
     {
         $zpflgt[$member]['duedate'] = '';
         $zpflgt[$member]['sequencetype'] = '';

@@ -157,6 +157,8 @@ try {
             $result_bookings = BookingStore::removeDataOfCurrentOrganization();
             // Arbeitsdienst: erfasste Stunden dieser Organisation
             \Plugins\MembershipFee\classes\Work\WorkHoursStore::removeDataOfCurrentOrganization();
+            // abweichende Zahlarten (Verschieben in 2.0/2.1)
+            \Plugins\MembershipFee\classes\Invoices\PaymentMethodStore::removeDataOfCurrentOrganization();
             $result .= ($result_bookings ? $gL10n->get('PLG_MEMBERSHIPFEE_UNINST_BOOKINGS_TABLE_DELETED') : $gL10n->get('PLG_MEMBERSHIPFEE_UNINST_BOOKINGS_DATA_DELETED'));
             $addinError = ProfileAddin::uninstall();
             if ($addinError !== '') {

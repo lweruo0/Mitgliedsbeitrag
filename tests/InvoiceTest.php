@@ -102,6 +102,16 @@ final class InvoiceTest extends TestCase
         self::assertSame('2027-01-08', InvoicePlanner::dueDate('MAN', '', '2026-12-25', 14));
     }
 
+    public function testEffectiveMethod(): void
+    {
+        // Verschieben nach Ueberweisung gilt immer; zurueck nach Lastschrift nur mit Mandat (sonst bleibt MAN)
+        self::assertSame('SEPA', InvoicePlanner::effectiveMethod('SEPA', null));
+        self::assertSame('MAN', InvoicePlanner::effectiveMethod('SEPA', 'MAN'));
+        self::assertSame('MAN', InvoicePlanner::effectiveMethod('MAN', null));
+        self::assertSame('MAN', InvoicePlanner::effectiveMethod('MAN', 'SEPA'));
+        self::assertSame('MAN', InvoicePlanner::effectiveMethod('MAN', 'MAN'));
+    }
+
     public function testMaskIban(): void
     {
         self::assertSame('DE02xxxxxxxxxxxxxx2051', InvoicePlanner::maskIban('DE02 1203 0000 0000 2020 51'));

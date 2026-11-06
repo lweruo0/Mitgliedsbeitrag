@@ -11,7 +11,7 @@
 <div id="plg-doc-de">
 
 <h1>Mitgliedsbeitrag &ndash; Dokumentation</h1>
-<p class="text-muted">Ein Plugin f&uuml;r die kostenlose Online-Mitgliederverwaltungssoftware Admidio. Autor: Rainer M. Binder. Angepasst f&uuml;r den BFV Ehingen, Stand Version 6.5.0 (05.11.2026).</p>
+<p class="text-muted">Ein Plugin f&uuml;r die kostenlose Online-Mitgliederverwaltungssoftware Admidio. Autor: Rainer M. Binder. Angepasst f&uuml;r den BFV Ehingen, Stand Version 6.9.1 (06.11.2026).</p>
 
 <div class="alert alert-info" role="alert">
     Verweise auf Men&uuml;punkte des Plugins sind so dargestellt:
@@ -35,7 +35,7 @@
     <li><a href="#doc-zahlungen">Beitragszahlungen und Analyse</a></li>
     <li><a href="#doc-export">SEPA-Export und Rechnungen</a></li>
     <li><a href="#doc-mandate">Mandatsverwaltung</a></li>
-    <li><a href="#doc-optionen">Pr&uuml;fungen und Rollen&uuml;bersicht</a></li>
+    <li><a href="#doc-optionen">Pr&uuml;fungen</a></li>
     <li><a href="#doc-einstellungen">Einstellungen</a></li>
     <li><a href="#doc-konfiguration">Speicherung der Konfiguration</a></li>
     <li><a href="#doc-overview">Informationen auf der &Uuml;bersichtsseite</a></li>
@@ -129,12 +129,12 @@
 <ol>
     <li>Im Profil eines Mitglieds unter <em>Beitrag</em> die Zahl 99 eintragen. In der &Uuml;bersicht wird bei <em>Gesamtsumme</em> jetzt 99 angezeigt.
         Nach einer Neuberechnung erscheint das Mitglied mit offenen Positionen in den Modulen <em>Beitragszahlungen</em>
-        (&rarr; 5.1 Manuelle Zahlungen) und <em>Rechnungen</em> (&rarr; 3.0 Rechnungen erstellen).</li>
-    <li>Das Modul <em>F&auml;lligkeitsdatum</em> ben&ouml;tigt: Beitrag, Mandatsreferenz, Mandatsdatum, IBAN und ein <em>leeres</em> Bezahlt-Datum.
-        Diese Werte im Profil erg&auml;nzen und danach &rarr; Beitragseinzug &ndash; F&auml;lligkeitsdatum &ouml;ffnen.</li>
-    <li>Die Checkbox in der ersten Spalte anklicken (als F&auml;lligkeitsdatum wird das aktuelle Datum eingetragen) und mit &bdquo;Zur&uuml;ck&ldquo; zur&uuml;ckgehen.
-        Unter &rarr; Beitragseinzug &ndash; 5. SEPA-Datei erzeugen &bdquo;SEPA-Dateien erzeugen&ldquo; klicken. Die Datei steht danach mit ihrer Kontrolldatei
-        in der &rarr; Beitragseinzug &ndash; 6. Einzugs&uuml;bersicht zum Herunterladen bereit. Zum Aufr&auml;umen den Einzug dort mit &bdquo;Einzug verwerfen&ldquo; entfernen.</li>
+        (&rarr; 3.1 Manuelle Zahlungen) und <em>Rechnungen</em> (&rarr; 2.0 Rechnungen erstellen).</li>
+    <li>F&uuml;r eine Lastschrift braucht das Mitglied Mandatsreferenz, Mandatsdatum und IBAN. Diese Werte im Profil erg&auml;nzen und danach
+        &rarr; 2.0 Rechnungen erstellen &ouml;ffnen.</li>
+    <li>Das Mitglied markieren, &bdquo;Rechnungen erstellen&ldquo; klicken und im Dialog ein Einzugsdatum w&auml;hlen; es wird als F&auml;lligkeitsdatum eingetragen.
+        Unter &rarr; Beitragseinzug &ndash; 3.0 Lastschrifteinzug oben &bdquo;SEPA-Dateien erzeugen&ldquo; klicken. Die Datei steht danach mit ihrer Kontrolldatei
+        in der Liste darunter zum Herunterladen bereit. Zum Aufr&auml;umen den Einzug dort mit &bdquo;Einzug verwerfen&ldquo; entfernen.</li>
 </ol>
 
 <h3>Beitragsberechnung testen</h3>
@@ -162,15 +162,15 @@
     <tbody>
         <tr><td>Beitragsberechnung</td><td>1.0 Pr&uuml;fungen, 1.1 Beitr&auml;ge berechnen (ggf. Individualbeitr&auml;ge)</td></tr>
         <tr><td>Arbeitsdienstberechnung</td><td>1.0 Sollstunden abgleichen, 1.1 Arbeitsdienst erfassen, 1.2 Arbeitsdienst abrechnen (siehe <a href="#doc-arbeitsdienst">Arbeitsdienst</a>)</td></tr>
-        <tr><td>Einzug</td><td>2.0 F&auml;lligkeit, <strong>3.0 Rechnungen erstellen</strong>, 3.1 Vorabinformation, 4.0 SEPA-Datei erstellen, 5.0 Lastschrifteinzug, 5.1 Manuelle Zahlungen,
-            6.0 Beitragsanalyse, 7.0 Rollen&uuml;bersicht, 8.0 Buchungs&uuml;bersicht. Die Seiten gelten f&uuml;r Mitgliedsbeitrag und Arbeitsdienst; oben wird der Buchungskreis
+        <tr><td>Einzug</td><td><strong>2.0 Rechnungen erstellen</strong> (setzt bei Lastschrift-Zahlern auch die F&auml;lligkeit), <strong>2.1 Rechnungen versenden</strong>, 3.0 Lastschrifteinzug (mit SEPA-Dateien erzeugen), 3.1 Manuelle Zahlungen,
+            4.0 Beitragsanalyse, 5.0 Buchungs&uuml;bersicht. Die Seiten gelten f&uuml;r Mitgliedsbeitrag und Arbeitsdienst; oben wird der Buchungskreis
             umgeschaltet (mit Beitrags- bzw. Leistungsjahr im Button).</td></tr>
         <tr><td>Mandatsverwaltung</td><td>Mandatsreferenzen erzeugen, Mandate bearbeiten</td></tr>
         <tr><td>Einstellungen</td><td>Alle Grundeinstellungen, zuunterst die Plugininformationen (standardm&auml;&szlig;ig nur f&uuml;r Administratoren sichtbar)</td></tr>
         <tr><td>Dokumentation</td><td>Diese Dokumentation</td></tr>
     </tbody>
 </table>
-<p>Ablauf eines Einzugs: F&auml;lligkeit setzen &rarr; Rechnungen erstellen &rarr; Vorabinformation &rarr; SEPA-Datei &rarr; Lastschrifteinzug (als eingezogen markieren).</p>
+<p>Ablauf eines Einzugs: Rechnungen erstellen (mit Einzugsdatum) &rarr; Rechnungen versenden (Vorabinformation bzw. Rechnungs-E-Mail) &rarr; SEPA-Datei &rarr; Lastschrifteinzug (als eingezogen markieren).</p>
 
 <!-- ===================================================================== -->
 <h2 id="doc-rollen">7. Beitragsrollen</h2>
@@ -197,7 +197,7 @@
 
 <h3>Anwendung</h3>
 <p>&Uuml;ber &bdquo;Gruppen &amp; Rollen&ldquo; eine oder mehrere Rollen anlegen und f&uuml;r jede Rolle Beitrag und Beitragszeitraum festlegen. Anschlie&szlig;end beliebig viele
-    Mitglieder aufnehmen. Danach &uuml;ber &rarr; Beitragseinzug &ndash; Rollen&uuml;bersicht pr&uuml;fen, ob alle Rollen erkannt werden.</p>
+    Mitglieder aufnehmen. Danach &uuml;ber &rarr; Beitragseinzug &ndash; 4.0 Beitragsanalyse pr&uuml;fen, ob alle Rollen erkannt werden (Abschnitt Beitragsrollen).</p>
 <div class="alert alert-info" role="alert">Dezimalwerte und negative Beitr&auml;ge sind in Admidio beim Bearbeiten einer Rolle nicht eingebbar. Daf&uuml;r gibt es
     unter &rarr; Einstellungen &ndash; Erweiterte Rollenbearbeitung die M&ouml;glichkeit, Beitrag, Beitragszeitraum und Beschreibung zu bearbeiten.</div>
 
@@ -337,7 +337,7 @@
     <li><strong>Arbeitsdienst abrechnen</strong> (nach Jahresende): Die Voransicht zeigt je Mitglied, ob eine Position neu angelegt, ge&auml;ndert oder entfernt wird; nach &bdquo;Speichern&ldquo;
         entsteht je Mitglied mit Fehlstunden eine offene Position, z.B. <code>Ersatzleistung Arbeitsdienst 2026: Soll 10 h, Ist 4 h, 6 h x 20,00 EUR</code>.
         Erneutes Abrechnen passt offene Positionen an; exportierte oder eingezogene Positionen bleiben unver&auml;ndert (Korrektur dann &uuml;ber Storno oder Gutschrift).</li>
-    <li><strong>F&auml;lligkeitsdatum</strong>, 6. <strong>Vorabinformation</strong>, 7. <strong>SEPA-Datei erzeugen</strong>, 8. <strong>Einzugs&uuml;bersicht</strong> (mit 7b. Rechnungen und 8b. Beitragszahlungen)
+    <li><strong>Rechnungen erstellen</strong> (mit Einzugsdatum), <strong>Rechnungen versenden</strong>, <strong>SEPA-Datei erzeugen</strong>, <strong>Einzugs&uuml;bersicht</strong> (mit Beitragszahlungen)
         funktionieren wie beim Mitgliedsbeitrag, aber nur mit den Arbeitsdienst-Positionen und -Feldern.
         Die SEPA-Datei hei&szlig;t z.B. <code>sepa_arbeitsdienst_2026-11-16-RCUR.xml</code>, die Message-ID beginnt mit <code>AD-</code>, die EndToEnd-ID lautet <code>BFV-AD-usr_id-F&auml;lligkeitsdatum</code>.
         Die Vorabinformation verwendet die eigene Vorlage &bdquo;Vorabinformation Arbeitsdienst&ldquo;.</li>
@@ -400,11 +400,13 @@
     </tbody>
 </table>
 <p>Beim erstmaligen Setzen eines Bezahlt-Datums wird FRST dauerhaft in RCUR ge&auml;ndert. RCUR kann nur &uuml;ber eine Mandats&auml;nderung, &uuml;ber
-    &rarr; Beitragseinzug &ndash; F&auml;lligkeitsdatum oder durch Editieren des Mitgliedsprofils ge&auml;ndert werden.</p>
+    den Dialog &bdquo;Rechnungen erstellen&ldquo; (Sequenztyp beim Einzugsdatum) oder durch Editieren des Mitgliedsprofils ge&auml;ndert werden.</p>
 
 <h3>F&auml;lligkeitsdatum</h3>
-<p>In der Ansicht &bdquo;F&auml;lligkeitsdatum&ldquo; kann ein F&auml;lligkeitsdatum gesetzt werden. Ein globales Zur&uuml;cksetzen ist &uuml;ber &rarr; Einstellungen &ndash; L&ouml;schen m&ouml;glich.
-    Nur wenn F&auml;lligkeitsdaten existieren, k&ouml;nnen Daten exportiert werden.</p>
+<p>Seit Version 6.6.0 gibt es keinen eigenen Schritt &bdquo;F&auml;lligkeit&ldquo; mehr: Lastschrift-Zahler ohne F&auml;lligkeit erhalten beim Erstellen der Rechnung das Einzugsdatum
+    aus dem Dialog (Vorschlag: erster Bankarbeitstag nach 14 Tagen; Wochenenden, Bankfeiertage und vergangene Tage sind nicht m&ouml;glich) und den gew&auml;hlten Sequenztyp
+    (AUTO = FRST bei der ersten Lastschrift, sonst RCUR). Vorhandene F&auml;lligkeiten bleiben. Korrekturen &uuml;ber Storno mit neuer F&auml;lligkeit oder im Profil;
+    ein globales Zur&uuml;cksetzen ist &uuml;ber &rarr; Einstellungen &ndash; L&ouml;schen m&ouml;glich. Nur wenn F&auml;lligkeitsdaten existieren, k&ouml;nnen Daten exportiert werden.</p>
 
 <h3>XML-Datei</h3>
 <p>&bdquo;SEPA-Dateien erzeugen&ldquo; legt je F&auml;lligkeitsdatum eine Datei an. Ist &bdquo;Meine Bank unterst&uuml;tzt mehrere Sequenztypen in einer Datei&ldquo; nicht angehakt,
@@ -423,30 +425,52 @@
 <p>Unter &rarr; Einstellungen &ndash; E-Mail-Benachrichtigungen kann ein Nachrichtentext mit Platzhaltern definiert werden. Wird an <em>ein</em> markiertes Mitglied gesendet,
     enth&auml;lt der Text bereits eindeutige Angaben; bei <em>mehreren</em> Mitgliedern stehen Platzhalter im Text, die erst nach &bdquo;Abschicken&ldquo; ersetzt werden.</p>
 
-<h3>3.0 Rechnungen erstellen (ab Version 6.5.0)</h3>
+<h3>2.0 Rechnungen erstellen (ab Version 6.5.0)</h3>
 <p>Die Seite zeigt je Zeile eine Rechnung oder &ndash; f&uuml;r offene Positionen, die noch auf keiner Rechnung stehen &ndash; je Mitglied und Beitragsjahr eine Zeile
     mit Status <em>ohne Rechnung</em>. Filter: Rechnung (offen mit und ohne Rechnung, noch ohne Rechnung, Rechnung offen oder im Einzug, &uuml;berf&auml;llig, bezahlt, storniert, alle),
     Beitragsjahr und E-Mail (mit/ohne). Die Markierung gilt je Mitglied.</p>
+<p><strong>Zwei Tabellen (ab Version 6.7.0):</strong> <em>Rechnungen &Uuml;berweisung</em> und <em>Rechnungen SEPA-Einzug</em>. Ohne Rechnung entscheidet das Profil
+    (IBAN und Mandats-ID = SEPA-Einzug), mit Rechnung deren Zahlart. Die Schaltfl&auml;che <em>Verschieben</em> stellt ein Mitglied f&uuml;r das Beitragsjahr der Zeile
+    auf die andere Zahlart um (nur f&uuml;r dieses Jahr; im n&auml;chsten Jahr gilt wieder das Profil):</p>
 <ul>
-    <li><strong>Rechnungen erstellen:</strong> f&uuml;r die markierten Mitglieder mit Status <em>ohne Rechnung</em>. Zuerst erscheint eine Vorschau (Anzahl, Summe, Warnungen bei fehlender
-        Anschrift oder fehlender F&auml;lligkeit bei Lastschrift-Zahlern), danach werden die Rechnungen in Paketen zu 20 Mitgliedern angelegt.
+    <li><strong>nach &Uuml;berweisung:</strong> geht immer. Die F&auml;lligkeit im Profil wird geleert, damit das Mitglied weder in die Vorabinformation noch in die SEPA-Datei kommt.</li>
+    <li><strong>nach SEPA-Einzug:</strong> nur mit IBAN und Mandats-ID (sonst ist die Schaltfl&auml;che gesperrt). Hat das Mitglied schon eine Rechnung und keine F&auml;lligkeit,
+        wird das Einzugsdatum abgefragt.</li>
+    <li><strong>Mit Rechnung:</strong> Die Nummer bleibt; Zahlart, F&auml;lligkeit (Einzugstag bzw. heute + Zahlungsziel) und Mandatsangaben werden umgestellt und das PDF neu erzeugt.
+        Eine schon verschickte Fassung stimmt dann nicht mehr &ndash; ggf. erneut versenden. Rechnungen im Einzug (in einer SEPA-Datei) lassen sich nicht verschieben.</li>
+    <li>&bdquo;Alle&ldquo; im Tabellenkopf w&auml;hlt die Mitglieder der jeweiligen Tabelle.</li>
+</ul>
+<ul>
+    <li><strong>Rechnungen erstellen:</strong> f&uuml;r die markierten Mitglieder mit Status <em>ohne Rechnung</em>. Zuerst erscheint eine Vorschau (Anzahl, Summe, Warnung bei fehlender
+        Anschrift). Haben Lastschrift-Zahler noch keine F&auml;lligkeit, fragt die Vorschau Einzugsdatum und Sequenztyp ab; danach werden die Rechnungen in Paketen zu 20 Mitgliedern angelegt.
         Je Mitglied und Beitragsjahr entsteht eine Rechnung mit fester Nummer: <code>2026-B-0012</code> (Mitgliedsbeitrag) bzw. <code>2026-AD-0003</code> (Arbeitsdienst).
         Nummern werden nie wiederverwendet. Summen von 0 oder darunter werden nicht abgerechnet und gemeldet.</li>
     <li><strong>Zahlart und F&auml;lligkeit:</strong> Mit IBAN und Mandats-ID ist es eine Lastschrift-Rechnung ohne Zahlungsziel (sie k&uuml;ndigt den Einzug zur F&auml;lligkeit an,
-        &bdquo;eine &Uuml;berweisung ist nicht notwendig&ldquo;). Sonst eine &Uuml;berweisungs-Rechnung mit F&auml;lligkeit aus 2.0 bzw. Rechnungsdatum + Zahlungsziel
+        &bdquo;eine &Uuml;berweisung ist nicht notwendig&ldquo;). Sonst eine &Uuml;berweisungs-Rechnung mit F&auml;lligkeit Rechnungsdatum + Zahlungsziel
         (&rarr; Einstellungen &ndash; Export &ndash; Rechnung, Standard 14 Tage).</li>
     <li><strong>Status</strong> wird aus den Positionen berechnet: offen, im Einzug (in einer SEPA-Datei), bezahlt, storniert; &uuml;berf&auml;llig, wenn offen und F&auml;lligkeit vorbei.</li>
     <li><strong>Ausgestellte Rechnungen bleiben unver&auml;ndert:</strong> Positionen mit Rechnungsnummer &auml;ndert und entfernt die Neuberechnung nicht (Hinweis mit Schloss-Symbol);
         manuelle Positionen mit Rechnungsnummer lassen sich nicht mehr bearbeiten oder l&ouml;schen, nur stornieren. Beim Storno mit &bdquo;Erneut einziehen&ldquo; und f&uuml;r die
         R&uuml;cklastschriftgeb&uuml;hr bleibt die Nummer der Rechnung erhalten.</li>
-    <li><strong>E-Mail:</strong> sendet an die markierten Mitglieder (zuerst Kontoinhaber-E-Mail, sonst Standard-E-Mail). <strong>Export:</strong> Datei f&uuml;r Serienbriefe,
+    <li><strong>Kein E-Mail-Versand in 2.0:</strong> E-Mails gehen ausschlie&szlig;lich &uuml;ber 2.1 Rechnungen versenden. <strong>Export:</strong> Datei f&uuml;r Serienbriefe,
         jetzt mit Rechnungsnummer, Rechnungsdatum, F&auml;lligkeit und Rechnungsbetrag.</li>
     <li>Die angezeigten Mitgliedsspalten werden unter &rarr; Einstellungen &ndash; Ansichtsdefinitionen festgelegt.</li>
     <li><strong>PDF</strong> (mit der Bibliothek <code>adm_plugins/wp-tc-lib-pdf</code> und PHP 8.5): entsteht beim Erstellen der Rechnung und wird unter <code>adm_my_files</code> abgelegt;
         Spalte PDF zum Anzeigen. Lastschrift-Rechnungen k&uuml;ndigen den Einzug an (ohne Zahlungsziel und QR-Code), &Uuml;berweisungs-Rechnungen enthalten Bankverbindung und QR-Code.</li>
-    <li><strong>E-Mail mit Rechnung:</strong> &bdquo;Rechnung als PDF anh&auml;ngen&ldquo; h&auml;ngt je Empf&auml;nger die zuletzt erstellte offene Rechnung an (Mitglieder ohne Rechnung erhalten keine
-        Rechnungsmail). Die Vorabinformation (3.1) h&auml;ngt die Rechnung ebenfalls an. Platzhalter: <code>#invoice_no#</code>, <code>#invoice_date#</code>, <code>#invoice_due#</code>,
-        <code>#invoice_amount#</code>, <code>#invoice_link#</code> (Link ohne Anmeldung, 1 Jahr g&uuml;ltig). Eigene Vorlage &bdquo;Rechnung Arbeitsdienst&ldquo;. Der Versand wird an der Rechnung vermerkt.</li>
+    <li><strong>Erlassen / Reduzieren (ab Version 6.9.0):</strong> F&uuml;r offene Positionen (z. B. eine nicht bezahlte R&uuml;cklastschriftgeb&uuml;hr) &ouml;ffnet das Storno-Symbol
+        in der Buchungsliste des Mitglieds &bdquo;Erlassen / Reduzieren&ldquo;: Datum, verbleibender Betrag, Grund (Kulanz, Korrektur, Sonstiges). <em>Reduzieren</em> legt auf derselben
+        Rechnung eine Position &bdquo;Nachlass auf &hellip;&ldquo; mit Minusbetrag an (mehrfach m&ouml;glich; ein Nachlass l&auml;sst sich &uuml;ber sein Storno-Symbol zur&uuml;cknehmen).
+        <em>Ganz erlassen</em> (0,00) storniert die Position samt Nachl&auml;ssen; die Rechnung zeigt Betrag und &bdquo;Nachlass &hellip;&ldquo; in voller H&ouml;he. Die Rechnung beh&auml;lt ihre Nummer,
+        PDF und Rechnungsbetrag werden neu berechnet. Gesperrt, wenn die Rechnung schon in einer SEPA-Datei steht.</li>
+    <li><strong>Stornierte Positionen auf offenen Rechnungen</strong> (z. B. nach Storno mit erneutem Einzug) erscheinen im PDF nicht mehr (ab Version 6.9.1); nur die stornierte
+        Rechnung selbst zeigt alle Positionen mit Storno-Vermerk.</li>
+    <li><strong>2.1 Rechnungen versenden:</strong> ebenfalls zwei Tabellen untereinander. <em>Rechnungen &Uuml;berweisung</em> (offene Rechnung ohne Lastschrift) verschickt die
+        Rechnungs-E-Mail, <em>Rechnungen SEPA-Einzug</em> (Mandat und F&auml;lligkeit, Filter <em>F&auml;lligkeit (SEPA)</em>) die Vorabinformation und bietet den Export f&uuml;r Serienbriefe.
+        Jede Tabelle hat eigene Schaltfl&auml;chen; verschickt werden nur die markierten Mitglieder dieser Tabelle. <em>Verschieben</em> gibt es hier f&uuml;r Mitglieder mit Rechnung.
+        &bdquo;Rechnung als PDF anh&auml;ngen&ldquo; h&auml;ngt je Empf&auml;nger die zuletzt erstellte offene Rechnung an (&Uuml;berweiser ohne Rechnung
+        erhalten keine E-Mail, Lastschrift-Zahler ohne Rechnung die Vorabinformation ohne Anhang).</li>
+    <li><strong>3.0 Lastschrifteinzug</strong> (mit SEPA-Dateien erzeugen) enth&auml;lt nur die SEPA-Tabelle; auf &Uuml;berweisung verschobene Mitglieder werden auch dann nicht aufgenommen,
+        wenn im Profil eine F&auml;lligkeit steht. <strong>3.1 Manuelle Zahlungen</strong> zeigt standardm&auml;&szlig;ig nur &Uuml;berweiser mit offenem Betrag (Filter &bdquo;Mit offenem Betrag&ldquo; f&uuml;r alle).</li>
     <li><strong>Testbetrieb:</strong> Unter &rarr; Einstellungen &ndash; E-Mail-Benachrichtigungen &ndash; <em>Testempf&auml;nger</em> eine Adresse eintragen: Alle E-Mails des Plugins gehen dann an
         diese Adresse (Betreff &bdquo;[TEST an &hellip;]&ldquo;), nicht an die Mitglieder, und der Versand wird nicht vermerkt.</li>
     <li>Druckstapel, Mahnung und Download im Profil folgen (siehe <code>docs/konzept-rechnungen-pdf.md</code>).</li>
@@ -464,8 +488,8 @@
     Einzug ge&auml;ndert haben. Es gibt eine Mandats&auml;nderung f&uuml;r Zahlungspflichtige (Mitglieder) und eine f&uuml;r den Zahlungsempf&auml;nger (&rarr; Einstellungen &ndash; Kontodaten).</p>
 
 <!-- ===================================================================== -->
-<h2 id="doc-optionen">15. Pr&uuml;fungen und Rollen&uuml;bersicht</h2>
-<p>Beide Punkte stehen auf dem Reiter <em>Beitragseinzug</em>: die Pr&uuml;fungen als Schritt 1 (vor der Neuberechnung), die Rollen&uuml;bersicht unter der Beitragsanalyse.</p>
+<h2 id="doc-optionen">15. Pr&uuml;fungen</h2>
+<p>Die Pr&uuml;fungen stehen auf dem Reiter <em>Beitragseinzug</em> als Schritt 1 (vor der Neuberechnung). Die fr&uuml;here Rollen&uuml;bersicht ist seit Version 6.8.1 entfallen; die Beitragsrollen zeigt die Beitragsanalyse.</p>
 
 <h3>Pr&uuml;fungen</h3>
 <p>Pr&uuml;fungen haben keinen Einfluss auf die Beitragsberechnung, sie dienen nur der &Uuml;berpr&uuml;fung bestimmter Daten. Die Rollenpr&uuml;fungen (Pflicht, Ausschluss) beziehen sich auf das Beitragsjahr. Jede Pr&uuml;fung kann unter &rarr; Einstellungen &ndash; Pr&uuml;fungen aktiviert oder deaktiviert werden.</p>
@@ -490,8 +514,6 @@
     Stra&szlig;e und Hausnummer, Postleitzahl und Ort anzugeben.
 </div>
 
-<h3>Rollen&uuml;bersicht</h3>
-<p>Zeigt alle erkannten Beitragsrollen mit der Anzahl ihrer Mitglieder im Beitragsjahr.</p>
 
 
 <!-- ===================================================================== -->
@@ -595,17 +617,17 @@
 <p>Voraussetzungen:</p>
 <ul>
     <li>Die Grundeinstellungen sind eingetragen und die Grundfunktionen wurden getestet.</li>
-    <li>Die Beitragsrollen sind definiert und werden vom Plugin erkannt (&rarr; Beitragseinzug &ndash; Rollen&uuml;bersicht).</li>
+    <li>Die Beitragsrollen sind definiert und werden vom Plugin erkannt (&rarr; Beitragseinzug &ndash; 4.0 Beitragsanalyse).</li>
     <li>Unter &rarr; Einstellungen &ndash; Pr&uuml;fungen sind die Pr&uuml;fbedingungen definiert.</li>
 </ul>
 
 <h3>Grobablauf</h3>
 <ol>
-    <li>Pr&uuml;fungen, Neuberechnung, F&auml;lligkeitsdatum setzen, Vorabinformation senden und SEPA-Datei erzeugen (Schritte 1&ndash;5).</li>
+    <li>Pr&uuml;fungen, Neuberechnung, Rechnungen erstellen (mit Einzugsdatum), Rechnungen versenden und SEPA-Datei erzeugen (Schritte 1&ndash;3).</li>
     <li>Die Datei aus der Einzugs&uuml;bersicht an den Kassier geben (Herunterladen oder Teilen) und bei der Bank einreichen.</li>
     <li>Nach der Gutschrift in der Einzugs&uuml;bersicht bekannte R&uuml;cklastschriften abw&auml;hlen und <strong>Als eingezogen markieren</strong>. Das setzt das Bezahlt-Datum
         und l&ouml;st die Folgeaktionen aus (z.B. FRST wird RCUR, Mandats&auml;nderungen werden zur&uuml;ckgesetzt).</li>
-    <li>Treten im Laufe des Jahres weitere Mitglieder bei, wird genauso verfahren: Neuberechnung, F&auml;lligkeitsdatum, Einzug, als eingezogen markieren.</li>
+    <li>Treten im Laufe des Jahres weitere Mitglieder bei, wird genauso verfahren: Neuberechnung, Rechnung mit Einzugsdatum, Einzug, als eingezogen markieren.</li>
     <li>Am Jahresende wird &bdquo;L&ouml;schen&ldquo; ausgef&uuml;hrt. Dadurch werden die Arbeitsfelder (Beitrag, Beitragstext, Bezahlt, F&auml;lligkeit) geleert; die Buchungshistorie bleibt erhalten.
         Danach das Beitragsjahr umstellen.</li>
     <li>Der Arbeitsdienst l&auml;uft unabh&auml;ngig davon nach Ende des Leistungsjahres &uuml;ber den Reiter <em>Arbeitsdienst</em> (siehe <a href="#doc-arbeitsdienst">Arbeitsdienst</a>).</li>
@@ -617,8 +639,8 @@
     <li><strong>Mandatsreferenz erstellen:</strong> &rarr; Mandatsverwaltung &ndash; Mandatsreferenzen erzeugen.</li>
     <li><strong>Mandatsdatum eintragen</strong> (falls noch nicht geschehen): &rarr; Mandatsverwaltung &ndash; Mandate bearbeiten oder im Profil des Mitglieds.</li>
     <li><strong>Beitragsberechnung:</strong> &rarr; Beitragseinzug &ndash; Neuberechnung.</li>
-    <li><strong>F&auml;lligkeitsdatum:</strong> &rarr; Beitragseinzug &ndash; F&auml;lligkeitsdatum bearbeiten.</li>
-    <li><strong>Vorabinformation:</strong> Nach Vergabe eines F&auml;lligkeitsdatums &uuml;ber &rarr; Beitragseinzug &ndash; Vorabinformation.</li>
+    <li><strong>Rechnung und F&auml;lligkeitsdatum:</strong> &rarr; Beitragseinzug &ndash; 2.0 Rechnungen erstellen (Einzugsdatum im Dialog).</li>
+    <li><strong>Vorabinformation:</strong> &uuml;ber &rarr; Beitragseinzug &ndash; 2.1 Rechnungen versenden (Zahlart Lastschrift).</li>
     <li><strong>XML-Datei:</strong> &uuml;ber &rarr; Beitragseinzug &ndash; SEPA-Datei erzeugen.</li>
     <li><strong>Weitergabe der XML-Datei</strong> aus der Einzugs&uuml;bersicht &uuml;ber ein Homebanking-Programm (z.B. StarMoney oder Jameica/Hibiscus) an die Bank.</li>
     <li><strong>Abschluss:</strong> In der Einzugs&uuml;bersicht &bdquo;Als eingezogen markieren&ldquo;. Dadurch wird der Sequenztyp FRST in RCUR ge&auml;ndert.</li>

@@ -17,7 +17,8 @@
  *                    prepare     - eine einzelne Checkbox oder "Alle" wurde angeklickt 
  * usr_id           : Id des Benutzers, fuer den das Bezahlt-Datum gesetzt wird
  * datum_neu        : das neue Bezahlt-Datum
- * mem_show_choice  : 3 - (Default) Nur Benutzer mit offenem Betrag (offene oder exportierte Positionen)
+ * mem_show_choice  : 4 - (Default) Nur Ueberweiser mit offenem Betrag (ohne Mandat oder per "Verschieben" auf Ueberweisung)
+ *                    3 - Nur Benutzer mit offenem Betrag (offene oder exportierte Positionen)
  *                    0 - Alle Benutzer anzeigen
  *                    1 - Nur Benutzer anzeigen, bei denen ein Bezahlt-Datum vorhanden ist
  *                    2 - Nur Benutzer anzeigen, bei denen kein Bezahlt-Datum vorhanden ist
@@ -65,7 +66,7 @@ $getMode        = admFuncVariableIsValid($_GET, 'mode', 'string', array('default
 $getUserId      = admFuncVariableIsValid($_GET, 'usr_id', 'numeric', array('defaultValue' => 0, 'directOutput' => true));
 $getDatumNeu    = admFuncVariableIsValid($_GET, 'datum_neu', 'date');
 $getChecked     = admFuncVariableIsValid($_GET, 'checked', 'string');
-$getMembersShow = admFuncVariableIsValid($_GET, 'mem_show_choice', 'numeric', array('defaultValue' => 3));
+$getMembersShow = admFuncVariableIsValid($_GET, 'mem_show_choice', 'numeric', array('defaultValue' => 4));
 $paidDate       = ($getDatumNeu !== '') ? mf_parse_date($getDatumNeu) : '';
 if ($paidDate === '') {
     $paidDate = $getDatumNeu;
@@ -210,7 +211,7 @@ else
     {
     	$membersListSqlCondition .= ' AND paid.usd_value IS NULL ) ';
     }
-    elseif ($getMembersShow == 3)				// Nur Benutzer mit offenem Betrag (offene oder exportierte Positionen)
+    elseif ($getMembersShow == 3 || $getMembersShow == 4)	// mit offenem Betrag (offene oder exportierte Positionen); 4 = nur Ueberweiser
     {
         BookingStore::ensureTables();
         $membersListSqlCondition .= ' AND usr_id IN (SELECT mfb_usr_id FROM ' . BookingStore::bookingsTable() . '
@@ -224,12 +225,17 @@ else
     }
     
     $membersList = list_members($membersListFields, $membersListRols, $membersListSqlCondition);
+    if ($getMembersShow == 4 && count($membersList) > 0) {
+        // 4.1 zeigt standardmaessig nur die Tabelle "Ueberweisung" (ohne Mandat oder per "Verschieben")
+        $membersList = array_intersect_key($membersList, mf_paymethod_transfer_users($mfScope, array_keys($membersList)));
+    }
 
     // offene Betraege, Status und Zahlart je Mitglied (fuer die festen Spalten und die Zusammenfassung)
     $paymentInfo = array();
     if ($getMode === 'html' && count($membersList) > 0) {
         $extraFields = list_members(array($mfScope->field(CollectionScope::FIELD_PAID), 'IBAN'), $membersListRols, $membersListSqlCondition);
         $openByUser = BookingStore::getByUsers(array_keys($membersList), array(BookingStore::STATUS_OPEN, BookingStore::STATUS_EXPORTED));
+        $overrideUsers = mf_paymethod_override_users($mfScope);   // per "Verschieben" auf Ueberweisung
         foreach ($membersList as $member => $dummy) {
             $open = 0.0;
             $exported = 0.0;
@@ -244,7 +250,7 @@ else
                 'open' => round($open, 2),
                 'exported' => round($exported, 2),
                 'paid' => (string) ($extraFields[$member][$mfScope->field(CollectionScope::FIELD_PAID)] ?? ''),
-                'iban' => (string) ($extraFields[$member]['IBAN'] ?? '') !== ''
+                'iban' => (string) ($extraFields[$member]['IBAN'] ?? '') !== '' && !isset($overrideUsers[(int) $member])
             );
         }
     }
@@ -393,7 +399,7 @@ else
     
         $form = new HtmlForm('payments_filter_form', '', $page, array('type' => 'navbar', 'setFocus' => false));
     
-        $selectBoxEntries = array('3' => $gL10n->get('PLG_MEMBERSHIPFEE_WITH_OPEN_AMOUNT'), '2' => $gL10n->get('PLG_MEMBERSHIPFEE_WITHOUT_PAID'), '1' => $gL10n->get('PLG_MEMBERSHIPFEE_WITH_PAID'), '0' => $gL10n->get('SYS_SHOW_ALL_CONTACTS'));
+        $selectBoxEntries = array('4' => $gL10n->get('PLG_MEMBERSHIPFEE_TRANSFER_OPEN_AMOUNT'), '3' => $gL10n->get('PLG_MEMBERSHIPFEE_WITH_OPEN_AMOUNT'), '2' => $gL10n->get('PLG_MEMBERSHIPFEE_WITHOUT_PAID'), '1' => $gL10n->get('PLG_MEMBERSHIPFEE_WITH_PAID'), '0' => $gL10n->get('SYS_SHOW_ALL_CONTACTS'));
         $form->addSelectBox('mem_show', $gL10n->get('PLG_MEMBERSHIPFEE_FILTER'), $selectBoxEntries, array('defaultValue' => $getMembersShow, 'helpTextId' => 'PLG_MEMBERSHIPFEE_FILTER_DESC', 'showContextDependentFirstEntry' => false));
         mf_role_filter_add($form, $page, $roleFilterKey, 'PLG_MEMBERSHIPFEE_PAYMENTS_ROLLQUERY_DESC');
  

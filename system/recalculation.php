@@ -369,9 +369,9 @@ if ($getMode == 'preview') // Default
     $_SESSION['pMembershipFee']['recalculation_saved'] = $_SESSION['pMembershipFee']['recalculation_plan'];
     unset($_SESSION['pMembershipFee']['recalculation_plan']);
 
-    // naechster Schritt der Kurzanleitung: Faelligkeitsdatum setzen (oberhalb und unterhalb der Liste)
-    $nextStepHtml = '<div class="mb-3"><a class="btn btn-primary" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/duedates.php') . '">'
-        . '<i class="bi bi-arrow-right-circle"></i> Weiter mit Fälligkeit setzen</a></div>';
+    // naechster Schritt der Kurzanleitung: Rechnungen erstellen (mit Einzugsdatum fuer Lastschrift-Zahler)
+    $nextStepHtml = '<div class="mb-3"><a class="btn btn-primary" href="' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/bill.php', array('collection' => \Plugins\MembershipFee\classes\Bookings\CollectionScope::MEMBERSHIP)) . '">'
+        . '<i class="bi bi-arrow-right-circle"></i> Weiter mit Rechnungen erstellen</a></div>';
 
     $page->addHtml('<div class="alert alert-success" role="alert"><i class="bi bi-check-lg"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_SAVED') . '</div>');
     $page->addHtml($nextStepHtml);

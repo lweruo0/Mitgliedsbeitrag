@@ -18,6 +18,7 @@
 namespace Plugins\MembershipFee\classes\Invoices;
 
 use Admidio\Users\Entity\User;
+use Plugins\MembershipFee\classes\Bookings\BookingService;
 use Plugins\MembershipFee\classes\Bookings\BookingStore;
 use Plugins\MembershipFee\classes\Bookings\CollectionScope;
 use Plugins\MembershipFee\classes\Config\ConfigTable;
@@ -64,7 +65,7 @@ final class InvoicePdfData
             if ($position['mfb_rol_id'] !== null && isset($oneTimeRoles[(int) $position['mfb_rol_id']])) {
                 $admission = true;
             }
-            $positions[] = array(
+            $entry = array(
                 'label' => (string) $position['mfb_rol_name'],
                 'text' => (string) $position['mfb_text'],
                 'amount' => (float) $position['mfb_amount'],
@@ -73,6 +74,27 @@ final class InvoicePdfData
                 'cancel_date' => $cancelled ? (string) $position['mfb_storno_date'] : '',
                 'manual' => in_array($position['mfb_source'], array(BookingStore::SOURCE_MANUAL, CollectionScope::SOURCE_WORK_MANUAL), true)
             );
+            if ($invoice['status'] === InvoiceStatus::CANCELLED) {
+                // stornierte Rechnung: alle Positionen wie ausgestellt (mit Storno-Vermerk)
+                $positions[] = $entry;
+                continue;
+            }
+            if (!$cancelled) {
+                $positions[] = $entry;
+                continue;
+            }
+            // offene Rechnung: stornierte Positionen entfallen; eine ganz erlassene erscheint mit Betrag und Nachlass
+            $stornoReason = (string) $position['mfb_storno_reason'];
+            if (str_starts_with($stornoReason, BookingService::WAIVE_REASON_PREFIX)) {
+                $entry['cancelled'] = false;
+                $entry['cancel_date'] = '';
+                $positions[] = $entry;
+                $positions[] = array_merge($entry, array(
+                    'label' => 'Nachlass auf ' . $entry['label'] . ' (' . trim(substr($stornoReason, strlen(BookingService::WAIVE_REASON_PREFIX))) . ')',
+                    'amount' => -$entry['amount'],
+                    'manual' => true
+                ));
+            }
         }
 
         $data = array(

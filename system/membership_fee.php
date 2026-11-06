@@ -32,6 +32,10 @@ try {
     $getConf = admFuncVariableIsValid($_GET, 'conf', 'numeric');
     // angezeigter Inhalt rechts neben dem Menue (siehe mf_menu_groups()); Standard: Uebersicht
     $getShow = admFuncVariableIsValid($_GET, 'show', 'string', array('defaultValue' => ''));
+    // frueherer Menuepunkt "SEPA-Datei erstellen": jetzt Teil von 3.0 Lastschrifteinzug
+    if ($getShow === 'collection_sepa') {
+        admRedirect(SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/runs.php'));
+    }
     if ($getShow === '' && $getChoice !== '') {
         $getShow = 'preferences_' . $getChoice;
     }
@@ -458,16 +462,14 @@ try {
             $page->addHtml(getMenuePanel('fees', 'individualcontributions', 'accordion_fees', $gL10n->get('PLG_MEMBERSHIPFEE_INDIVIDUAL_CONTRIBUTIONS'), 'bi bi-house-gear', $formIndividualContributions->show()));
         }
 
-        // PANEL: DUEDATES (Faelligkeitsdatum)
-
-        $formDuedates = new HtmlForm('duedates_form', '', $page);
-        $formDuedates->addButton('btn_duedates', $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), array(
-            'icon' => 'bi-calendar-check',
-            'link' => 'duedates.php',
+        // PANEL: BILL (Rechnungen erstellen; setzt fuer Lastschrift-Zahler auch das Einzugsdatum)
+        $formBillExport = new HtmlForm('billexport_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/bill.php', $page);
+        $formBillExport->addSubmitButton('btn_bill', $gL10n->get('PLG_MEMBERSHIPFEE_MENU_BILL'), array(
+            'icon' => 'bi-receipt',
             'class' => 'btn-primary offset-sm-3'
         ));
-        $formDuedates->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE_EDIT_DESC'));
-        $page->addHtml(getMenuePanel('fees', 'duedates', 'accordion_fees', (++$workflowStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), 'bi bi-calendar-check', $formDuedates->show()));
+        $formBillExport->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT_DESC'));
+        $page->addHtml(getMenuePanel('fees', 'bill', 'accordion_fees', (++$workflowStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_BILL'), 'bi bi-receipt', $formBillExport->show()));
 
 
         // PANEL: PRE_NOTIFICATION (Vorabinformation)
@@ -476,77 +478,22 @@ try {
         if (! $directdebittype) {
             $formPreNotification->addCustomContent('', '<div class="alert alert-warning alert-small" role="alert"><i class="bi bi-exclamation-triangle"></i>' . $gL10n->get('PLG_MEMBERSHIPFEE_NO_DUEDATES_EXIST') . '</div>');
         } else {
-            $formPreNotification->addButton('btn_pre_notification', $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'), array(
-                'icon' => 'bi-filetype-xlsx',
+            $formPreNotification->addButton('btn_pre_notification', $gL10n->get('PLG_MEMBERSHIPFEE_MENU_DISPATCH'), array(
+                'icon' => 'bi-envelope',
                 'link' => 'pre_notification.php',
                 'class' => 'btn-primary offset-sm-3'
             ));
             $formPreNotification->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION_DESC'));
         }
-        $page->addHtml(getMenuePanel('fees', 'prenotification', 'accordion_fees', (++$workflowStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'), 'bi bi-envelope-paper', $formPreNotification->show()));
+        $page->addHtml(getMenuePanel('fees', 'prenotification', 'accordion_fees', (++$workflowStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_DISPATCH'), 'bi bi-envelope-paper', $formPreNotification->show()));
 
         // PANEL: SEPA (SEPA-Datei erzeugen)
 
         $sepaStep = ++$workflowStep;
-        // SEPA-Dateien: je Faelligkeitsdatum eine Datei (bzw. je Faelligkeitsdatum und Sequenztyp), siehe sepa_create.php
-        $formSepa = new HtmlForm('sepa_export_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/sepa_create.php', $page);
+        // SEPA-Dateien erzeugen (gleicher Block wie in 3.0 Lastschrifteinzug)
+        $page->addHtml(getMenuePanel('fees', 'sepa', 'accordion_fees', $sepaStep . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILE'), 'bi bi-filetype-xml',
+            mf_sepa_create_block($page, \Plugins\MembershipFee\classes\Bookings\CollectionScope::membership((int) $gCurrentOrgId))));
 
-        if (! $directdebittype) {
-            $html = '<div class="alert alert-warning alert-small" role="alert"><i class="bi bi-exclamation-triangle"></i>' . $gL10n->get('PLG_MEMBERSHIPFEE_NO_DUEDATES_EXIST') . '</div>';
-            $formSepa->addCustomContent('', $html);
-        } else {
-            $htmlTable = '
-        <table class="table table-condensed">
-            <thead>
-                <tr>
-                    <th style="text-align: center;font-weight:bold;">' . $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE') . '</th>
-                    <th style="text-align: center;font-weight:bold;">FRST</th>
-                    <th style="text-align: center;font-weight:bold;">RCUR</th>
-                    <th style="text-align: center;font-weight:bold;">FNAL</th>
-                    <th style="text-align: center;font-weight:bold;">OOFF</th>
-                </tr>
-            </thead>
-            <tbody>';
-            ksort($duedates);
-            foreach ($duedates as $duedate => $duedatedata) {
-                $datumtemp = \DateTime::createFromFormat('Y-m-d', $duedate);
-                $htmlTable .= '
-                <tr>
-                    <td style="text-align: center;">' . $datumtemp->format($gSettingsManager->getString('system_date')) . '</td>';
-                foreach (array('FRST', 'RCUR', 'FNAL', 'OOFF') as $sequenceType) {
-                    $htmlTable .= '<td style="text-align: center;">' . ($duedatedata[$sequenceType] > 0 ? $duedatedata[$sequenceType] : '<span class="text-muted">–</span>') . '</td>';
-                }
-                $htmlTable .= '</tr>';
-            }
-            $htmlTable .= '
-            </tbody>
-        </table>';
-
-            $formSepa->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), $htmlTable);
-            $formSepa->addCheckbox('combine_sequence_types', $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_COMBINE'), (bool) ($pPreferences->config['SEPA']['combine_sequence_types'] ?? 1), array(
-                'helpTextId' => 'PLG_MEMBERSHIPFEE_SEPA_COMBINE_DESC'
-            ));
-            $formSepa->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_FILES_INFO'));
-
-            $formSepa->addSubmitButton('btn_create_export_file', $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILES'), array(
-                'icon' => 'bi-filetype-xml',
-                'class' => 'btn-primary offset-sm-3'
-            ));
-            $html = '<div class="alert alert-warning alert-small" role="alert"><i class="bi bi-exclamation-triangle"></i>' . $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_EXPORT_INFO') . '</div>';
-            $formSepa->addStaticControl('', '', $html);
-        }
-
-        $page->addHtml(getMenuePanel('fees', 'sepa', 'accordion_fees', $sepaStep . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILE'), 'bi bi-filetype-xml', $formSepa->show()));
-
-        // PANEL: BILL (Rechnungen erstellen, fuer Mitglieder ohne Lastschrift)
-        $formBillExport = new HtmlForm('billexport_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/bill.php', $page);
-        $formBillExport->addSubmitButton('btn_bill', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT'), array(
-            'icon' => 'bi-file-earmark-spreadsheet',
-            'class' => 'offset-sm-3'
-        ));
-        $formBillExport->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT_DESC'));
-
-        $page->addHtml(getMenuePanel('fees', 'bill', 'accordion_fees', $sepaStep . 'b. ' . $gL10n->get('PLG_MEMBERSHIPFEE_BILL_CREATE'), 'bi bi-file-earmark-spreadsheet', $formBillExport->show()));
 
 
         // PANEL: RUNS (Einzugsuebersicht)
@@ -585,18 +532,6 @@ try {
         $formAnalysis->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ANALYSIS_DESC'));
 
         $page->addHtml(getMenuePanel('fees', 'analysis', 'accordion_fees', $gL10n->get('PLG_MEMBERSHIPFEE_CONTRIBUTION_ANALYSIS'), 'bi bi-bar-chart', $formAnalysis->show()));
-
-        // PANEL: ROLEOVERVIEW
-
-        $formRoleOverview = new HtmlForm('roleoverview_form', '', $page);
-        $formRoleOverview->addButton('btn_roleoverview', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_OVERVIEW'), array(
-            'icon' => 'bi-list-columns-reverse',
-            'link' => 'roleoverview.php',
-            'class' => 'btn-primary offset-sm-3'
-        ));
-        $formRoleOverview->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_OVERVIEW_DESC'));
-
-        $page->addHtml(getMenuePanel('fees', 'roleoverview', 'accordion_fees', $gL10n->get('PLG_MEMBERSHIPFEE_ROLE_OVERVIEW'), 'bi bi-list-columns-reverse', $formRoleOverview->show()));
 
         // PANEL: BOOKING_OVERVIEW (Buchungshistorie aller Mitglieder)
 
@@ -653,42 +588,14 @@ try {
 
         // PANEL: WORK_BILLING (Abrechnen)
         $page->addHtml($workPanel('workbilling', (++$workStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING'), 'bi-receipt', 'work_billing.php', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING'), $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING_PANEL_DESC')));
-        // PANEL: Faelligkeitsdatum und Vorabinformation im Arbeitsdienst
-        $page->addHtml($workPanel('workduedates', (++$workStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), 'bi-calendar-check', 'duedates.php', $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), $gL10n->get('PLG_MEMBERSHIPFEE_WORK_DUEDATE_DESC')));
-        $page->addHtml($workPanel('workprenotification', (++$workStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'), 'bi-envelope-paper', 'pre_notification.php', $gL10n->get('PLG_MEMBERSHIPFEE_PRE_NOTIFICATION'), $gL10n->get('PLG_MEMBERSHIPFEE_WORK_PRE_NOTIFICATION_DESC')));
+        // PANEL: Rechnungen (mit Einzugsdatum) und Versand im Arbeitsdienst
+        $page->addHtml($workPanel('workbill', (++$workStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_BILL'), 'bi-receipt', 'bill.php', $gL10n->get('PLG_MEMBERSHIPFEE_MENU_BILL'), $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILL_DESC')));
+        $page->addHtml($workPanel('workprenotification', (++$workStep) . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_MENU_DISPATCH'), 'bi-envelope-paper', 'pre_notification.php', $gL10n->get('PLG_MEMBERSHIPFEE_MENU_DISPATCH'), $gL10n->get('PLG_MEMBERSHIPFEE_WORK_PRE_NOTIFICATION_DESC')));
 
         // PANEL: SEPA-Datei Arbeitsdienst
         $workSepaStep = ++$workStep;
-        $formWorkSepa = new HtmlForm('worksepa_form', ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/sepa_create.php', $page);
-        if (count($workDuedates) === 0) {
-            $formWorkSepa->addCustomContent('', '<div class="alert alert-warning alert-small" role="alert"><i class="bi bi-exclamation-triangle"></i>' . $gL10n->get('PLG_MEMBERSHIPFEE_NO_DUEDATES_EXIST') . '</div>');
-        } else {
-            $htmlTable = '<table class="table table-condensed"><thead><tr><th style="text-align: center;">' . $gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE') . '</th>';
-            foreach (array('FRST', 'RCUR', 'FNAL', 'OOFF') as $sequenceType) {
-                $htmlTable .= '<th style="text-align: center;">' . $sequenceType . '</th>';
-            }
-            $htmlTable .= '</tr></thead><tbody>';
-            foreach ($workDuedates as $duedate => $counts) {
-                $htmlTable .= '<tr><td style="text-align: center;">' . mf_format_date($duedate) . '</td>';
-                foreach ($counts as $count) {
-                    $htmlTable .= '<td style="text-align: center;">' . ($count > 0 ? $count : '<span class="text-muted">–</span>') . '</td>';
-                }
-                $htmlTable .= '</tr>';
-            }
-            $htmlTable .= '</tbody></table>';
-            $formWorkSepa->addCustomContent($gL10n->get('PLG_MEMBERSHIPFEE_DUEDATE'), $htmlTable);
-            $formWorkSepa->addCustomContent('', '<input type="hidden" name="collection" value="' . \Plugins\MembershipFee\classes\Bookings\CollectionScope::WORK . '" />');
-            $formWorkSepa->addCheckbox('combine_sequence_types', $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_COMBINE'), (bool) ($pPreferences->config['SEPA']['combine_sequence_types'] ?? 1), array(
-                'helpTextId' => 'PLG_MEMBERSHIPFEE_SEPA_COMBINE_DESC'
-            ));
-            $formWorkSepa->addCustomContent('', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_SEPA_INFO'));
-            $formWorkSepa->addSubmitButton('btn_create_work_export_file', $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILES'), array(
-                'icon' => 'bi-filetype-xml',
-                'class' => 'btn-primary offset-sm-3'
-            ));
-        }
-        $page->addHtml(getMenuePanel('workservice', 'worksepa', 'accordion_workservice', $workSepaStep . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILE'), 'bi bi-filetype-xml', $formWorkSepa->show()));
-        $page->addHtml($workPanel('workbill', $workSepaStep . 'b. ' . $gL10n->get('PLG_MEMBERSHIPFEE_BILL_CREATE'), 'bi-file-earmark-spreadsheet', 'bill.php', $gL10n->get('PLG_MEMBERSHIPFEE_BILL_EDIT'), $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILL_DESC')));
+        $page->addHtml(getMenuePanel('workservice', 'worksepa', 'accordion_workservice', $workSepaStep . '. ' . $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILE'), 'bi bi-filetype-xml',
+            mf_sepa_create_block($page, $workScope)));
 
         // PANEL: Einzugsuebersicht (gemeinsam) und Zahlungen ohne Lastschrift
         $workRunsStep = ++$workStep;
@@ -1683,7 +1590,7 @@ try {
     }
 
     // rechts: Uebersicht oder der Inhalt des gewaehlten Menueeintrags
-    // 4.0 SEPA-Datei erstellen gilt fuer beide Buchungskreise: Inhalt des gewaehlten Buchungskreises
+    // Panel des gewaehlten Menueeintrags
     $panelKey = $getShow === 'collection_sepa' ? ($mfScope->isMembership() ? 'fees_sepa' : 'workservice_worksepa') : $getShow;
     $panel = $GLOBALS['mfPanels'][$panelKey] ?? null;
     if ($panel === null) {

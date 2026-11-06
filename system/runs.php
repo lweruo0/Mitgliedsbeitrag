@@ -198,7 +198,7 @@ try {
     // ------------------------------------------------------------------
     // Anzeige
     // ------------------------------------------------------------------
-    // Liste: Titel wie im Menue (5.0 Beitragseinzug); einzelner Einzug: Einzugsuebersicht der Datei
+    // Liste: Titel wie im Menue (3.0 Lastschrifteinzug); einzelner Einzug: Einzugsuebersicht der Datei
     $headline = $run !== null
         ? $gL10n->get('PLG_MEMBERSHIPFEE_RUN_OPEN') . ' - ' . $run['mfr_file_name']
         : mf_page_headline($gL10n->get('PLG_MEMBERSHIPFEE_RUNS'));
@@ -213,6 +213,22 @@ try {
     }
 
     if ($run === null) {
+        // SEPA-Dateien erzeugen (frueher eigener Menuepunkt 3.0): je Buchungskreis mit offenen Lastschriften;
+        // Mitgliedsbeitrag immer (sonst Hinweis), Arbeitsdienst nur mit Faelligkeiten
+        if (!isset($pPreferences)) {
+            $pPreferences = new \Plugins\MembershipFee\classes\Config\ConfigTable();
+            $pPreferences->read();
+        }
+        foreach (array(CollectionScope::membership((int) $gCurrentOrgId), CollectionScope::work((int) $gCurrentOrgId)) as $sepaScope) {
+            if (!$sepaScope->isMembership() && count(mf_sepa_duedate_overview($sepaScope)) === 0) {
+                continue;
+            }
+            $page->addHtml('<div class="card mb-4"><div class="card-header"><i class="bi bi-filetype-xml"></i> '
+                . $gL10n->get('PLG_MEMBERSHIPFEE_SEPA_CREATE_FILE') . ' &ndash; ' . $gL10n->get($sepaScope->isMembership() ? 'PLG_MEMBERSHIPFEE_SCOPE_MF' : 'PLG_MEMBERSHIPFEE_SCOPE_AD') . ' ' . SecurityUtils::encodeHTML(mf_collection_year_label($sepaScope)) . '</div>'
+                . '<div class="card-body">' . mf_sepa_create_block($page, $sepaScope) . '</div></div>');
+        }
+        $page->addHtml('<h4 class="mt-2">' . $gL10n->get('PLG_MEMBERSHIPFEE_RUNS') . '</h4>');
+
         // Liste aller Einzuege
         $runs = BookingStore::getRuns();
         if (count($runs) === 0) {

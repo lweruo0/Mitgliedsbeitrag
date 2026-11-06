@@ -65,6 +65,16 @@ final class InvoicePlanner
     }
 
     /**
+     * Zahlart unter Beruecksichtigung einer abweichenden Zahlart des Beitragsjahres (PaymentMethodStore):
+     * Ueberweisung geht immer; Lastschrift nur mit IBAN und Mandats-ID ($autoMethod aus method()), deshalb
+     * wird nur 'MAN' als Abweichung gespeichert.
+     */
+    public static function effectiveMethod(string $autoMethod, ?string $override): string
+    {
+        return $override === self::METHOD_MANUAL ? self::METHOD_MANUAL : $autoMethod;
+    }
+
+    /**
      * Faelligkeit der Rechnung (Y-m-d) oder null (Lastschrift ohne bekannten Einzugstag).
      *
      * @param string $profileDueDate Faelligkeit aus dem Profilfeld des Buchungskreises (Y-m-d oder leer)

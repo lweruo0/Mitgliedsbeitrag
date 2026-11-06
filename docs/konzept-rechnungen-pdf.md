@@ -448,6 +448,22 @@ Zusätzlich **Testbetrieb**: Einstellung „Testempfänger“ (Einstellungen →
 alle E-Mails des Plugins (auch die SEPA-Freigabe) an diese Adresse, der Betreff nennt den eigentlichen Empfänger
 („[TEST an …]“), der Versand wird nicht an der Rechnung vermerkt, und die Mail-Seite zeigt einen Warnhinweis.
 
+**Versand nur noch aus 3.1 (entschieden 06.11.2026, Version 6.5.1):** 3.0 erstellt nur Rechnungen, PDFs und den Export,
+ohne E-Mail. 3.0 zeigt die E-Mail-Adresse nur noch an. 3.1 heißt „Rechnungen versenden“ und hat die Auswahl *Zahlart*:
+*Lastschrift* (Mitglieder mit Mandat und Fälligkeitsdatum, Vorlage Vorabinformation, Export für Serienbriefe) und
+*Überweisung* (Mitglieder mit offener Rechnung ohne Lastschrift, Vorlage Rechnung, Zahlungsziel als Fälligkeit). Die
+Tabelle zeigt die aktuelle Rechnungsnummer; beim Wechsel der Zahlart wird die Auswahl geleert. Der Standardtext der
+Rechnungs-E-Mail (`PMBMAIL_BILL`) nutzt jetzt die Rechnungs-Platzhalter.
+
+**Fälligkeit in „Rechnungen erstellen“ (entschieden 06.11.2026, Version 6.6.0):** Der Schritt 2.0 Fälligkeit entfällt
+ganz (`duedates.php` leitet nur noch auf `bill.php` um). Haben markierte Lastschrift-Zahler noch keine Fälligkeit,
+fragt die Vorschau Einzugsdatum (Vorschlag: erster Bankarbeitstag nach 14 Tagen; Wochenende, Bankfeiertag und
+Vergangenheit werden im Browser und auf dem Server abgelehnt) und Sequenztyp (AUTO/RCUR/FRST/OOFF/FNAL) ab;
+`InvoiceService::create()` setzt beides im Profil und erstellt dann die Rechnung mit diesem Einzugstag. Ohne
+Einzugsdatum werden solche Mitglieder übersprungen (Grund `duedate`). Vorhandene Fälligkeiten bleiben unverändert.
+Neues Menü: 2.0 Rechnungen erstellen, 2.1 Rechnungen versenden, 3.0 SEPA-Datei, 4.0 Lastschrifteinzug,
+4.1 Manuelle Zahlungen, 5.0 Beitragsanalyse, 6.0 Rollenübersicht, 7.0 Buchungsübersicht.
+
 ## 16. Tests
 
 - PHPUnit (vorhandener Satz, ohne Datenbank):
@@ -460,3 +476,31 @@ alle E-Mails des Plugins (auch die SEPA-Freigabe) an diese Adresse, der Betreff 
   - Nummernweitergabe bei „Erneut einziehen“.
 - Testinstanz: Rechnungen für eine Rolle erstellen, Mail an Testadresse, Druckstapel, Storno mit „Erneut einziehen“,
   Mahnung, Profil-Link, Lauf ohne Bibliothek.
+
+**Zwei Tabellen Überweisung / SEPA-Einzug (entschieden 06.11.2026, Version 6.7.0):** 2.0 und 2.1 zeigen je eine
+Tabelle „Rechnungen Überweisung“ und „Rechnungen SEPA-Einzug“; 3.0/4.0 nur SEPA, 4.1 standardmäßig nur Überweiser.
+„Verschieben“ gilt nur für das Beitragsjahr der Zeile und den Buchungskreis (Tabelle
+`adm_plugin_membershipfee_paymethods`, gespeichert wird nur die Abweichung `MAN`; zurück nach SEPA löscht sie und geht
+nur mit IBAN und Mandats-ID). Nach Überweisung wird die Fälligkeit im Profil geleert; die SEPA-Exporte schließen
+verschobene Mitglieder zusätzlich aus. Eine offene Rechnung behält ihre Nummer (Entscheidung „Rechnung behalten“):
+Zahlart, Fälligkeit, Mandat und IBAN werden umgestellt und das PDF neu erzeugt; nach SEPA ohne Fälligkeit wird das
+Einzugsdatum abgefragt. Rechnungen im Einzug sind gesperrt. Endpunkt `system/paymethod.php` (POST, CSRF).
+
+**SEPA-Dateien in 3.0 Lastschrifteinzug (06.11.2026, Version 6.8.0):** Der Menüpunkt „SEPA-Datei erstellen“
+entfällt; `runs.php` zeigt oben den Block „SEPA-Dateien erzeugen“ je Buchungskreis (Arbeitsdienst nur mit offenen
+Lastschriften), gemeinsame Funktion `mf_sepa_create_block()`. Der Button nennt die Anzahl der Dateien. Neues Menü:
+2.0 Rechnungen erstellen, 2.1 Rechnungen versenden, 3.0 Lastschrifteinzug, 3.1 Manuelle Zahlungen,
+4.0 Beitragsanalyse, 5.0 Rollenübersicht, 6.0 Buchungsübersicht. Version 6.8.1: Rollenübersicht entfernt
+(`roleoverview.php` leitet nur noch um), Buchungsübersicht ist jetzt 5.0.
+
+**Erlassen / Reduzieren offener Positionen (06.11.2026, Version 6.9.0):** Das Storno-Symbol einer offenen Position
+öffnet ein eigenes Formular (`booking_edit.php`, mode cancel): Position wird storniert, ein Restbetrag entsteht als
+neue offene Position mit gleicher Quelle, Rolle, Text und Rechnungsnummer (`BookingService::waive()`); danach wird
+das PDF neu erzeugt. `InvoiceService::createPdf()` setzt `mfi_amount` seitdem auf die Summe der nicht stornierten
+Positionen (gilt auch nach Storno mit erneutem Einzug und Gebühr). Gesperrt bei Rechnungen im Einzug.
+
+**Nachlass statt 0,00-Zeilen (06.11.2026, Version 6.9.1):** Offene Rechnungen zeigen stornierte Positionen nicht mehr
+(`InvoicePdfData::load()`); stornierte Rechnungen zeigen weiter alles. Reduzieren legt eine negative Position
+„Nachlass auf … (Grund)“ an (`mfb_import_ref` = `NACHLASS-<mfb_id>`, Rücknahme über ihr Storno-Symbol); ganz erlassen
+storniert die Position und ihre Nachlässe mit Stornogrund „Nachlass <Grund>“, das PDF zeigt dann Betrag und Nachlass
+in voller Höhe.

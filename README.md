@@ -7,7 +7,7 @@ Contribution recalculation uses the full configured role fee for every member of
 
 Since version 6.4.0 the plugin includes the work service (Arbeitsdienst): target hours per member (profile field), recording of work entries with its own access right, a yearly overview and a separate billing and SEPA collection run for the replacement fee. See `docs/arbeitsdienst.md` (German).
 
-Since version 6.5.0 invoices get fixed numbers (`2026-B-0012`, `2026-AD-0003`) under 3.0 Rechnungen erstellen; PDF output via wp-tc-lib-pdf is planned, see `docs/konzept-rechnungen-pdf.md` (German).
+Since version 6.5.0 invoices get fixed numbers (`2026-B-0012`, `2026-AD-0003`) under 2.0 Rechnungen erstellen (which also sets the collection date for direct debit payers since 6.6.0, replacing the former due date step) and are sent under 2.1 Rechnungen versenden; PDF output via wp-tc-lib-pdf, see `docs/konzept-rechnungen-pdf.md` (German).
 
 Since version 6.2.0 the generated SEPA XML file is stored with its collection run (current contribution year only), can be downloaded again and shared with the treasurer via a protected, expiring download link sent by email.
 

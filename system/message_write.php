@@ -103,15 +103,23 @@ else
 // Subject und Body erzeugen
 $text = new Text($gDb);
 
-// aufrufende Seite: bill (3.0 Rechnungen), pre_notification (3.1 Vorabinformation) oder payments
+// aufrufende Seite: pre_notification (2.1 Rechnungen versenden) oder payments.
+// In 2.1 waehlt die Tabelle den Text: SEPA-Einzug = Vorabinformation, Ueberweisung = Rechnung.
 $mailContext = '';
-foreach (array('pre_notification', 'payments', 'bill') as $context)
+$callerUrl = (string) $gNavigation->getUrl();
+foreach (array('pre_notification', 'payments') as $context)
 {
-    if (substr_count($gNavigation->getUrl(), $context) === 1)
+    if (substr_count($callerUrl, $context) === 1)
     {
         $mailContext = $context;
         break;
     }
+}
+// Tabelle in 2.1: einzelner Empfaenger per Link (dispatch=...), sonst die Schaltflaeche der Tabelle (Session)
+$dispatchMethod = (string) ($_GET['dispatch'] ?? ($_SESSION['pMembershipFee']['dispatchMethod'] ?? 'sepa'));
+if ($mailContext === 'pre_notification' && $dispatchMethod === 'transfer')
+{
+    $mailContext = 'bill';
 }
 
 //abhaengig vom aufrufenden Modul Text einlesen

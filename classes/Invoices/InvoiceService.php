@@ -23,6 +23,9 @@ class InvoiceService
     /** Standard fuer die Einstellung "Zahlungsziel (Tage)" */
     public const DEFAULT_TERM_DAYS = 14;
 
+    /** Sequenztypen, die beim Erstellen mit dem Einzugsdatum gesetzt werden koennen (AUTO = FRST/RCUR je Mitglied) */
+    public const SEQUENCE_TYPES = array('AUTO', 'FRST', 'RCUR', 'FNAL', 'OOFF');
+
     /** Versuche bei gleichzeitiger Vergabe derselben Nummer */
     private const MAX_ATTEMPTS = 3;
 
@@ -70,14 +73,15 @@ class InvoiceService
             }
             $data = $this->userData($usrId);
             foreach ($plan as $entry) {
+                $entryData = $this->entryData($data, $usrId, $entry['year']);
                 $result[] = array(
                     'usr_id' => $usrId,
                     'year' => $entry['year'],
                     'amount' => $entry['amount'],
-                    'method' => $data['method'],
-                    'due_date' => InvoicePlanner::dueDate($data['method'], $data['due_date'], $today, $this->termDays),
+                    'method' => $entryData['method'],
+                    'due_date' => InvoicePlanner::dueDate($entryData['method'], $entryData['due_date'], $today, $this->termDays),
                     'error' => $entry['error'],
-                    'warnings' => $data['warnings']
+                    'warnings' => $entryData['warnings']
                 );
             }
         }
@@ -87,12 +91,19 @@ class InvoiceService
     /**
      * Rechnungen fuer die angegebenen Mitglieder anlegen (idempotent: Positionen mit Nummer werden uebersprungen).
      *
+     * Lastschrift-Zahler ohne Faelligkeit erhalten dabei $debitDate als Faelligkeit (mit Sequenztyp); ohne
+     * $debitDate werden sie uebersprungen (Grund "duedate"). Vorhandene Faelligkeiten bleiben unveraendert.
+     *
      * @param array<int, int> $usrIds
      * @param string $today Rechnungsdatum (Y-m-d, Vereinszeitzone)
+     * @param string $debitDate Einzugsdatum (Y-m-d, vom Aufrufer geprueft) fuer Lastschrift-Zahler ohne Faelligkeit, '' = keins
+     * @param string $sequenceType Sequenztyp dazu (siehe SEQUENCE_TYPES)
+     * @param string $transferDue Zahlungsziel (Y-m-d) fuer Ueberweiser, '' = Rechnungsdatum + Zahlungsziel aus den Einstellungen
+     * @param bool $overwriteDue vorhandene Faelligkeiten der Lastschrift-Zahler durch $debitDate ersetzen
      * @return array{created: array<int, array{usr_id:int, invoice_no:string, amount:float, warnings:array<int,string>, pdf_error:string}>,
      *               skipped: array<int, array{usr_id:int, year:int, reason:string}>}
      */
-    public function create(array $usrIds, string $today): array
+    public function create(array $usrIds, string $today, string $debitDate = '', string $sequenceType = 'AUTO', string $transferDue = '', bool $overwriteDue = false): array
     {
         global $gDb;
 
@@ -104,6 +115,7 @@ class InvoiceService
         }
         $positionsByUser = BookingStore::getByUsers($usrIds, array(BookingStore::STATUS_OPEN));
         $pdfAvailable = PdfBridge::isAvailable();
+        $autoTypes = ($debitDate !== '' && $sequenceType === 'AUTO') ? mf_auto_sequence_types($usrIds) : array();
 
         foreach ($usrIds as $usrId) {
             $usrId = (int) $usrId;
@@ -113,19 +125,38 @@ class InvoiceService
             }
             $data = $this->userData($usrId);
 
+            // Lastschrift: Einzugsdatum von der Seite setzen (ohne Faelligkeit immer, vorhandene nur mit $overwriteDue)
+            if ($this->hasValidSepaEntry($plan, $data, $usrId)) {
+                if ($data['due_date'] === '' && $debitDate === '') {
+                    foreach ($plan as $entry) {
+                        $skipped[] = array('usr_id' => $usrId, 'year' => $entry['year'], 'reason' => 'duedate');
+                    }
+                    continue;
+                }
+                if ($debitDate !== '' && ($data['due_date'] === '' || $overwriteDue)) {
+                    $this->setDueDate($usrId, $debitDate, $sequenceType === 'AUTO' ? ($autoTypes[$usrId] ?? 'FRST') : $sequenceType);
+                    $data['due_date'] = $debitDate;
+                    $data['warnings'] = array_values(array_diff($data['warnings'], array('duedate')));
+                }
+            }
+
             foreach ($plan as $entry) {
                 if ($entry['error'] !== '') {
                     $skipped[] = array('usr_id' => $usrId, 'year' => $entry['year'], 'reason' => $entry['error']);
                     continue;
                 }
-                $invoiceNo = $this->createOne($usrId, $entry, $data, $today);
+                $entryData = $this->entryData($data, $usrId, $entry['year']);
+                if ($entryData['method'] === InvoicePlanner::METHOD_MANUAL && $transferDue !== '') {
+                    $entryData['due_date'] = $transferDue;     // Zahlungsziel von der Seite
+                }
+                $invoiceNo = $this->createOne($usrId, $entry, $entryData, $today);
                 if ($invoiceNo === null) {
                     $skipped[] = array('usr_id' => $usrId, 'year' => $entry['year'], 'reason' => 'changed');
                     continue;
                 }
                 // PDF erzeugen, wenn die Bibliothek verfuegbar ist; die Rechnung bleibt auch ohne PDF gueltig
                 $pdfError = $pdfAvailable ? $this->createPdf($invoiceNo) : '';
-                $created[] = array('usr_id' => $usrId, 'invoice_no' => $invoiceNo, 'amount' => $entry['amount'], 'warnings' => $data['warnings'], 'pdf_error' => $pdfError);
+                $created[] = array('usr_id' => $usrId, 'invoice_no' => $invoiceNo, 'amount' => $entry['amount'], 'warnings' => $this->entryData($data, $usrId, $entry['year'])['warnings'], 'pdf_error' => $pdfError);
             }
         }
         return array('created' => $created, 'skipped' => $skipped);
@@ -145,9 +176,19 @@ class InvoiceService
                 return 'Rechnung nicht gefunden';
             }
             $file = PdfBridge::create($invoiceNo, (string) $invoice['mfi_kind']);
-            InvoiceStore::update($invoiceNo, $invoice['status'] === InvoiceStatus::CANCELLED
-                ? array('mfi_cancel_file' => $file)
-                : array('mfi_pdf_file' => $file));
+            if ($invoice['status'] === InvoiceStatus::CANCELLED) {
+                InvoiceStore::update($invoiceNo, array('mfi_cancel_file' => $file));
+            } else {
+                // Rechnungsbetrag wie im PDF: Summe der nicht stornierten Positionen (aendert sich nach
+                // Storno mit erneutem Einzug, Gebuehr oder "Erlassen / Reduzieren")
+                $amount = 0.0;
+                foreach (BookingStore::getByInvoice($invoiceNo) as $position) {
+                    if ($position['mfb_status'] !== BookingStore::STATUS_CANCELLED) {
+                        $amount += (float) $position['mfb_amount'];
+                    }
+                }
+                InvoiceStore::update($invoiceNo, array('mfi_pdf_file' => $file, 'mfi_amount' => round($amount, 2)));
+            }
             return '';
         } catch (\Throwable $e) {
             return $e->getMessage();
@@ -197,6 +238,56 @@ class InvoiceService
             return $invoiceNo;
         }
         throw new \RuntimeException('Rechnungsnummer konnte nicht vergeben werden (' . $entry['year'] . ', ' . $kind . ').');
+    }
+
+    /**
+     * Gibt es im Plan ein abrechenbares Beitragsjahr, das per Lastschrift bezahlt wird?
+     *
+     * @param array<int, array{year:int, error:string}> $plan
+     * @param array{method:string} $data
+     */
+    private function hasValidSepaEntry(array $plan, array $data, int $usrId): bool
+    {
+        foreach ($plan as $entry) {
+            if ($entry['error'] === '' && $this->entryData($data, $usrId, $entry['year'])['method'] === InvoicePlanner::METHOD_SEPA) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Mitgliedsdaten fuer ein Beitragsjahr: eine abweichende Zahlart (PaymentMethodStore, "Verschieben" in 2.0/2.1)
+     * macht aus der Lastschrift eine Ueberweisung; dann ohne Mandat, IBAN und Faelligkeit.
+     *
+     * @param array{method:string, due_date:string, mandate_id:string, iban_masked:string, warnings:array<int,string>} $data
+     * @return array{method:string, due_date:string, mandate_id:string, iban_masked:string, warnings:array<int,string>}
+     */
+    private function entryData(array $data, int $usrId, int $year): array
+    {
+        $method = InvoicePlanner::effectiveMethod($data['method'], PaymentMethodStore::get($usrId, $year, $this->scope->key()));
+        if ($method === $data['method']) {
+            return $data;
+        }
+        $data['method'] = $method;
+        $data['due_date'] = '';
+        $data['mandate_id'] = '';
+        $data['iban_masked'] = '';
+        $data['warnings'] = array_values(array_diff($data['warnings'], array('duedate')));
+        return $data;
+    }
+
+    /**
+     * Faelligkeit und Sequenztyp im Profil des Mitglieds setzen (Felder des Buchungskreises).
+     */
+    private function setDueDate(int $usrId, string $dueDate, string $sequenceType): void
+    {
+        global $gDb, $gProfileFields;
+
+        $user = new User($gDb, $gProfileFields, $usrId);
+        $user->setValue($this->scope->field(CollectionScope::FIELD_DUEDATE), $dueDate);
+        $user->setValue($this->scope->field(CollectionScope::FIELD_SEQUENCETYPE), $sequenceType);
+        $user->save();
     }
 
     /**

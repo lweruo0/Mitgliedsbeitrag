@@ -142,10 +142,10 @@ try {
     $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-work-billing', $headline);
     $page->setContentFullWidth();
 
-    $nextUrl = SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/duedates.php', array('collection' => CollectionScope::WORK));
+    $nextUrl = SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/bill.php', array('collection' => CollectionScope::WORK));
     if (!empty($_SESSION['pMembershipFee']['work_message'])) {
         $page->addHtml('<div class="alert alert-success" role="alert"><i class="bi bi-check-lg"></i> ' . SecurityUtils::encodeHTML($_SESSION['pMembershipFee']['work_message'])
-            . ' <a class="btn btn-primary btn-sm ms-2" href="' . $nextUrl . '"><i class="bi bi-calendar-check"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_NEXT_DUEDATE') . '</a></div>');
+            . ' <a class="btn btn-primary btn-sm ms-2" href="' . $nextUrl . '"><i class="bi bi-receipt"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_NEXT_BILL') . '</a></div>');
         unset($_SESSION['pMembershipFee']['work_message']);
     }
 
@@ -201,7 +201,7 @@ try {
         . '<input type="hidden" name="adm_csrf_token" value="' . SecurityUtils::encodeHTML($gCurrentSession->getCsrfToken()) . '" />'
         . '<button type="submit" class="btn btn-primary"' . ($stats['changes'] === 0 ? ' disabled="disabled"' : '') . '><i class="bi bi-check-lg"></i> '
         . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING_APPLY', array($stats['changes'])) . '</button>'
-        . ' <a class="btn btn-secondary" href="' . $nextUrl . '"><i class="bi bi-calendar-check"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_NEXT_DUEDATE') . '</a>'
+        . ' <a class="btn btn-secondary" href="' . $nextUrl . '"><i class="bi bi-receipt"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_NEXT_BILL') . '</a>'
         . '</form>';
     $page->addHtml($applyForm);
 
