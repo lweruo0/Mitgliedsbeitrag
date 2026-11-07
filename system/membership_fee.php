@@ -186,7 +186,7 @@ try {
     $gNavigation->addStartUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee.php', $headline, 'bi-currency-euro');
 
     // create html page object
-    // Seitentitel und Brotkrumen wie der gewaehlte Menueeintrag (z. B. "4.0 SEPA-Datei erstellen");
+    // Seitentitel und Brotkrumen wie der gewaehlte Menueeintrag (z. B. "3.0 Lastschrifteinzug");
     // die Startseite (Uebersicht) behaelt den Titel "Mitgliedsbeitrag"
     $menuTitle = '';
     if ($getShow !== 'overview') {
@@ -839,7 +839,7 @@ try {
 
             $page->addHtml(getMenuePanel('preferences', 'individualcontributions', 'accordion_preferences', $gL10n->get('PLG_MEMBERSHIPFEE_INDIVIDUAL_CONTRIBUTIONS'), 'bi bi-house-gear', $formIndividualContributionsSetup->show()));
 
-            // PANEL: CONTRIBUTION_GROUPS (Beitragsgruppen mit Differenzberechnung)
+            // PANEL: CONTRIBUTION_GROUPS (Beiträge mit Differenzberechnung)
 
             $formContributionGroups = new HtmlForm('contributiongroups_form', SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/membership_fee_function.php', array(
                 'form' => 'contributiongroups'

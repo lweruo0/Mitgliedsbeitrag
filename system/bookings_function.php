@@ -48,6 +48,23 @@ function mf_sort_bookings(array $positions): array
 }
 
 /**
+ * Rechnungsnummer einer Position, mit PDF-Bibliothek als Link auf das Rechnungs-PDF (invoice_file.php,
+ * Recht = Zugriffsrolle wie die Registerkarte "Beitraege"; ein fehlendes PDF wird beim Aufruf erzeugt).
+ */
+function mf_invoice_link(string $invoiceNo, bool $pdfAvailable): string
+{
+    global $gL10n;
+
+    $text = $gL10n->get('PLG_MEMBERSHIPFEE_INVOICE') . ' ' . SecurityUtils::encodeHTML($invoiceNo);
+    if (!$pdfAvailable) {
+        return $text;
+    }
+    $url = SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/invoice_file.php', array('nr' => $invoiceNo));
+    return '<a class="text-nowrap" href="' . $url . '" target="_blank" rel="noopener" title="' . $gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_PDF_SHOW') . '">'
+        . '<i class="bi bi-file-earmark-pdf"></i> ' . $text . '</a>';
+}
+
+/**
  * Liefert die HTML-Tabelle der Buchungshistorie eines Mitglieds.
  *
  * @param int $usrId
@@ -74,6 +91,7 @@ function mf_render_bookings(int $usrId, string $userUuid, bool $withActions = tr
     }
 
     $runs = array();
+    $pdfAvailable = \Plugins\MembershipFee\classes\Invoices\PdfBridge::isAvailable();
     $sums = array(BookingStore::STATUS_OPEN => 0.0, BookingStore::STATUS_EXPORTED => 0.0, BookingStore::STATUS_COLLECTED => 0.0, BookingStore::STATUS_CANCELLED => 0.0);
 
     $html .= '<div class="table-responsive"><table class="table table-condensed table-hover">
@@ -141,7 +159,7 @@ function mf_render_bookings(int $usrId, string $userUuid, bool $withActions = tr
             <td>' . SecurityUtils::encodeHTML((string) $position['mfb_method']) . '</td>
             <td>' . $fileName . '</td>
             <td>' . $roleText . '<br /><small class="text-muted">' . (int) $position['mfb_year']
-                . ((string) ($position['mfb_invoice_no'] ?? '') !== '' ? ' &middot; ' . $gL10n->get('PLG_MEMBERSHIPFEE_INVOICE') . ' ' . SecurityUtils::encodeHTML((string) $position['mfb_invoice_no']) : '') . '</small></td>
+                . ((string) ($position['mfb_invoice_no'] ?? '') !== '' ? ' &middot; ' . mf_invoice_link((string) $position['mfb_invoice_no'], $pdfAvailable) : '') . '</small></td>
             <td style="text-align: right; white-space: nowrap;"><span' . $style . '>' . mf_format_amount($position['mfb_amount']) . '</span></td>
             <td><span' . $style . '>' . SecurityUtils::encodeHTML((string) $position['mfb_text']) . '</span></td>
             <td>' . SecurityUtils::encodeHTML((string) $position['mfb_reference']) . '</td>

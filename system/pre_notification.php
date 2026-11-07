@@ -10,6 +10,8 @@
  * Parameters:
  *
  * mode             : html       - Standardmodus zun Anzeigen einer html-Liste
+ *                    print_check - (Ajax) markierte Rechnungen der Tabelle zaehlen, fehlende PDFs erzeugen
+ *                    print      - (POST, CSRF) markierte Rechnungen als ZIP oder Druck-PDF herunterladen
  *                    prepare    - user in einem CheckedArray setzen bzw loeschen
  *                    export     - erzeugt eine Exportdatei
  *                    mail       - nur zur Pruefung, ob user im CheckedArray markiert sind
@@ -45,7 +47,7 @@ $pPreferences->read();
 
 $user = new User($gDb, $gProfileFields);
 
-if (isset($_GET['mode']) && ($_GET['mode'] == 'export' || $_GET['mode'] == 'mail' || $_GET['mode'] == 'prepare')) {
+if (isset($_GET['mode']) && in_array($_GET['mode'], array('export', 'mail', 'prepare', 'print_check'), true)) {
     // ajax mode then only show text if error occurs
     $gMessage->showTextOnly(true);
 }
@@ -57,7 +59,9 @@ $getMode = admFuncVariableIsValid($_GET, 'mode', 'string', array(
         'html',
         'export',
         'mail',
-        'prepare'
+        'prepare',
+        'print_check',
+        'print'
     )
 ));
 $getUserId = admFuncVariableIsValid($_GET, 'usr_id', 'numeric', array(
@@ -231,7 +235,111 @@ $prenotSql = static function (string $method) use ($gProfileFields, $gCurrentOrg
     return array($sql, $queryParams);
 };
 
-if ($getMode == 'mail' || $getMode == 'export') {
+if ($getMode === 'print_check' || $getMode === 'print') {
+    // Druckstapel: markierte Mitglieder dieser Tabelle (in Tabellenreihenfolge) mit ihrer aktuellen Rechnung
+    $printService = new \Plugins\MembershipFee\classes\Invoices\InvoiceService($pPreferences->config, $mfScope);
+    $printKind = $mfScope->key();
+    $printCheck = $getMode === 'print_check';
+    try {
+        $reason = \Plugins\MembershipFee\classes\Invoices\PdfBridge::unavailableReason();
+        if ($reason !== '') {
+            throw new \RuntimeException($reason);
+        }
+        if (!$printCheck) {
+            if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+                throw new \RuntimeException($gL10n->get('SYS_INVALID_PAGE_VIEW'));
+            }
+            SecurityUtils::validateCsrfToken((string) ($_POST['adm_csrf_token'] ?? ''));
+        }
+        list($sql, $queryParams) = $prenotSql($getMethod);
+        $statement = $gDb->queryPrepared($sql, $queryParams);
+        $printItems = array();
+        $noInvoice = 0;
+        $pdfErrors = array();
+        while ($usr = $statement->fetch()) {
+            if (!array_key_exists((int) $usr['usr_id'], $_SESSION['pMembershipFee']['checkedArray'])) {
+                continue;
+            }
+            $invoice = mf_current_invoice((int) $usr['usr_id'], $mfScope);
+            if ($invoice === null) {
+                $noInvoice++;
+                continue;
+            }
+            $invoiceNo = (string) $invoice['mfi_invoice_no'];
+            $path = \Plugins\MembershipFee\classes\Invoices\PdfBridge::filePath($printKind, (string) ($invoice['mfi_pdf_file'] ?? ''));
+            if ($path === '' && $printCheck) {
+                // fehlendes PDF jetzt erzeugen, damit der Download vollstaendig ist
+                $error = $printService->createPdf($invoiceNo);
+                if ($error !== '') {
+                    $pdfErrors[] = $invoiceNo . ': ' . $error;
+                    continue;
+                }
+                $fresh = \Plugins\MembershipFee\classes\Invoices\InvoiceStore::find($invoiceNo);
+                $path = \Plugins\MembershipFee\classes\Invoices\PdfBridge::filePath($printKind, (string) ($fresh['mfi_pdf_file'] ?? ''));
+            }
+            if ($path === '') {
+                $pdfErrors[] = $invoiceNo . ': PDF fehlt';
+                continue;
+            }
+            $printItems[] = array('no' => $invoiceNo, 'path' => $path,
+                'name' => trim((string) $usr['last_name'] . '_' . (string) $usr['first_name'], '_'));
+        }
+
+        if ($printCheck) {
+            echo json_encode(array('count' => count($printItems), 'no_invoice' => $noInvoice, 'errors' => $pdfErrors));
+            exit();
+        }
+        if (count($printItems) === 0) {
+            throw new \RuntimeException($gL10n->get('PLG_MEMBERSHIPFEE_PRINT_EMPTY'));
+        }
+
+        $prefix = ($printKind === CollectionScope::WORK ? 'Arbeitsdienst' : 'Rechnungen') . '_' . ($getMethod === 'sepa' ? 'Lastschrift' : 'Ueberweisung') . '_' . date('Y-m-d');
+        if (($_POST['format'] ?? '') === 'zip') {
+            $tmp = tempnam(sys_get_temp_dir(), 'mfzip');
+            $zip = new \ZipArchive();
+            if ($tmp === false || $zip->open($tmp, \ZipArchive::OVERWRITE) !== true) {
+                throw new \RuntimeException('ZIP-Datei konnte nicht angelegt werden');
+            }
+            foreach ($printItems as $item) {
+                $entry = $item['no'] . '_' . preg_replace('/[^A-Za-z0-9_-]+/', '', strtr($item['name'], array('ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue', 'Ä' => 'Ae', 'Ö' => 'Oe', 'Ü' => 'Ue', 'ß' => 'ss', ' ' => '_'))) . '.pdf';
+                $zip->addFile($item['path'], $entry);
+            }
+            $zip->close();
+            $content = (string) file_get_contents($tmp);
+            @unlink($tmp);
+            $fileName = $prefix . '.zip';
+            $contentType = 'application/zip';
+        } else {
+            $result = \Plugins\MembershipFee\classes\Invoices\PdfBridge::joinForPrint(array_column($printItems, 'path'), $printKind,
+                !empty($_POST['duplex']), $prefix);
+            $content = $result->pdf;
+            $fileName = $prefix . '.pdf';
+            $contentType = 'application/pdf';
+        }
+
+        // Versandvermerk Druck
+        foreach ($printItems as $item) {
+            \Plugins\MembershipFee\classes\Invoices\InvoiceStore::update($item['no'], array('mfi_sent_print' => DATETIME_NOW));
+        }
+
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        header('Content-Type: ' . $contentType);
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
+        header('Content-Length: ' . strlen($content));
+        header('Cache-Control: no-store');
+        header('X-Content-Type-Options: nosniff');
+        echo $content;
+        exit();
+    } catch (\Throwable $e) {
+        if ($printCheck) {
+            echo json_encode(array('error' => $e->getMessage()));
+            exit();
+        }
+        throw new Exception($e->getMessage());
+    }
+} elseif ($getMode == 'mail' || $getMode == 'export') {
     // nur die markierten Mitglieder der Tabelle, deren Schaltflaeche gedrueckt wurde
     list($sql, $queryParams) = $prenotSql($getMode === 'export' ? 'sepa' : $getMethod);
     $listed = array();
@@ -350,6 +458,30 @@ if ($getMode == 'mail' || $getMode == 'export') {
         '); // !!!: ohne true
 
         $javascriptCode = '
+        // Druckstapel: erst pruefen (zaehlen, fehlende PDFs erzeugen), dann per POST herunterladen
+        $(".mf-print").click(function(){
+            var method = $(this).data("method");
+            var format = $(this).data("format");
+            var duedate = $("#duedate").val() || 0;
+            var info = $("#mf_print_info_" + method);
+            var query = "&method=" + method + "&duedate=" + duedate;
+            info.text("' . $gL10n->get('PLG_MEMBERSHIPFEE_PRINT_WORKING') . '");
+            $.post("' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/pre_notification.php', array('mode' => 'print_check')) . '" + query, function(data){
+                var r;
+                try { r = (typeof data === "object") ? data : JSON.parse(data); } catch (e) { info.text(""); alert(data); return; }
+                if (r.error) { info.text(""); alert(r.error); return; }
+                var msg = "' . $gL10n->get('PLG_MEMBERSHIPFEE_PRINT_INFO') . '".replace("#VAR1#", r.count).replace("#VAR2#", r.no_invoice);
+                if (r.errors && r.errors.length > 0) { msg += " ' . $gL10n->get('PLG_MEMBERSHIPFEE_PRINT_PDF_ERRORS') . ' " + r.errors.join(", "); }
+                info.text(msg);
+                if (r.count === 0) { return; }
+                var form = $("<form method=\\"post\\"></form>").attr("action", "' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/pre_notification.php', array('mode' => 'print')) . '" + query);
+                form.append($("<input type=\\"hidden\\" name=\\"adm_csrf_token\\">").val("' . $gCurrentSession->getCsrfToken() . '"));
+                form.append($("<input type=\\"hidden\\" name=\\"format\\">").val(format));
+                form.append($("<input type=\\"hidden\\" name=\\"duplex\\">").val($("#mf_print_duplex_" + method).is(":checked") ? "1" : ""));
+                form.appendTo("body").submit().remove();
+            }, "text");
+        });
+
         function mfPrenotReload() {
             var duedate = $("#duedate").val() || 0;
             window.location.replace("' . SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/pre_notification.php') . '?duedate=" + duedate);
@@ -441,13 +573,20 @@ if ($getMode == 'mail' || $getMode == 'export') {
 
         // Reihenfolge der Ausgabe (Zusammenfassung, Filter, Schaltflaechen, Tabelle) siehe Ende der Datei
         $filterHtml = $form->show();
-        $buttonsHtmlFor = static function (string $method): string {
+        $printAvailable = \Plugins\MembershipFee\classes\Invoices\PdfBridge::isAvailable();
+        $buttonsHtmlFor = static function (string $method) use ($printAvailable, $gL10n): string {
             return '<div class="mb-3">'
                 . '<button type="button" class="btn btn-primary me-2 mb-2 mf-prenot-all" data-method="' . $method . '" data-all="select"><i class="bi bi-check2-square"></i> Alle auswählen</button>'
                 . '<button type="button" class="btn btn-secondary me-2 mb-2 mf-prenot-all" data-method="' . $method . '" data-all="deselect"><i class="bi bi-square"></i> Alle abwählen</button>'
                 . ($method === 'sepa' ? '<a class="btn btn-primary me-2 mb-2" href="javascript:prenotexport()"><i class="bi bi-filetype-csv"></i> Exportiere Auswahl</a>' : '')
                 . '<a class="btn btn-primary mb-2" href="javascript:massmail(\'' . $method . '\')"><i class="bi bi-envelope"></i> '
                 . ($method === 'sepa' ? 'Vorabinformation per E-Mail versenden' : 'Rechnung per E-Mail versenden') . '</a>'
+                . ($printAvailable ? '<div class="mt-1">'
+                    . '<button type="button" class="btn btn-secondary me-2 mb-2 mf-print" data-method="' . $method . '" data-format="zip"><i class="bi bi-file-earmark-zip"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_PRINT_ZIP') . '</button>'
+                    . '<button type="button" class="btn btn-secondary me-2 mb-2 mf-print" data-method="' . $method . '" data-format="pdf"><i class="bi bi-printer"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_PRINT_PDF') . '</button>'
+                    . '<span class="form-check form-check-inline align-middle mb-2"><input class="form-check-input" type="checkbox" id="mf_print_duplex_' . $method . '">'
+                    . '<label class="form-check-label" for="mf_print_duplex_' . $method . '">' . $gL10n->get('PLG_MEMBERSHIPFEE_PRINT_DUPLEX') . '</label></span>'
+                    . '<span class="small text-muted mb-2" id="mf_print_info_' . $method . '"></span></div>' : '')
                 . '<div class="form-text">„Alle auswählen“ und „Alle abwählen“ gelten für alle Mitglieder dieser Tabelle'
                 . ($method === 'sepa' ? ' (Filter Fälligkeit beachten)' : '') . ', nicht nur für die aktuelle Tabellenseite. Versendet werden nur die markierten Mitglieder dieser Tabelle.</div>'
                 . '</div>';
@@ -687,10 +826,9 @@ if ($getMode == 'mail' || $getMode == 'export') {
             }
             ksort($summary, SORT_NATURAL | SORT_FLAG_CASE);
 
-            $summaryHtml = '<div class="card admidio-blog mb-4"><div class="card-header">Zusammenfassung '
-                . ($method === 'transfer' ? 'Überweisung mit offener Rechnung'
-                    : ($getDueDate != 0 ? 'Fälligkeit ' . htmlspecialchars((string) ($selectBoxEntries[$getDueDate] ?? $getDueDate), ENT_QUOTES, 'UTF-8') : 'aller Fälligkeiten'))
-                . ' (' . count($summaryUserIds) . ' Mitglieder)</div><div class="card-body p-0"><div class="table-responsive mb-0">'
+            $summaryHtml = '<div class="card mb-3"><div class="card-header"><i class="bi bi-list-columns-reverse"></i> Zusammenfassung'
+                . ($method === 'sepa' && $getDueDate != 0 ? ' Fälligkeit ' . htmlspecialchars((string) ($selectBoxEntries[$getDueDate] ?? $getDueDate), ENT_QUOTES, 'UTF-8') : '')
+                . ' <span class="badge bg-secondary">' . count($summaryUserIds) . '</span></div><div class="card-body p-0"><div class="table-responsive mb-0">'
                 . '<table class="table table-sm table-striped mb-0"><thead><tr><th>Beitragsrolle</th><th class="text-end">Anzahl</th><th class="text-end">Summe</th></tr></thead><tbody>';
             if (count($summary) === 0) {
                 $summaryHtml .= '<tr><td colspan="3" class="text-muted">Keine offenen Beitragspositionen gefunden.</td></tr>';

@@ -157,14 +157,8 @@ try {
         }
     }
     rsort($years);
-    $yearLinks = array();
-    foreach ($years as $year) {
-        $yearLinks[] = ($year === $getYear)
-            ? '<span class="btn btn-primary btn-sm disabled">' . $year . '</span>'
-            : '<a class="btn btn-secondary btn-sm" href="' . SecurityUtils::encodeUrl($selfUrl, array('year' => $year)) . '">' . $year . '</a>';
-    }
-    $page->addHtml('<p>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_YEAR') . ': ' . implode(' ', $yearLinks)
-        . '<br/><small class="text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING_DESC', array($getYear)) . '</small></p>');
+    $page->addHtml(mf_year_switch_html($getYear, $years, $selfUrl, array(),
+        $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING_DESC', array($getYear))));
 
     $plans = $buildPlans($getYear);
     $stats = array('changes' => 0, 'open' => 0.0, 'billed' => 0.0, 'members' => 0);
@@ -192,7 +186,7 @@ try {
         . '</div></div>');
 
     if (count($plans) === 0) {
-        $page->addHtml('<div class="alert alert-info" role="alert">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING_NOTHING') . '</div>');
+        $page->addHtml('<div class="alert alert-info" role="alert"><i class="bi bi-info-circle"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING_NOTHING') . '</div>');
         $page->show();
         exit();
     }

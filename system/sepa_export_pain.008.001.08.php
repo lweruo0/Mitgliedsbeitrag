@@ -175,7 +175,7 @@ foreach ($members as $member => $memberdata) {
         }
 
         $zpflgt[$member]['betrag'] = $fee; // Amount of money
-        $zpflgt[$member]['text'] = substr(replace_sepadaten($members[$member][$mfScope->field(CollectionScope::FIELD_TEXT)]), 0, 140); // Description of the transaction ("Verwendungszweck").
+        $zpflgt[$member]['text'] = substr(replace_sepadaten(mf_sepa_invoice_prefix((int) $member, $mfScope) . $members[$member][$mfScope->field(CollectionScope::FIELD_TEXT)]), 0, 140); // Description of the transaction ("Verwendungszweck").
         $zpflgt[$member]['orig_mandat_id'] = $members[$member]['ORIG_MANDATEID' . $gCurrentOrgId]; // urspruengliche Mandats-ID
         $zpflgt[$member]['orig_iban'] = strtoupper(str_replace(' ', '', $members[$member]['ORIG_IBAN'])); // urspruengliche IBAN
         $zpflgt[$member]['orig_dbtr_agent'] = $members[$member]['ORIG_DEBTOR_AGENT']; // urspruengliches Kreditinstitut, nur "SMNDA" moeglich

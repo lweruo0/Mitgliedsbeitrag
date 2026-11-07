@@ -174,13 +174,7 @@ try {
         }
     }
     rsort($years);
-    $yearLinks = array();
-    foreach ($years as $year) {
-        $yearLinks[] = ($year === $getYear)
-            ? '<span class="btn btn-primary btn-sm disabled">' . $year . '</span>'
-            : '<a class="btn btn-secondary btn-sm" href="' . SecurityUtils::encodeUrl($selfUrl, array('year' => $year, 'filter' => $getFilter)) . '">' . $year . '</a>';
-    }
-    $page->addHtml('<p>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_YEAR') . ': ' . implode(' ', $yearLinks) . '</p>');
+    $page->addHtml(mf_year_switch_html($getYear, $years, $selfUrl, array('filter' => $getFilter)));
     if ($getYear !== (int) date('Y')) {
         $page->addHtml('<div class="alert alert-info" role="alert"><i class="bi bi-info-circle"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_OVERVIEW_OTHER_YEAR') . '</div>');
     }

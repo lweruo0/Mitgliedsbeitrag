@@ -214,6 +214,7 @@ else
     $selectBoxEntries = array('0' => $gL10n->get('SYS_SHOW_ALL_CONTACTS'), '1' => $gL10n->get('PLG_MEMBERSHIPFEE_WITH_MANDATEDATE'), '2' => $gL10n->get('PLG_MEMBERSHIPFEE_WITHOUT_MANDATEDATE'));
     $form->addSelectBox('mem_show', $gL10n->get('PLG_MEMBERSHIPFEE_FILTER'), $selectBoxEntries, array('defaultValue' => $getMembersShow, 'helpTextId' => 'PLG_MEMBERSHIPFEE_FILTER_DESC', 'showContextDependentFirstEntry' => false));
 
+    $page->addHtml('<p class="small text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_MANDATES_PAGE_DESC') . '</p>');
     $page->addHtml($form->show());
 
     // create table object

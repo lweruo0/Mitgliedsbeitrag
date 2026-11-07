@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
     <string name="PLG_MEMBERSHIPFEE_ABORT">Cancel</string>
-    <string name="PLG_MEMBERSHIPFEE_ACCESS_PREFERENCES">Access permission for preferences</string>
+    <string name="PLG_MEMBERSHIPFEE_ACCESS_PREFERENCES">Access permission</string>
     <string name="PLG_MEMBERSHIPFEE_ACCESS_PREFERENCES_DESC">Here, in addition to the role "Administrator", you can authorize additional roles for access to the "Preferences" module.</string>
     <string name="PLG_MEMBERSHIPFEE_ACCESS_TO_MODULE_INDIVIDUAL_CONTRIBUTIONS">Access to the "Individual Contributions" module</string>
     <string name="PLG_MEMBERSHIPFEE_ACCESS_TO_MODULE_INDIVIDUAL_CONTRIBUTIONS_DESC">The module can be completely deactivated using this setting. (Default: Deactivated)</string>
@@ -110,7 +110,7 @@
     <string name="PLG_MEMBERSHIPFEE_VARIABLE_DUNNING">Date and deadline of the dunning letter</string>
     <string name="PLG_MEMBERSHIPFEE_BILL_AD_MAIL_TEXT">Invoice work service</string>
     <string name="PLG_MEMBERSHIPFEE_PMBMAIL_BILL_AD">#subject# Invoice #invoice_no# work service\n#content# Dear member,\n\nplease find attached invoice #invoice_no# of #invoice_date# for #invoice_amount#.\n\nYou can also open it here:\n#invoice_link#\n\nKind regards\n#organization_long_name#</string>
-    <string name="PLG_MEMBERSHIPFEE_INVOICE_MISSING_HINT">#VAR1# member(s) have open positions without invoice. Create invoices under #VAR2#3.0 Create invoices#VAR3# before the pre-notification.</string>
+    <string name="PLG_MEMBERSHIPFEE_INVOICE_MISSING_HINT">#VAR1# member(s) have open positions without invoice. Create invoices under #VAR2#2.0 Create invoices#VAR3# before the pre-notification.</string>
     <string name="PLG_MEMBERSHIPFEE_BICCHECK">BIC test</string>
     <string name="PLG_MEMBERSHIPFEE_ONETIME_ROLES">One-time contribution roles</string>
     <string name="PLG_MEMBERSHIPFEE_ONETIME_ROLES_DESC">Memberships in contribution roles with period "one-time" (e.g. admission fee) must start on 01/01 and end on 12/31 of the same year. Otherwise the recalculation charges the fee again every year.</string>
@@ -632,7 +632,7 @@
     <string name="PLG_MEMBERSHIPFEE_BOOKING_TEXT">Booking text</string>
     <string name="PLG_MEMBERSHIPFEE_BOOKING_TEXT_DESC">Remittance information, at most 140 characters. Empty: prefix and label.</string>
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP">Contribution group</string>
-    <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUPS">Contribution groups with difference calculation</string>
+    <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUPS">Contributions with difference calculation</string>
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUPS_DESC">Roles that exclude each other (e.g. active, passive, youth) form a contribution group. If a member changes within the group during the year, the recalculation only charges the difference between the highest role fee and what has already been exported or collected in the group. A negative difference is not refunded.</string>
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP_ADD">Add another contribution group</string>
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP_DUPLICATE_ROLE">A role may only belong to one contribution group. Duplicate: group "#VAR1#" and "#VAR2#".</string>
@@ -719,7 +719,7 @@
     <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_RECOLLECT">Collect again</string>
     <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_RECOLLECT_DESC">Immediately re-creates the cancelled claim as an open position (same amount, text, role and year), e.g. after a returned direct debit. No recalculation is needed. Without the tick the claim is settled.</string>
     <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NEW_DUEDATE">New due date</string>
-    <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NEW_DUEDATE_DESC">Optional: due date for the new collection. Leave empty to set it later under due date.</string>
+    <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NEW_DUEDATE_DESC">Debit date for the new collection (default: first bank business day after 14 days). The invoice keeps its number and is regenerated with this date and the new amount.</string>
     <string name="PLG_MEMBERSHIPFEE_WITH_OPEN_AMOUNT">With open amount</string>
     <string name="PLG_MEMBERSHIPFEE_OPEN_AMOUNT">Open amount</string>
     <string name="PLG_MEMBERSHIPFEE_PAYMENT_METHOD">Payment method</string>
@@ -819,7 +819,7 @@
     <string name="PLG_MEMBERSHIPFEE_WORK_STATUS_NONE">no target</string>
     <string name="PLG_MEMBERSHIPFEE_SCOPE_AD_BANNER">Due dates, amounts and direct debits on this page refer to the work service fee, not to the membership fee.</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_BILLING">Bill work service</string>
-    <string name="PLG_MEMBERSHIPFEE_WORK_BILLING_PANEL_DESC">After the service year: creates an item per member with missing hours.</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_BILLING_PANEL_DESC">After the service year: creates an item per member with missing hours. Then create invoices (2.0), send them (2.1) and create the SEPA file (3.0).</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_BILLING_DESC">Target from the profile field, hours recorded in #VAR1#.</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_BILLING_EARLY">The service year #VAR1# has not ended yet.</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_BILLING_HEADING">Work service billing #VAR1#</string>
@@ -906,4 +906,15 @@
     <string name="PLG_MEMBERSHIPFEE_WORK_TARGETS_SEARCH_PLACEHOLDER">Name, reason …</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_TARGETS_EDIT">Edit target hours</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_TARGETS_SET_INVALID">Please enter hours between 0 and 999 or leave the field empty.</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_ZIP">Selection as ZIP</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_PDF">Selection as print PDF</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_DUPLEX">duplex (insert blank pages)</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_WORKING">Collecting invoices …</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_EMPTY">No selected members with an invoice in this table.</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_INFO">#VAR1# invoice(s) in the download, #VAR2# selected members without invoice.</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_PDF_ERRORS">PDF missing:</string>
+    <string name="PLG_MEMBERSHIPFEE_EMAIL_NONE_ADDRESS">The selected members have no e-mail address. For postal delivery use "Selection as print PDF" or "Selection as ZIP" in 2.1.</string>
+    <string name="PLG_MEMBERSHIPFEE_RECALCULATION_PAGE_DESC">Calculates the open items of the contribution year from contribution roles, individual contributions and contribution groups. The list is a preview (new, changed, removed); nothing is stored until you click "Save". Items with an invoice number stay unchanged and are only reported – cancel them first. Continue with 2.0 Create invoices.</string>
+    <string name="PLG_MEMBERSHIPFEE_MANDATES_PAGE_DESC">Ticking a member enters the mandate date selected above, unticking removes it; changes are saved immediately. The pencil changes mandate reference, IBAN and account holder (mandate amendment).</string>
+    <string name="PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID_PAGE_DESC">Assigns a new mandate reference to members with an IBAN but no mandate reference, using the scheme from Settings → Mandate management. The list is a preview; nothing is stored until you click "Save". Then enter the mandate date under Edit mandates.</string>
 </resources>

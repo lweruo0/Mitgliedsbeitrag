@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
     <string name="PLG_MEMBERSHIPFEE_ABORT">Abbrechen</string>
-    <string name="PLG_MEMBERSHIPFEE_ACCESS_PREFERENCES">Zugriffsberechtigung für Einstellungen</string>
+    <string name="PLG_MEMBERSHIPFEE_ACCESS_PREFERENCES">Zugriffsberechtigung</string>
     <string name="PLG_MEMBERSHIPFEE_ACCESS_PREFERENCES_DESC">Hier können, zusätzlich zur Rolle "Administrator", weitere Rollen für den Zugriff auf das Modul "Einstellungen" berechtigt werden.</string>
     <string name="PLG_MEMBERSHIPFEE_ACCESS_TO_MODULE_INDIVIDUAL_CONTRIBUTIONS">Zugriff auf das Modul "Individualbeiträge"</string>
     <string name="PLG_MEMBERSHIPFEE_ACCESS_TO_MODULE_INDIVIDUAL_CONTRIBUTIONS_DESC">Das Modul kann über diese Einstellung komplett deaktiviert werden. (Standard: Deaktiviert)</string>
@@ -110,7 +110,7 @@
     <string name="PLG_MEMBERSHIPFEE_VARIABLE_DUNNING">Datum und Frist der Mahnung</string>
     <string name="PLG_MEMBERSHIPFEE_BILL_AD_MAIL_TEXT">Rechnung Arbeitsdienst</string>
     <string name="PLG_MEMBERSHIPFEE_PMBMAIL_BILL_AD">#subject# Rechnung #invoice_no# Ersatzbeitrag Arbeitsdienst\n#content# Sehr geehrtes Mitglied,\n\nanbei erhalten Sie die Rechnung #invoice_no# vom #invoice_date# über #invoice_amount# für nicht geleistete Arbeitsstunden.\n\nSie können die Rechnung auch hier abrufen:\n#invoice_link#\n\nMit freundlichen Grüßen\n#organization_long_name#</string>
-    <string name="PLG_MEMBERSHIPFEE_INVOICE_MISSING_HINT">#VAR1# Mitglied(er) haben offene Positionen ohne Rechnung. Rechnungen vor der Vorabinformation unter #VAR2#3.0 Rechnungen erstellen#VAR3# anlegen, damit sie angehängt werden können.</string>
+    <string name="PLG_MEMBERSHIPFEE_INVOICE_MISSING_HINT">#VAR1# Mitglied(er) haben offene Positionen ohne Rechnung. Rechnungen vor der Vorabinformation unter #VAR2#2.0 Rechnungen erstellen#VAR3# anlegen, damit sie angehängt werden können.</string>
     <string name="PLG_MEMBERSHIPFEE_BICCHECK">BIC-Test</string>
     <string name="PLG_MEMBERSHIPFEE_ONETIME_ROLES">Einmalige Beitragsrollen</string>
     <string name="PLG_MEMBERSHIPFEE_ONETIME_ROLES_DESC">Mitgliedschaften in Beitragsrollen mit Zeitraum „einmalig“ (z. B. Aufnahmegebühr, Erstbesatz) müssen am 01.01. beginnen und am 31.12. desselben Jahres enden. Sonst berechnet die Neuberechnung den Beitrag in jedem weiteren Jahr erneut.</string>
@@ -632,7 +632,7 @@
     <string name="PLG_MEMBERSHIPFEE_BOOKING_TEXT">Buchungstext</string>
     <string name="PLG_MEMBERSHIPFEE_BOOKING_TEXT_DESC">Verwendungszweck, höchstens 140 Zeichen. Leer: Präfix und Bezeichnung.</string>
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP">Beitragsgruppe</string>
-    <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUPS">Beitragsgruppen mit Differenzberechnung</string>
+    <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUPS">Beiträge mit Differenzberechnung</string>
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUPS_DESC">Rollen, die sich gegenseitig ausschließen (z. B. Aktiv, Passiv, Jugend), bilden eine Beitragsgruppe. Wechselt ein Mitglied unterjährig innerhalb der Gruppe, berechnet die Neuberechnung nur die Differenz zwischen dem höchsten Rollenbeitrag und dem in der Gruppe bereits Exportierten bzw. Eingezogenen. Eine negative Differenz wird nicht erstattet.</string>
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP_ADD">Weitere Beitragsgruppe hinzufügen</string>
     <string name="PLG_MEMBERSHIPFEE_CONTRIBUTION_GROUP_DUPLICATE_ROLE">Eine Rolle darf nur in einer Beitragsgruppe stehen. Doppelt: Gruppe „#VAR1#“ und „#VAR2#“.</string>
@@ -719,7 +719,7 @@
     <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_RECOLLECT">Erneut einziehen</string>
     <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_RECOLLECT_DESC">Legt die stornierte Forderung sofort wieder als offene Position an (gleicher Betrag, Text, Rolle und Jahr), z. B. nach einer Rücklastschrift. Eine Neuberechnung ist dann nicht nötig. Ohne Haken ist die Forderung erledigt.</string>
     <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NEW_DUEDATE">Neues Fälligkeitsdatum</string>
-    <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NEW_DUEDATE_DESC">Optional: Fälligkeit für den erneuten Einzug. Leer lassen, um sie später unter Fälligkeit zu setzen.</string>
+    <string name="PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NEW_DUEDATE_DESC">Einzugsdatum für den erneuten Einzug (Vorschlag: erster Bankarbeitstag nach 14 Tagen, Frist der Vorabinformation). Die Rechnung behält ihre Nummer und wird mit diesem Datum und dem neuen Betrag (z. B. inkl. Rücklastschriftgebühr) neu erzeugt.</string>
     <string name="PLG_MEMBERSHIPFEE_WITH_OPEN_AMOUNT">Mit offenem Betrag</string>
     <string name="PLG_MEMBERSHIPFEE_OPEN_AMOUNT">Offener Betrag</string>
     <string name="PLG_MEMBERSHIPFEE_PAYMENT_METHOD">Zahlart</string>
@@ -819,7 +819,7 @@
     <string name="PLG_MEMBERSHIPFEE_WORK_STATUS_NONE">ohne Soll</string>
     <string name="PLG_MEMBERSHIPFEE_SCOPE_AD_BANNER">Fälligkeiten, Beträge und Lastschriften dieser Seite beziehen sich auf den Ersatzbeitrag Arbeitsdienst, nicht auf den Mitgliedsbeitrag.</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_BILLING">Arbeitsdienst abrechnen</string>
-    <string name="PLG_MEMBERSHIPFEE_WORK_BILLING_PANEL_DESC">Nach Ende des Leistungsjahres: legt je Mitglied mit Fehlstunden eine Position „Ersatzleistung Arbeitsdienst“ an (Fehlstunden × Stundensatz). Danach Fälligkeit setzen, Vorabinformation verschicken und die SEPA-Datei Arbeitsdienst erzeugen.</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_BILLING_PANEL_DESC">Nach Ende des Leistungsjahres: legt je Mitglied mit Fehlstunden eine Position „Ersatzleistung Arbeitsdienst“ an (Fehlstunden × Stundensatz). Danach unter 2.0 Rechnungen erstellen (mit Fälligkeit), unter 2.1 versenden und unter 3.0 die SEPA-Datei Arbeitsdienst erzeugen.</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_BILLING_DESC">Soll aus dem Profilfeld „Sollstunden Arbeitsdienst“, Ist aus den erfassten Stunden #VAR1#. Erneutes Abrechnen passt offene Positionen an; exportierte oder eingezogene bleiben unverändert.</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_BILLING_EARLY">Das Leistungsjahr #VAR1# ist noch nicht abgeschlossen. Abrechnen ist möglich, sollte aber in der Regel erst nach dem 31.12. erfolgen.</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_BILLING_HEADING">Abrechnung Arbeitsdienst #VAR1#</string>
@@ -906,4 +906,15 @@
     <string name="PLG_MEMBERSHIPFEE_WORK_TARGETS_SEARCH_PLACEHOLDER">Name, Grund …</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_TARGETS_EDIT">Sollstunden bearbeiten</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_TARGETS_SET_INVALID">Bitte eine Stundenzahl zwischen 0 und 999 eingeben oder das Feld leeren.</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_ZIP">Auswahl als ZIP</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_PDF">Auswahl als Druck-PDF</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_DUPLEX">beidseitig drucken (Leerseiten einfügen)</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_WORKING">Rechnungen werden zusammengestellt …</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_EMPTY">Keine markierten Mitglieder mit Rechnung in dieser Tabelle.</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_INFO">#VAR1# Rechnung(en) im Download, #VAR2# markierte Mitglieder ohne Rechnung.</string>
+    <string name="PLG_MEMBERSHIPFEE_PRINT_PDF_ERRORS">PDF fehlt:</string>
+    <string name="PLG_MEMBERSHIPFEE_EMAIL_NONE_ADDRESS">Die markierten Mitglieder haben keine E-Mail-Adresse. Für den Postversand unter 2.1 Rechnungen versenden „Auswahl als Druck-PDF“ oder „Auswahl als ZIP“ verwenden.</string>
+    <string name="PLG_MEMBERSHIPFEE_RECALCULATION_PAGE_DESC">Berechnet aus Beitragsrollen, Individualbeiträgen und Beitragsgruppen die offenen Positionen des Beitragsjahres. Die Liste ist eine Vorschau (neu, geändert, entfällt); übernommen wird erst mit „Speichern“. Positionen mit Rechnungsnummer bleiben unverändert und werden nur gemeldet – erst stornieren. Danach geht es unter 2.0 Rechnungen erstellen weiter.</string>
+    <string name="PLG_MEMBERSHIPFEE_MANDATES_PAGE_DESC">Haken setzen trägt beim Mitglied das oben gewählte Mandatsdatum ein, Haken entfernen löscht es; gespeichert wird sofort. Mit dem Stift lassen sich Mandatsreferenz, IBAN und Kontoinhaber ändern (Mandatsänderung).</string>
+    <string name="PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID_PAGE_DESC">Vergibt Mitgliedern mit IBAN, aber ohne Mandatsreferenz, eine neue Referenz nach dem Schema unter Einstellungen → Mandatsverwaltung. Die Liste ist eine Vorschau; gespeichert wird erst mit „Speichern“. Danach unter Mandate bearbeiten das Mandatsdatum eintragen.</string>
 </resources>

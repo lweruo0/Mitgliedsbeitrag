@@ -164,9 +164,15 @@ try {
 
     $filterParams = array('year' => $getYear, 'status' => $getStatus, 'method' => $getMethod, 'rol_name' => $getRoleName, 'name' => $getName);
     $selfUrl = ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/booking_overview.php';
-    foreach (array('xlsx' => 'Excel (XLSX)', 'csv-ms' => 'CSV (MS Excel)', 'csv-oo' => 'CSV (UTF-8)') as $mode => $label) {
-        $page->addPageFunctionsMenuItem('menu_item_export_' . str_replace('-', '_', $mode), $gL10n->get('SYS_EXPORT') . ' ' . $label, SecurityUtils::encodeUrl($selfUrl, array_merge($filterParams, array('mode' => $mode))), 'bi-download');
+    // Export wie auf den anderen Seiten als ein Button im Inhalt (hier mit Auswahl des Formats, gilt fuer den aktuellen Filter)
+    $exportItems = '';
+    foreach (array('xlsx' => array('Excel (XLSX)', 'bi-filetype-xlsx'), 'csv-ms' => array('CSV (MS Excel)', 'bi-filetype-csv'), 'csv-oo' => array('CSV (UTF-8)', 'bi-filetype-csv')) as $mode => $def) {
+        $exportItems .= '<li><a class="dropdown-item" href="' . SecurityUtils::encodeUrl($selfUrl, array_merge($filterParams, array('mode' => $mode))) . '">'
+            . '<i class="bi ' . $def[1] . ' me-1"></i>' . $def[0] . '</a></li>';
     }
+    $exportHtml = '<div class="dropdown mb-3"><button class="btn btn-secondary dropdown-toggle" type="button" id="mf_booking_export" data-bs-toggle="dropdown" aria-expanded="false">'
+        . '<i class="bi bi-download"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_EXPORT') . '</button>'
+        . '<ul class="dropdown-menu" aria-labelledby="mf_booking_export">' . $exportItems . '</ul></div>';
 
     $filterValues = BookingStore::getFilterValues();
     $years = array(0 => $gL10n->get('SYS_ALL'));
@@ -192,6 +198,7 @@ try {
     $form->addInput('name', $gL10n->get('SYS_NAME'), $getName);
     $form->addSubmitButton('btn_filter', $gL10n->get('SYS_OK'), array('icon' => 'bi-funnel'));
     $page->addHtml($form->show(false));
+    $page->addHtml($exportHtml);
 
     $table = new HtmlTable('table_booking_overview', $page, true, true, 'table table-condensed');
     $table->setColumnAlignByArray(array('left', 'left', 'left', 'left', 'left', 'left', 'left', 'right', 'left', 'left', 'left'));

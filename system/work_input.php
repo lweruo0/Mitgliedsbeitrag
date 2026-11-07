@@ -189,13 +189,7 @@ try {
         }
     }
     rsort($years);
-    $yearLinks = array();
-    foreach ($years as $year) {
-        $yearLinks[] = ($year === $getYear)
-            ? '<span class="btn btn-primary btn-sm disabled">' . $year . '</span>'
-            : '<a class="btn btn-secondary btn-sm" href="' . SecurityUtils::encodeUrl($selfUrl, array('year' => $year)) . '">' . $year . '</a>';
-    }
-    $page->addHtml('<p>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_YEAR') . ': ' . implode(' ', $yearLinks) . '</p>');
+    $page->addHtml(mf_year_switch_html($getYear, $years, $selfUrl));
 
     $locked = mf_work_year_locked($getYear);
     if ($locked) {

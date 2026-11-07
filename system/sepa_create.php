@@ -67,24 +67,9 @@ foreach ($members as $usrId => $memberdata) {
 unset($members);
 
 // schon in einer Datei: exportierte Positionen zu diesem Faelligkeitsdatum und keine offenen Positionen
-$mfSepaExclude = array();
-if (count($candidates) > 0) {
-    $positionsByUser = BookingStore::getByUsers(array_keys($candidates), array(BookingStore::STATUS_OPEN, BookingStore::STATUS_EXPORTED));
-    foreach ($candidates as $usrId => $candidate) {
-        $hasOpen = false;
-        $exportedForDate = false;
-        foreach ($mfScope->filterPositions($positionsByUser[$usrId] ?? array()) as $position) {
-            if ($position['mfb_status'] === BookingStore::STATUS_OPEN) {
-                $hasOpen = true;
-            } elseif ((string) $position['mfb_due_date'] === $candidate[0]) {
-                $exportedForDate = true;
-            }
-        }
-        if ($exportedForDate && ! $hasOpen) {
-            $mfSepaExclude[$usrId] = true;
-        }
-    }
-}
+$mfSepaExclude = mf_sepa_already_exported($mfScope, array_map(static function (array $candidate): string {
+    return $candidate[0];
+}, $candidates));
 
 // Dateien zusammenstellen: je Faelligkeitsdatum (und ggf. Sequenztyp) eine Liste "DatumTyp"
 $typeOrder = array('FRST' => 1, 'RCUR' => 2, 'OOFF' => 3, 'FNAL' => 4);

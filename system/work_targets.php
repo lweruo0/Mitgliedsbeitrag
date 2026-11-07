@@ -229,14 +229,8 @@ try {
     }
 
     // Leistungsjahr
-    $yearLinks = array();
-    foreach (array((int) date('Y') + 1, (int) date('Y'), (int) date('Y') - 1) as $year) {
-        $yearLinks[] = ($year === $getYear)
-            ? '<span class="btn btn-primary btn-sm disabled">' . $year . '</span>'
-            : '<a class="btn btn-secondary btn-sm" href="' . SecurityUtils::encodeUrl($selfUrl, array('year' => $year)) . '">' . $year . '</a>';
-    }
-    $page->addHtml('<p>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_YEAR') . ': ' . implode(' ', $yearLinks)
-        . '<br/><small class="text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TARGETS_DESC', array($getYear)) . '</small></p>');
+    $page->addHtml(mf_year_switch_html($getYear, array((int) date('Y') + 1, (int) date('Y'), (int) date('Y') - 1), $selfUrl, array(),
+        $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TARGETS_DESC', array($getYear))));
 
     $rows = $calculate($getYear);
     $countRequired = 0;

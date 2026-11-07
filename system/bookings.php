@@ -45,7 +45,7 @@ try {
     $page->addPageFunctionsMenuItem('menu_item_profile', $gL10n->get('SYS_PROFILE'), SecurityUtils::encodeUrl(ADMIDIO_URL . FOLDER_MODULES . '/profile/profile.php', array('user_uuid' => $getUserUuid)), 'bi-person');
 
     if (isset($_SESSION['pMembershipFee']['booking_message'])) {
-        $page->addHtml('<div class="alert alert-info" role="alert">' . SecurityUtils::encodeHTML($_SESSION['pMembershipFee']['booking_message']) . '</div>');
+        $page->addHtml('<div class="alert alert-success" role="alert"><i class="bi bi-check-lg"></i> ' . SecurityUtils::encodeHTML($_SESSION['pMembershipFee']['booking_message']) . '</div>');
         unset($_SESSION['pMembershipFee']['booking_message']);
     }
 

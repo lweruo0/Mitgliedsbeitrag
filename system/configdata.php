@@ -26,7 +26,7 @@ $config_default['Beitrag'] = array(
     'beitrag_jahr' => 0
 );
 
-// Beitragsgruppen mit Differenzberechnung (je Gruppe die rol_ids, durch Komma getrennt)
+// Beiträge mit Differenzberechnung (je Gruppe die rol_ids, durch Komma getrennt)
 $config_default['Beitragsgruppen'] = array(
     'name' => array(
         ' '

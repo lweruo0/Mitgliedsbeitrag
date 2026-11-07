@@ -208,7 +208,7 @@ try {
     $page->setContentFullWidth();
 
     if (isset($_SESSION['pMembershipFee']['booking_message'])) {
-        $page->addHtml('<div class="alert alert-info" role="alert">' . SecurityUtils::encodeHTML($_SESSION['pMembershipFee']['booking_message']) . '</div>');
+        $page->addHtml('<div class="alert alert-success" role="alert"><i class="bi bi-check-lg"></i> ' . SecurityUtils::encodeHTML($_SESSION['pMembershipFee']['booking_message']) . '</div>');
         unset($_SESSION['pMembershipFee']['booking_message']);
     }
 
@@ -290,11 +290,11 @@ try {
                     mf_format_amount($row['mfr_amount']),
                     $status,
                     // ein Button fuer alle Einzuege: oeffnet die Einzugsuebersicht (Positionen, Teilen, als eingezogen markieren)
-                    '<a class="btn btn-sm btn-secondary text-nowrap" href="' . $detailUrl . '"><i class="bi bi-list-check"></i> '
-                        . $gL10n->get('PLG_MEMBERSHIPFEE_RUN_OPEN') . '</a>'
+                    '<a class="admidio-icon-link" href="' . $detailUrl . '"><i class="bi bi-list-check" data-bs-toggle="tooltip" title="'
+                        . $gL10n->get('PLG_MEMBERSHIPFEE_RUN_OPEN') . '"></i></a>'
                 )));
             }
-            $page->addHtml($table->show(false));
+            $page->addHtml('<div class="table-responsive">' . $table->show(false) . '</div>');
         }
         $page->show();
         exit();

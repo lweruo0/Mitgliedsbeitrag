@@ -82,7 +82,8 @@ elseif (isset($_SESSION['pMembershipFee']['checkedArray']))
 
     if (count($mailToArray) < 1)
     {
-        $gMessage->show($gL10n->get('PLG_MEMBERSHIPFEE_EMAIL_EMPTY'));
+        // markiert, aber niemand mit E-Mail-Adresse: auf den Druckstapel in 2.1 hinweisen
+        $gMessage->show($gL10n->get(count($_SESSION['pMembershipFee']['checkedArray']) > 0 ? 'PLG_MEMBERSHIPFEE_EMAIL_NONE_ADDRESS' : 'PLG_MEMBERSHIPFEE_EMAIL_EMPTY'));
         // => EXIT
     }
     elseif (count($mailToArray) === 1)                                      // der Mail-Button wurde angeklickt (aber es gibt nur eine Mail-Adresse in der Liste)

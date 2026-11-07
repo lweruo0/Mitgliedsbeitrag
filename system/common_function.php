@@ -298,9 +298,41 @@ function mf_collection_scope(): CollectionScope
 }
 
 /**
- * Offene Lastschriften je Faelligkeitsdatum und Sequenztyp in einem Buchungskreis
- * (Mitglieder mit Faelligkeit, Betrag, ohne Bezahlt-Datum und mit IBAN; wie in sepa_create.php).
- * @return array<string, array<string, int>> Y-m-d => (FRST|RCUR|FNAL|OOFF => Anzahl)
+ * Mitglieder, die zu ihrem Faelligkeitsdatum schon in einer SEPA-Datei stehen (exportierte Positionen zu diesem
+ * Datum und keine offenen Positionen). Gemeinsam fuer sepa_create.php und den Block "SEPA-Datei erzeugen".
+ *
+ * @param array<int, string> $candidates usr_id => Faelligkeitsdatum (Y-m-d)
+ * @return array<int, true>
+ */
+function mf_sepa_already_exported(CollectionScope $scope, array $candidates): array
+{
+    $exclude = array();
+    if (count($candidates) === 0) {
+        return $exclude;
+    }
+    $positionsByUser = BookingStore::getByUsers(array_keys($candidates), array(BookingStore::STATUS_OPEN, BookingStore::STATUS_EXPORTED));
+    foreach ($candidates as $usrId => $dueDate) {
+        $hasOpen = false;
+        $exportedForDate = false;
+        foreach ($scope->filterPositions($positionsByUser[$usrId] ?? array()) as $position) {
+            if ($position['mfb_status'] === BookingStore::STATUS_OPEN) {
+                $hasOpen = true;
+            } elseif ((string) $position['mfb_due_date'] === $dueDate) {
+                $exportedForDate = true;
+            }
+        }
+        if ($exportedForDate && !$hasOpen) {
+            $exclude[(int) $usrId] = true;
+        }
+    }
+    return $exclude;
+}
+
+/**
+ * Faelligkeitsdaten mit Anzahl je Sequenztyp fuer den Block "SEPA-Datei erzeugen" (ohne Mitglieder, die zu diesem
+ * Datum schon in einer Datei stehen, und ohne Ueberweiser).
+ *
+ * @return array<string, array<string, int>>
  */
 function mf_sepa_duedate_overview(CollectionScope $scope): array
 {
@@ -311,13 +343,23 @@ function mf_sepa_duedate_overview(CollectionScope $scope): array
         $scope->field(CollectionScope::FIELD_PAID),
         'IBAN'
     ), 0);
-    $duedates = array();
-    foreach ($members as $memberdata) {
+    $candidates = array();
+    foreach ($members as $usrId => $memberdata) {
         $dueDate = (string) ($memberdata[$scope->field(CollectionScope::FIELD_DUEDATE)] ?? '');
         if ($dueDate === '' || empty($memberdata[$scope->field(CollectionScope::FIELD_FEE)])
             || !empty($memberdata[$scope->field(CollectionScope::FIELD_PAID)]) || empty($memberdata['IBAN'])) {
             continue;
         }
+        $candidates[(int) $usrId] = $dueDate;
+    }
+    // wie sepa_create.php: wer zu diesem Datum schon in einer Datei steht, zaehlt nicht mehr; Ueberweiser auch nicht
+    $exclude = mf_sepa_already_exported($scope, $candidates) + mf_paymethod_override_users($scope);
+    $duedates = array();
+    foreach ($members as $usrId => $memberdata) {
+        if (!isset($candidates[(int) $usrId]) || isset($exclude[(int) $usrId])) {
+            continue;
+        }
+        $dueDate = $candidates[(int) $usrId];
         $sequenceType = (string) ($memberdata[$scope->field(CollectionScope::FIELD_SEQUENCETYPE)] ?? '');
         $sequenceType = in_array($sequenceType, array('RCUR', 'FNAL', 'OOFF'), true) ? $sequenceType : 'FRST';
         if (!isset($duedates[$dueDate])) {
@@ -1672,6 +1714,19 @@ function replace_emailparameter($text, $user)
 }
 
 /**
+ * Anfang des SEPA-Verwendungszwecks: "Rechnung <Nummer> " der aktuellen Lastschrift-Rechnung des Mitglieds,
+ * damit der Kontoauszug des Mitglieds die Rechnungsnummer zeigt; ohne Rechnung leer.
+ */
+function mf_sepa_invoice_prefix(int $usrId, CollectionScope $scope): string
+{
+    $invoice = mf_current_invoice($usrId, $scope);
+    if ($invoice === null || $invoice['mfi_method'] !== \Plugins\MembershipFee\classes\Invoices\InvoicePlanner::METHOD_SEPA) {
+        return '';
+    }
+    return 'Rechnung ' . $invoice['mfi_invoice_no'] . ' ';
+}
+
+/**
  * Zuletzt erstellte Rechnung eines Mitglieds im Buchungskreis, die noch offen oder im Einzug ist
  * (fuer Platzhalter und PDF-Anhang in E-Mails).
  *
@@ -2745,7 +2800,7 @@ function mf_menu_groups(): array
 }
 
 /**
- * Aktiver Menueeintrag einer eigenen Seite: nach Dateiname und Buchungskreis (bei duedates.php usw.).
+ * Aktiver Menueeintrag einer eigenen Seite: nach Dateiname und Buchungskreis (z. B. bill.php mit collection=ad).
  */
 function mf_menu_active_key(array $groups): string
 {
@@ -2774,7 +2829,8 @@ function mf_menu_active_key(array $groups): string
 /**
  * Seitenaufbau wie bei den Admidio-Einstellungen (Vorlage preferences/preferences.tpl): links die gruppierten
  * Menueeintraege als senkrechte Registerkarten, rechts der Inhalt der Seite. Auf kleinen Bildschirmen steht
- * das Menue zugeklappt ueber dem Inhalt.
+ * das Menue wie das Admidio-Hauptmenue zugeklappt ueber dem Inhalt (graue Leiste "Menue" mit Symbol zum
+ * Aufklappen, Gruppen als Ueberschriften, volle Breite).
  */
 function mf_layout_html(array $groups, string $activeKey, string $content): string
 {
@@ -2782,24 +2838,36 @@ function mf_layout_html(array $groups, string $activeKey, string $content): stri
 
     $activeTitle = '';
     $items = '';
+    $mobileItems = '';
     foreach ($groups as $group) {
         $items .= '<li class="list-group-item group-heading" role="presentation"><h5 class="mb-0">' . SecurityUtils::encodeHTML($group['label']) . '</h5></li>';
+        $mobileItems .= '<div class="admidio-menu-header">' . SecurityUtils::encodeHTML($group['label']) . '</div><ul class="nav admidio-menu-node flex-column mb-0">';
         $count = count($group['entries']);
         foreach ($group['entries'] as $i => $entry) {
             $active = $entry['key'] === $activeKey;
             if ($active) {
                 $activeTitle = $entry['title'];
             }
+            $link = ' href="' . $entry['url'] . '"' . ($active ? ' aria-current="page"' : '') . '><i class="bi ' . $entry['icon'] . ' me-1"></i>'
+                . SecurityUtils::encodeHTML($entry['title']) . '</a></li>';
             $items .= '<li class="list-group-item nav-item' . ($i === $count - 1 ? ' group-last' : '') . '" role="presentation">'
-                . '<a class="nav-link text-start' . ($active ? ' active' : '') . '" href="' . $entry['url'] . '"' . ($active ? ' aria-current="page"' : '') . '>'
-                . '<i class="bi ' . $entry['icon'] . ' me-1"></i>' . SecurityUtils::encodeHTML($entry['title']) . '</a></li>';
+                . '<a class="nav-link text-start' . ($active ? ' active' : '') . '"' . $link;
+            $mobileItems .= '<li class="nav-item"><a class="nav-link' . ($active ? ' active' : '') . '"' . $link;
         }
+        $mobileItems .= '</ul>';
     }
 
-    return '<button class="btn btn-secondary w-100 mb-3 d-md-none text-start" type="button" data-bs-toggle="collapse" data-bs-target="#mf_menu" aria-expanded="false" aria-controls="mf_menu">'
-        . '<i class="bi bi-list me-1"></i>' . $gL10n->get('SYS_MENU') . ($activeTitle !== '' ? ': ' . SecurityUtils::encodeHTML($activeTitle) : '') . '</button>'
+    // Handy: wie das Admidio-Hauptmenue (Leiste "Menue: <Seite>" mit Symbol, aufgeklappt eine Liste ueber die volle Breite)
+    $mobileMenu = '<div class="mf-mobile-menu d-md-none mb-3">'
+        . '<div class="admidio-headline-mobile-menu d-flex align-items-center justify-content-between py-2 px-3">'
+        . '<span class="text-truncate">' . $gL10n->get('SYS_MENU') . ($activeTitle !== '' ? ': ' . SecurityUtils::encodeHTML($activeTitle) : '') . '</span>'
+        . '<button class="btn btn-link collapsed p-0 text-decoration-none ms-2" type="button" data-bs-toggle="collapse" data-bs-target="#mf_menu_mobile" aria-controls="mf_menu_mobile" aria-expanded="false" aria-label="' . $gL10n->get('SYS_MENU') . '">'
+        . '<i class="bi bi-list"></i></button></div>'
+        . '<nav id="mf_menu_mobile" class="admidio-menu-list collapse">' . $mobileItems . '</nav></div>';
+
+    return $mobileMenu
         . '<div class="tabs-x tabs-left tab-bordered mf-tabs" data-max-title-length="-1">'
-        . '<ul id="mf_menu" class="nav nav-tabs flex-column list-group admidio-preferences-group collapse d-md-flex">' . $items . '</ul>'
+        . '<ul id="mf_menu" class="nav nav-tabs flex-column list-group admidio-preferences-group d-none d-md-flex">' . $items . '</ul>'
         . '<div class="tab-content mf-tab-content">' . $content . '</div>'
         . '</div>';
 }
@@ -2821,7 +2889,7 @@ function mf_collection_switch_html(): string
     }
     $script = ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/' . basename((string) ($_SERVER['SCRIPT_NAME'] ?? 'membership_fee.php'));
 
-    $html = '<div class="d-flex flex-wrap align-items-center gap-2 mb-3"><span class="text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_COLLECTION_SCOPE') . ':</span>'
+    $html = '<div class="d-flex flex-wrap align-items-center gap-2 mb-3 mf-switch"><span class="text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_COLLECTION_SCOPE') . ':</span>'
         . '<div class="btn-group" role="group">';
     $buttons = array(
         CollectionScope::MEMBERSHIP => array('PLG_MEMBERSHIPFEE_SCOPE_MF', 'bi-currency-euro'),
@@ -2835,6 +2903,27 @@ function mf_collection_switch_html(): string
             . ' <span class="badge ' . ($active ? 'bg-light text-primary' : 'bg-primary') . ' ms-1">' . mf_collection_year_label(CollectionScope::fromKey($key, (int) $GLOBALS['gCurrentOrgId'])) . '</span></a>';
     }
     return $html . '</div></div>';
+}
+
+/**
+ * Umschaltung des Leistungsjahres auf den Arbeitsdienst-Seiten, gleiche Darstellung wie die Umschaltung des
+ * Buchungskreises (Beschriftung, Schaltflaechengruppe, aktives Jahr hervorgehoben).
+ *
+ * @param list<int> $years
+ * @param array<string, string> $params weitere Parameter der Links (z. B. Filter)
+ */
+function mf_year_switch_html(int $current, array $years, string $url, array $params = array(), string $desc = ''): string
+{
+    global $gL10n;
+
+    $html = '<div class="mb-3"><div class="d-flex flex-wrap align-items-center gap-2 mf-switch"><span class="text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_YEAR') . ':</span>'
+        . '<div class="btn-group" role="group">';
+    foreach ($years as $year) {
+        $active = (int) $year === $current;
+        $html .= '<a class="btn px-3 ' . ($active ? 'btn-primary' : 'btn-outline-primary') . '"' . ($active ? ' aria-current="true"' : '')
+            . ' href="' . SecurityUtils::encodeUrl($url, array_merge($params, array('year' => $year))) . '">' . (int) $year . '</a>';
+    }
+    return $html . '</div></div>' . ($desc !== '' ? '<p class="small text-muted mt-2 mb-0">' . $desc . '</p>' : '') . '</div>';
 }
 
 /**

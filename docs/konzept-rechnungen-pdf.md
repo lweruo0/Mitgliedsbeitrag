@@ -410,8 +410,8 @@ Jede Phase ist für sich lauffähig und auf der Testinstanz prüfbar.
 | P5 | Bibliothek + Plugin | `PdfBridge`, `InvoiceService::pdfData()`, Template Beitragsrechnung, Ablage, `invoice_file.php` | Beitragsrechnungen als PDF |
 | P6 | Bibliothek + Plugin | Template Arbeitsdienst, Storno-Fassung | Arbeitsdienst-Rechnungen |
 | P7 | Plugin | Mail: Anhang, Platzhalter, Vorlagen, Versandprotokoll | Versand per Mail/Link |
-| P8 | Plugin | Druckstapel (ZIP, Druck-PDF) | Postversand |
-| P9 | Plugin + Bibliothek | Mahnungen (Liste, Gebühr zuordnen, Template, Vorlagen) | eine Mahnstufe |
+| P8 | Plugin | Druckstapel (ZIP, Druck-PDF) – umgesetzt 06.11.2026 in 2.1 | Postversand |
+| ~~P9~~ | Plugin + Bibliothek | ~~Mahnungen (Liste, Gebühr zuordnen, Template, Vorlagen)~~ – entfällt (06.11.2026) | |
 | P10 | Plugin | Profil: Rechnungsliste, kurzlebige Links | Download im Profil |
 | P11 | beide | Doku (`docs/`, Dokumentationsseite, Kurzanleitung im Projekt), Version 7.0.0 | |
 | P12 | WordPress | `rechnung_antrag`/`mahnung_antrag` abschalten | nach der ersten Aufnahme über Admidio |
@@ -504,3 +504,30 @@ Positionen (gilt auch nach Storno mit erneutem Einzug und Gebühr). Gesperrt bei
 „Nachlass auf … (Grund)“ an (`mfb_import_ref` = `NACHLASS-<mfb_id>`, Rücknahme über ihr Storno-Symbol); ganz erlassen
 storniert die Position und ihre Nachlässe mit Stornogrund „Nachlass <Grund>“, das PDF zeigt dann Betrag und Nachlass
 in voller Höhe.
+
+**Review 06.11.2026 – Mahnwesen und Zahlungsimport entfallen:** Ein Mahnwesen (P9, Abschnitt 8) und ein automatischer
+Zahlungsabgleich aus Kontoauszügen (CAMT/CSV) werden nicht gebraucht. Überweisungen werden weiter unter
+3.1 Manuelle Zahlungen bzw. über den Journal-Import als bezahlt erfasst. Offen bleiben P8 Druckstapel, P10
+Profil-Rechnungen, P11 Doku/Version 7.0.0 und P12 WordPress abschalten. Beim Review korrigiert: veraltete
+Menühinweise (3.0 → 2.0 Rechnungen erstellen, Arbeitsdienst-Ablauf), defekte `languages/ro.xml`.
+
+**Druckstapel in 2.1 (06.11.2026):** Unter jeder Tabelle von 2.1 Rechnungen versenden stehen „Auswahl als ZIP“ und
+„Auswahl als Druck-PDF“ (Haken „beidseitig drucken“ fügt nach Rechnungen mit ungerader Seitenzahl eine Leerseite
+ein). Genommen wird je markiertem Mitglied dieser Tabelle die aktuelle Rechnung (offen oder im Einzug), in
+Tabellenreihenfolge. Ablauf: Ajax `mode=print_check` zählt, erzeugt fehlende PDFs und meldet Mitglieder ohne
+Rechnung; danach POST `mode=print` mit CSRF-Token liefert die Datei als Download (nichts wird abgelegt, ZIP nur als
+temporäre Datei). `mfi_sent_print` wird gesetzt. Das Druck-PDF nutzt `PdfJoiner` der Bibliothek über
+`PdfBridge::joinForPrint()` mit dem Unterordner des Kreises als Wurzel. Profil: Rechnungsnummern in der Registerkarte
+„Beiträge“ sind jetzt Links auf das PDF (statt eigener Rechnungsliste, P10 vorerst so erledigt).
+
+**Workflow-Test auf der Testinstanz (06.11.2026) und Korrekturen:** 639 Rechnungen mit PDF in rund 80 s, Verschieben
+in beide Richtungen, Druckstapel, SEPA-Datei (pain.008.001.08, 638 Lastschriften), Einzug verwerfen, als eingezogen
+markieren mit abgewählter Rücklastschrift, Storno mit erneutem Einzug und Gebühr, Nachlass, Zahlung in 3.1 und alle
+Seiten ohne Fehler. Korrigiert:
+- Block „SEPA-Datei erzeugen“ zählte Mitglieder, die schon in einer Datei stehen (und Überweiser); jetzt gleiche
+  Auswahl wie `sepa_create.php` (`mf_sepa_already_exported()`).
+- SEPA-Verwendungszweck beginnt mit „Rechnung <Nummer>“ (`mf_sepa_invoice_prefix()`).
+- Storno mit „Erneut einziehen“: Einzugsdatum ist jetzt Pflicht (Vorschlag +14 Tage, Bankarbeitstag geprüft); die
+  Rechnung bekommt den neuen Einzugstag und wird mit dem neuen Betrag (inkl. Rücklastschriftgebühr) neu erzeugt.
+  Vorher blieb das Mitglied ohne Fälligkeit und tauchte weder in 2.1 noch in 3.0 auf.
+- E-Mail aus 2.1 für markierte Mitglieder ohne E-Mail-Adresse: Hinweis auf den Druckstapel.

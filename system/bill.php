@@ -1,7 +1,7 @@
 <?php
 /**
  ***********************************************************************************************
- * 3.0 Rechnungen erstellen (Admidio-Plugin Mitgliedsbeitrag)
+ * 2.0 Rechnungen erstellen (Admidio-Plugin Mitgliedsbeitrag)
  *
  * Eine Zeile je Rechnung bzw. je Mitglied und Beitragsjahr mit offenen Positionen, die noch keine
  * Rechnung haben. Rechnungen erhalten eine feste Nummer (JAHR-B-NNNN / JAHR-AD-NNNN), siehe
@@ -688,6 +688,11 @@ foreach (array(InvoicePlanner::METHOD_MANUAL => 'tbl_bill_man', InvoicePlanner::
     $headings[0] = '<input type="checkbox" class="mf-bill-head" data-group="' . $group . '" title="' . $gL10n->get('PLG_MEMBERSHIPFEE_CHANGE_ALL') . '"#HEADCHECKED_' . $group . '# />';
     $tables[$group]->addRowHeadingByArray($headings);
     $tables[$group]->disableDatatablesColumnsSort(array(1, count($columnValues)));
+    // bei wenig Platz zuerst Geburtstag, Beitragsjahr und Rechnungsdatum ausblenden; Name, Rechnung, Betrag, Status, PDF bleiben sichtbar
+    $lastColumn = count($columnValues);
+    $tables[$group]->setDatatablesColumnsNotHideResponsive(array(1, 2, $lastColumn - 7, $lastColumn - 3, $lastColumn - 2, $lastColumn - 1), 1);
+    $tables[$group]->setDatatablesColumnsNotHideResponsive(array_values(array_filter(array(3, $lastColumn - 4, $lastColumn),
+        static fn (int $col): bool => $col < $lastColumn - 7 || $col >= $lastColumn - 4)), 2);
 }
 $groupCounts = array(InvoicePlanner::METHOD_MANUAL => 0, InvoicePlanner::METHOD_SEPA => 0);
 $groupMembersSeen = array(InvoicePlanner::METHOD_MANUAL => array(), InvoicePlanner::METHOD_SEPA => array());

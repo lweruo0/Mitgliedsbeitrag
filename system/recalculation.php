@@ -253,7 +253,8 @@ if ($getMode == 'preview') // Default
     $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-recalculation-preview', $headline);
     $page->setContentFullWidth();
 
-    $page->addHtml('<p>' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_YEAR_INFO', array(getContributionYear())) . '</p>');
+    $page->addHtml('<p class="mb-1">' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_YEAR_INFO', array(getContributionYear())) . '</p>'
+        . '<p class="small text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_RECALCULATION_PAGE_DESC') . '</p>');
     $filterForm = new HtmlForm('recalculation_filter_form', '', $page, array('type' => 'navbar', 'setFocus' => false));
     mf_role_filter_add($filterForm, $page, 'recalculation', 'PLG_MEMBERSHIPFEE_RECALCULATION_ROLLQUERY_DESC');
     $page->addHtml($filterForm->show(false));

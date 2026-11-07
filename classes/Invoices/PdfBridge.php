@@ -116,6 +116,27 @@ final class PdfBridge
     }
 
     /**
+     * Abgelegte PDFs eines Buchungskreises zu einem Druck-PDF zusammenfuegen (PdfJoiner der Bibliothek,
+     * Wurzel = Unterordner des Kreises; nichts wird gespeichert).
+     *
+     * @param list<string> $paths absolute Pfade aus filePath()
+     * @throws \RuntimeException
+     */
+    public static function joinForPrint(array $paths, string $kind, bool $duplex, string $title): \PdfJoinResult
+    {
+        $reason = self::unavailableReason();
+        if ($reason !== '') {
+            throw new \RuntimeException($reason);
+        }
+        require_once TC_LIB_PDF_DIR . '/include/class-pdf-joiner.php';
+        $root = realpath(\PdfRuntime::platform()->getStorageBaseDir() . '/' . self::folder($kind));
+        if ($root === false) {
+            throw new \RuntimeException('Ablageordner fehlt');
+        }
+        return \PdfJoiner::join($paths, array('duplex' => $duplex, 'title' => $title, 'root' => $root));
+    }
+
+    /**
      * Signierter Link (ohne Anmeldung gueltig bis $expires).
      */
     public static function signedUrl(string $invoiceNo, string $kind, string $type, string $expires): string

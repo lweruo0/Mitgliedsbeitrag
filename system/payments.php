@@ -428,7 +428,7 @@ else
         $page->addHtml('<div class="alert alert-info" role="alert"><i class="bi bi-cash-coin"></i> '
             . $gL10n->get('PLG_MEMBERSHIPFEE_PAYMENTS_OPEN_SUMMARY', array($countOpen, mf_format_amount($sumOpen + $sumExported)))
             . ($sumExported > 0.004 ? ' ' . $gL10n->get('PLG_MEMBERSHIPFEE_PAYMENTS_SUMMARY_EXPORTED', array(mf_format_amount($sumExported))) : '')
-            . '<br/><small>' . $gL10n->get('PLG_MEMBERSHIPFEE_PAYMENTS_HINT') . '</small></div>');
+            . '</div><p class="small text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_PAYMENTS_HINT') . '</p>');
 
         // create table object
         $table = new HtmlTable('tbl_payments', $page, true, true, 'table table-condensed');

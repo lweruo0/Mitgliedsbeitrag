@@ -50,6 +50,7 @@ $gNavigation->addUrl(CURRENT_URL, $headline);
 if ($getMode == 'preview')     //Default
 {
     $page = new \Plugins\MembershipFee\classes\Ui\SidebarPage('plg-mitgliedsbeitrag-create-mandate-id-preview', $headline);
+    $page->addHtml('<p class="small text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_CREATE_MANDATE_ID_PAGE_DESC') . '</p>');
     
 	$referenz = '';
 	$errorMarker = false;

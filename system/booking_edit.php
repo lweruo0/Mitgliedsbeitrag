@@ -202,10 +202,17 @@ try {
                 $template = (isset($_POST['storno_template']) && $_POST['storno_template'] !== '') ? (int) $_POST['storno_template'] : null;
                 $gDb->startTransaction();
                 $newDueDate = '';
-                if (isset($_POST['storno_recollect']) && trim((string) ($_POST['storno_duedate'] ?? '')) !== '') {
-                    $newDueDate = mf_parse_date((string) $_POST['storno_duedate']);
+                if (isset($_POST['storno_recollect'])) {
+                    // erneuter Einzug braucht ein Einzugsdatum, sonst taucht das Mitglied weder in 2.1 noch in 3.0 auf
+                    $newDueDate = mf_parse_date((string) ($_POST['storno_duedate'] ?? ''));
                     if ($newDueDate === '') {
                         throw new Exception('SYS_DATE_INVALID', array($gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NEW_DUEDATE'), $gSettingsManager->getString('system_date')));
+                    }
+                    $problem = mf_duedate_problem($newDueDate);
+                    if ($newDueDate < DATE_NOW || $problem !== null) {
+                        throw new Exception($gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_DEBIT_DATE_PROBLEM', array(
+                            date('d.m.Y', (int) strtotime($newDueDate)), $problem ?? $gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_DEBIT_DATE_INVALID'),
+                            date('d.m.Y', (int) strtotime(mf_next_valid_duedate(max($newDueDate, DATE_NOW)))))));
                     }
                 }
                 // ohne "Alle Positionen dieser Lastschrift": die angehakten Positionen der Lastschrift
@@ -221,7 +228,20 @@ try {
                 }
                 $message = $bookingService->cancel((int) $position['mfb_id'], $date, $reason, trim((string) ($_POST['storno_comment'] ?? '')), false, $template, $wholeDebit,
                     isset($_POST['storno_recollect']), $newDueDate, $positionIds);
+                // Rechnung bleibt dieselbe: neuer Einzugstag und PDF mit dem neuen Stand (z. B. inkl. Ruecklastschriftgebuehr)
+                $invoiceNo = (string) ($position['mfb_invoice_no'] ?? '');
+                $invoice = $invoiceNo !== '' ? \Plugins\MembershipFee\classes\Invoices\InvoiceStore::find($invoiceNo) : null;
+                if ($invoice !== null && $invoice['status'] === \Plugins\MembershipFee\classes\Invoices\InvoiceStatus::OPEN
+                    && $newDueDate !== '' && $invoice['mfi_method'] === \Plugins\MembershipFee\classes\Invoices\InvoicePlanner::METHOD_SEPA) {
+                    \Plugins\MembershipFee\classes\Invoices\InvoiceStore::update($invoiceNo, array('mfi_due_date' => $newDueDate));
+                }
                 $gDb->endTransaction();
+                if ($invoice !== null && $invoice['status'] !== \Plugins\MembershipFee\classes\Invoices\InvoiceStatus::CANCELLED
+                    && \Plugins\MembershipFee\classes\Invoices\PdfBridge::isAvailable()) {
+                    $invoiceScope = \Plugins\MembershipFee\classes\Bookings\CollectionScope::forSource((string) $position['mfb_source'], (int) $gCurrentOrgId);
+                    $pdfError = (new \Plugins\MembershipFee\classes\Invoices\InvoiceService($pPreferences->config, $invoiceScope))->createPdf($invoiceNo);
+                    $message .= $pdfError === '' ? ' ' . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_WAIVE_PDF', array($invoiceNo)) : ' ' . $pdfError;
+                }
                 break;
         }
 
@@ -440,7 +460,8 @@ try {
             $form->addCheckbox('storno_recollect', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_RECOLLECT'), true, array(
                 'helpTextId' => 'PLG_MEMBERSHIPFEE_BOOKING_CANCEL_RECOLLECT_DESC'
             ));
-            $form->addInput('storno_duedate', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NEW_DUEDATE'), '', array(
+            $form->addInput('storno_duedate', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NEW_DUEDATE'),
+                mf_next_valid_duedate(date('Y-m-d', (int) strtotime(DATE_NOW . ' +14 days'))), array(
                 'type' => 'date',
                 'helpTextId' => 'PLG_MEMBERSHIPFEE_BOOKING_CANCEL_NEW_DUEDATE_DESC'
             ));

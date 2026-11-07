@@ -47,13 +47,26 @@ class SidebarPage extends \HtmlPage
             $this->addHeader('<style>
                 .mf-tabs > .tab-content { min-width: 0; }
                 .mf-tabs .group-heading h5 { hyphens: auto; overflow-wrap: break-word; }
+                /* aufklappbare Tabellenzeilen: Pfeil und Auswahlkaestchen nebeneinander statt untereinander */
+                .mf-tab-content table.dataTable > tbody > tr > td.dtr-control { white-space: nowrap; }
+                /* Menue: 25 % der Breite wie bisher, aber nie breiter als der laengste Eintrag (breite Bildschirme) */
                 @media (min-width: 768px) {
-                    .mf-tabs > .nav-tabs { min-width: 15rem; flex: 0 0 auto !important; }
+                    .mf-tabs.tabs-left > .nav-tabs { width: 25%; min-width: 15rem; max-width: max-content; flex: 0 0 auto !important; }
+                }
+                /* Handy-Menue im Stil des Admidio-Hauptmenues */
+                .mf-mobile-menu { background-color: var(--bs-secondary); border-radius: var(--bs-border-radius); }
+                .mf-mobile-menu .admidio-headline-mobile-menu { letter-spacing: 1px; }
+                .mf-mobile-menu .admidio-menu-list .nav-link.active { color: var(--admidio-menu-font-color-hover); background-color: var(--admidio-menu-bg-color-hover); }
+                /* Umschalter Buchungskreis/Leistungsjahr bleiben auch auf dem Handy nebeneinander (Admidio stapelt btn-groups) */
+                .mf-switch .btn-group { display: inline-flex; }
+                @media (max-width: 500px) {
+                    .mf-switch > span { width: 100%; }
+                    .mf-switch .btn-group { display: flex; width: 100%; }
+                    .mf-switch .btn-group .btn { flex: 1 1 0; padding-left: .5rem !important; padding-right: .5rem !important; font-size: .9rem; }
                 }
                 @media (max-width: 767.98px) {
                     .mf-tabs.tabs-left { display: block; }
-                    .mf-tabs > .nav-tabs { max-width: 100%; }
-                    .mf-tabs > .tab-content { margin-left: 0; border-left: none; padding: 0; }
+                    .mf-tabs > .tab-content { margin-left: 0; border-left: none; padding: 0; width: 100%; }
                 }
             </style>');
         }
