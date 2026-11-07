@@ -472,6 +472,39 @@ function mf_is_work_input_authorized(): bool
 }
 
 /**
+ * Inline-Stil einer Status-Plakette mit fester Text- und Hintergrundfarbe.
+ *
+ * @param string $tone success | warning | danger | primary | secondary | info | light | dark
+ */
+function mf_badge_style(string $tone): string
+{
+    // Hintergrund, Schrift; feste Farben, weil das Theme z. B. bg-info dunkel und bg-success grell einfaerbt
+    $colors = array(
+        'success' => array('#198754', '#ffffff'),
+        'warning' => array('#ffc107', '#212529'),
+        'danger' => array('#dc3545', '#ffffff'),
+        'primary' => array('#0d6efd', '#ffffff'),
+        'secondary' => array('#6c757d', '#ffffff'),
+        'info' => array('#cff4fc', '#055160'),
+        'light' => array('#e9ecef', '#212529'),
+        'dark' => array('#343a40', '#ffffff')
+    );
+    list($background, $color) = $colors[$tone] ?? $colors['light'];
+    return 'background-color:' . $background . ' !important;color:' . $color . ' !important';
+}
+
+/**
+ * Status-Plakette mit fester Text- und Hintergrundfarbe (lesbar unabhaengig vom Admidio-Theme).
+ *
+ * @param string $html Inhalt (bereits HTML, wird nicht kodiert)
+ * @param string $tone success | warning | danger | primary | secondary | info | light | dark
+ */
+function mf_badge(string $html, string $tone): string
+{
+    return '<span class="badge" style="' . mf_badge_style($tone) . '">' . $html . '</span>';
+}
+
+/**
  * Ist das Leistungsjahr im Arbeitsdienst schon abgerechnet (exportierte oder eingezogene Positionen)?
  * Dann duerfen nur noch Mitglieder der Zugriffsrolle Stunden aendern.
  */

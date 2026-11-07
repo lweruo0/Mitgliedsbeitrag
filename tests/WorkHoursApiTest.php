@@ -147,6 +147,34 @@ final class WorkHoursApiTest extends TestCase
         self::assertNull($entry['changed_at']);
     }
 
+    public function testNormalizeTarget(): void
+    {
+        self::assertSame('', WorkHoursApi::normalizeTarget(null));
+        self::assertSame('', WorkHoursApi::normalizeTarget('  '));
+        self::assertSame('10', WorkHoursApi::normalizeTarget(10));
+        self::assertSame('0', WorkHoursApi::normalizeTarget('0'));
+        self::assertSame('12.5', WorkHoursApi::normalizeTarget('12,50'));
+        self::assertSame('7.25', WorkHoursApi::normalizeTarget(7.25));
+    }
+
+    /**
+     * @return array<string, array{0: mixed}>
+     */
+    public static function invalidTargets(): array
+    {
+        return array('negativ' => array(-1), 'zu gross' => array(1000), 'Text' => array('viel'), 'Array' => array(array(10)), 'bool' => array(true));
+    }
+
+    /**
+     * @dataProvider invalidTargets
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalidTargets')]
+    public function testInvalidTargetIsRejected(mixed $hours): void
+    {
+        $this->expectException(WorkApiException::class);
+        WorkHoursApi::normalizeTarget($hours);
+    }
+
     public function testYearBounds(): void
     {
         WorkHoursApi::assertYear(2026);

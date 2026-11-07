@@ -53,3 +53,26 @@ class RolesRights
         return true;
     }
 }
+
+namespace Admidio\Users\Entity;
+
+class User
+{
+    public function __construct(mixed $database, mixed $userFields = null, int $userId = 0)
+    {
+    }
+
+    public function saveChangesWithoutRights(): void
+    {
+    }
+
+    public function setValue(string $columnName, mixed $newValue, bool $checkValue = true): bool
+    {
+        return true;
+    }
+
+    public function save(bool $updateFingerPrint = true): bool
+    {
+        return true;
+    }
+}

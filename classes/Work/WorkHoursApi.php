@@ -15,6 +15,9 @@
  *    von der Zugriffsrolle; Korrekturen danach nur in Admidio.
  *  - Betraege werden nicht ausgegeben, nur Stunden.
  *
+ * Sollstunden: writeTarget() setzt das Profilfeld "Sollstunden Arbeitsdienst" (ADTARGET<org>) wie die
+ * Seite "Sollstunden abgleichen" beim manuellen Setzen (gleiche Rechte wie beim Schreiben von Stunden).
+ *
  * Eintrag (Ein- und Ausgabe):
  *   id, date (Y-m-d), hours (> 0, zwei Nachkommastellen), activity (Einsatz, Pflicht), comment
  *   Eingabe akzeptiert auch "name" statt "activity" (alte WpUserSync-Schnittstelle).
@@ -28,6 +31,7 @@
 namespace Plugins\MembershipFee\classes\Work;
 
 use Admidio\Roles\Entity\RolesRights;
+use Admidio\Users\Entity\User;
 use InvalidArgumentException;
 
 final class WorkHoursApi
@@ -39,6 +43,7 @@ final class WorkHoursApi
     public const ACTION_UPDATED = 'updated';
     public const ACTION_EXISTS = 'exists';
     public const ACTION_DELETED = 'deleted';
+    public const ACTION_TARGET = 'target_updated';
 
     // ------------------------------------------------------------------
     // Lesen
@@ -155,6 +160,33 @@ final class WorkHoursApi
         return array('action' => self::ACTION_DELETED, 'entry' => self::publicEntry($existing)) + self::read($userUuid, (int) $existing['mfw_year']);
     }
 
+    /**
+     * Setzt das Profilfeld "Sollstunden Arbeitsdienst" eines Mitglieds; null oder '' leert es.
+     * Antwort wie read() fuer das aktuelle Jahr, dazu action "target_updated".
+     *
+     * @return array{action:string, user_uuid:string, target_hours:float|null, years:array<int, array<string, mixed>>}
+     */
+    public static function writeTarget(string $userUuid, mixed $hours): array
+    {
+        global $gDb, $gProfileFields, $gCurrentOrgId;
+
+        self::assertWriteAllowed();
+        $usrId = self::userIdByUuid($userUuid);
+        $value = self::normalizeTarget($hours);
+
+        $field = WorkProfileFields::targetField((int) $gCurrentOrgId);
+        if ((int) $gProfileFields->getProperty($field, 'usf_id') <= 0) {
+            throw new WorkApiException('Profile field ' . $field . ' does not exist.', 'target_field_missing', 500);
+        }
+        $user = new User($gDb, $gProfileFields, $usrId);
+        // Rechte sind ueber assertWriteAllowed() geprueft; das Feld ist fuer Mitglieder gesperrt (usf_disabled)
+        $user->saveChangesWithoutRights();
+        $user->setValue($field, $value);
+        $user->save();
+
+        return array('action' => self::ACTION_TARGET) + self::read($userUuid, (int) date('Y'));
+    }
+
     // ------------------------------------------------------------------
     // Rechte
     // ------------------------------------------------------------------
@@ -238,6 +270,25 @@ final class WorkHoursApi
             throw new WorkApiException('Field "activity" must not be empty.', 'validation_failed', 422);
         }
         return $input;
+    }
+
+    /**
+     * Sollstunden fuer das Profilfeld: '' (leer) bei null/'', sonst 0 bis 999 mit hoechstens zwei
+     * Nachkommastellen ohne Nullen am Ende (wie "Sollstunden abgleichen"), z. B. "10" oder "12.5".
+     */
+    public static function normalizeTarget(mixed $hours): string
+    {
+        if ($hours === null || (is_string($hours) && trim($hours) === '')) {
+            return '';
+        }
+        if (!is_scalar($hours) || is_bool($hours)) {
+            throw new WorkApiException('Field "target_hours" must be a number or null.', 'validation_failed', 422);
+        }
+        $value = trim(str_replace(',', '.', (string) $hours));
+        if (!is_numeric($value) || (float) $value < 0 || (float) $value > 999) {
+            throw new WorkApiException('Field "target_hours" must be between 0 and 999.', 'validation_failed', 422);
+        }
+        return rtrim(rtrim(number_format((float) $value, 2, '.', ''), '0'), '.');
     }
 
     /**

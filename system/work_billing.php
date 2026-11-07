@@ -200,11 +200,11 @@ try {
     $page->addHtml($applyForm);
 
     $stateBadge = array(
-        WorkBillingPlanner::STATE_NEW => 'bg-primary',
-        WorkBillingPlanner::STATE_CHANGED => 'bg-warning text-dark',
-        WorkBillingPlanner::STATE_REMOVED => 'bg-danger',
-        WorkBillingPlanner::STATE_UNCHANGED => 'bg-secondary',
-        WorkBillingPlanner::STATE_BILLED => 'bg-success'
+        WorkBillingPlanner::STATE_NEW => 'primary',
+        WorkBillingPlanner::STATE_CHANGED => 'warning',
+        WorkBillingPlanner::STATE_REMOVED => 'danger',
+        WorkBillingPlanner::STATE_UNCHANGED => 'secondary',
+        WorkBillingPlanner::STATE_BILLED => 'success'
     );
     $table = new HtmlTable('table_work_billing', $page, true, true, 'table table-condensed table-hover');
     $table->setColumnAlignByArray(array('left', 'right', 'right', 'right', 'left', 'left'));
@@ -224,7 +224,7 @@ try {
             array('value' => WorkRules::formatHours($plan['done']), 'order' => $plan['done']),
             array('value' => $plan['amount'] >= 0.005 ? '<strong>' . mf_format_amount($plan['amount']) . '</strong>' : '&ndash;', 'order' => $plan['amount']),
             '<small>' . SecurityUtils::encodeHTML($plan['text']) . '</small>',
-            '<span class="badge ' . $stateBadge[$plan['state']] . '">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING_STATE_' . strtoupper($plan['state'])) . '</span>'
+            mf_badge($gL10n->get('PLG_MEMBERSHIPFEE_WORK_BILLING_STATE_' . strtoupper($plan['state'])), $stateBadge[$plan['state']])
         ));
     }
     $page->addHtml($table->show(false));

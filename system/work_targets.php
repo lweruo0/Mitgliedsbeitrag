@@ -295,7 +295,7 @@ try {
         . '<div id="work_target_no_changes" class="alert alert-success d-none" role="alert"><i class="bi bi-check-circle"></i> ' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TARGETS_NO_CHANGES') . '</div>');
 
     $formatValue = static fn (string $value): string => $value === '' ? '<span class="text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_TARGETS_EMPTY') . '</span>' : WorkRules::formatHours((float) str_replace(',', '.', $value));
-    $badge = array('done' => 'bg-success', 'missing' => 'bg-warning text-dark', 'exempt' => 'bg-secondary', 'none' => 'bg-info text-dark');
+    $badge = array('done' => 'success', 'missing' => 'warning', 'exempt' => 'secondary', 'none' => 'light');
     $statusLabel = static fn (string $status): string => $gL10n->get('PLG_MEMBERSHIPFEE_WORK_STATUS_' . strtoupper($status));
     $tableRows = '';
     foreach ($visible as $usrId => $row) {
@@ -312,7 +312,7 @@ try {
             . '<td style="text-align: right;" class="text-nowrap">' . WorkRules::formatHours($row['done']) . '</td>'
             . '<td style="text-align: right;" class="text-nowrap wt-missing">' . ($state['missing'] > 0 ? '<strong>' . WorkRules::formatHours($state['missing']) . '</strong>' : '&ndash;') . '</td>'
             . '<td style="text-align: right;" class="text-nowrap wt-fee">' . ($state['fee'] > 0 ? mf_format_amount($state['fee']) : '&ndash;') . '</td>'
-            . '<td class="wt-status"><span class="badge ' . $badge[$state['status']] . '">' . $statusLabel($state['status']) . '</span></td>'
+            . '<td class="wt-status">' . mf_badge($statusLabel($state['status']), $badge[$state['status']]) . '</td>'
             . '<td>' . SecurityUtils::encodeHTML($row['target']->reason) . '</td>'
             . '</tr>';
     }
@@ -383,7 +383,7 @@ try {
         var wtToken = ' . json_encode($gCurrentSession->getCsrfToken()) . ';
         var wtRate = ' . json_encode($rules->rate()) . ';
         var wtCurrency = ' . json_encode($gSettingsManager->getString('system_currency')) . ';
-        var wtBadge = ' . json_encode($badge) . ';
+        var wtBadge = ' . json_encode(array_map('mf_badge_style', $badge)) . ';
         var wtLabel = ' . json_encode(array_combine(array_keys($badge), array_map($statusLabel, array_keys($badge)))) . ';
         function wtHours(value) {
             return value.toFixed(2).replace(".", ",").replace(/0+$/, "").replace(/,$/, "") + " h";
@@ -405,7 +405,7 @@ try {
             row.attr("data-status", status);
             row.find(".wt-missing").html(missing > 0 ? "<strong>" + wtHours(missing) + "</strong>" : "&ndash;");
             row.find(".wt-fee").html(fee > 0 ? wtAmount(fee) : "&ndash;");
-            row.find(".wt-status").html("<span class=\"badge " + wtBadge[status] + "\">" + wtLabel[status] + "</span>");
+            row.find(".wt-status").html("<span class=\"badge\" style=\"" + wtBadge[status] + "\">" + wtLabel[status] + "</span>");
         }
         function wtSameValue(a, b) {
             if (a === "" || b === "") { return a === b; }

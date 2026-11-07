@@ -210,7 +210,7 @@ try {
         exit();
     }
 
-    $badge = array('done' => 'bg-success', 'missing' => 'bg-warning text-dark', 'exempt' => 'bg-secondary', 'none' => 'bg-info text-dark');
+    $badge = array('done' => 'success', 'missing' => 'warning', 'exempt' => 'secondary', 'none' => 'light');
     $table = new HtmlTable('table_work_overview', $page, true, true, 'table table-condensed table-hover');
     $table->setColumnAlignByArray(array('left', 'right', 'right', 'right', 'right', 'left'));
     $table->addRowHeadingByArray(array(
@@ -229,7 +229,7 @@ try {
             array('value' => WorkRules::formatHours($row['done']), 'order' => $row['done']),
             array('value' => $row['missing'] > 0 ? '<strong>' . WorkRules::formatHours($row['missing']) . '</strong>' : '&ndash;', 'order' => $row['missing']),
             array('value' => $row['fee'] > 0 ? mf_format_amount($row['fee']) : '&ndash;', 'order' => $row['fee']),
-            '<span class="badge ' . $badge[$row['status']] . '">' . $statusLabel($row['status']) . '</span>'
+            mf_badge($statusLabel($row['status']), $badge[$row['status']])
         ));
     }
     $page->addHtml($table->show(false));

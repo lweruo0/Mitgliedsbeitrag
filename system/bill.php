@@ -698,12 +698,12 @@ $groupCounts = array(InvoicePlanner::METHOD_MANUAL => 0, InvoicePlanner::METHOD_
 $groupMembersSeen = array(InvoicePlanner::METHOD_MANUAL => array(), InvoicePlanner::METHOD_SEPA => array());
 
 $badges = array(
-    'pending' => 'bg-secondary',
-    InvoiceStatus::OPEN => 'bg-primary',
-    InvoiceStatus::IN_COLLECTION => 'bg-info text-dark',
-    InvoiceStatus::PAID => 'bg-success',
-    InvoiceStatus::CANCELLED => 'bg-dark',
-    'overdue' => 'bg-danger'
+    'pending' => 'secondary',
+    InvoiceStatus::OPEN => 'primary',
+    InvoiceStatus::IN_COLLECTION => 'info',
+    InvoiceStatus::PAID => 'success',
+    InvoiceStatus::CANCELLED => 'dark',
+    'overdue' => 'danger'
 );
 
 // Profildaten nur einmal je Mitglied aufbereiten
@@ -771,7 +771,7 @@ foreach ($rows as $index => $row) {
         . ($row['type'] === 'invoice' && $row['status'] === InvoiceStatus::OPEN && abs($row['open_amount'] - $row['amount']) >= 0.005
             ? '<br/><small class="text-muted text-nowrap">' . $gL10n->get('PLG_MEMBERSHIPFEE_INVOICE_OPEN_AMOUNT', array(mf_format_amount($row['open_amount']))) . '</small>' : ''),
         'order' => $row['amount']);
-    $columnValues[] = '<span class="badge ' . $badges[$statusKey] . '">' . $statusText . '</span>';
+    $columnValues[] = mf_badge($statusText, $badges[$statusKey]);
     // PDF: abgelegte Datei anzeigen; fehlt sie, wird sie beim Aufruf erzeugt
     $pdfCell = '';
     if ($row['type'] === 'invoice' && $pdfReason === '') {
