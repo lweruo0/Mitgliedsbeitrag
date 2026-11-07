@@ -33,6 +33,7 @@ final class WorkRules
      * @param array<int, int> $exemptCategoryIds
      * @param int|null $maxAge Altersgrenze (ab diesem Alter am 31.12. befreit); null = keine
      * @param float $rate Ersatzbeitrag je Fehlstunde
+     * @param array<int, int> $includedRoleIds Rollen einer Ausnahmekategorie, die trotzdem nicht befreien
      */
     public function __construct(
         private readonly array $targetHours,

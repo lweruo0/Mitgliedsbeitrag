@@ -28,6 +28,12 @@ foreach ([
     'DATE_NOW'     => '2026-11-01',
     'TBL_CATEGORIES'  => 'adm_categories',
     'TBL_USER_FIELDS' => 'adm_user_fields',
+    'TBL_USER_DATA'   => 'adm_user_data',
+    'TBL_USERS'       => 'adm_users',
+    'TBL_MEMBERS'     => 'adm_members',
+    'TBL_ROLES'       => 'adm_roles',
+    'TBL_MENU'        => 'adm_menu',
+    'FOLDER_PLUGINS'  => '/adm_plugins',
 ] as $name => $value) {
     if (!defined($name)) {
         define($name, $value);

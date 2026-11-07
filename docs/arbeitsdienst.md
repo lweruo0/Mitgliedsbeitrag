@@ -55,6 +55,11 @@ Sichtbar für das Mitglied selbst, die Zugriffsrolle und alle, die Arbeitsdienst
 
 - `classes/Bookings/CollectionScope.php`: Buchungskreise `mf` und `ad` (Felder, Quellen, IDs).
 - `classes/Work/*`: Regeln (WorkRules), Einsätze (WorkHoursStore, Tabelle `adm_plugin_membershipfee_workhours`),
-  Profilfelder (WorkProfileFields), Abrechnung (WorkBillingPlanner).
+  Profilfelder (WorkProfileFields), Abrechnung (WorkBillingPlanner), Jahressperre (WorkYearLock).
+- `classes/Work/WorkHoursApi.php`: Schnittstelle für andere Plugins (z. B. WpUserSync): Stunden eines
+  Mitglieds per UUID lesen (`read`), anlegen/ändern (`write`) und löschen (`delete`). Es gelten dieselben
+  Regeln wie auf „Arbeitsdienst erfassen“: Recht über die Zugriffsrolle oder den Menüpunkt, Mitglied im
+  Leistungsjahr. Gesperrte Jahre ändert die Schnittstelle nie (Fehler `year_locked`). Beträge werden nicht
+  ausgegeben. Fehler kommen als `WorkApiException` mit Code und HTTP-Status.
 - Läufe tragen `mfr_kind` (`mf`/`ad`).
 - Tests: `php phpunit.phar -c phpunit.xml`, statische Analyse mit PHPStan (Level 6).

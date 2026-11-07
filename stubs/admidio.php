@@ -32,3 +32,24 @@ class Entity
         return true;
     }
 }
+
+namespace Admidio\Roles\Entity;
+
+class RolesRights
+{
+    public function __construct(mixed $database, string $rolesRightName = '', int $referenceId = 0)
+    {
+    }
+
+    /** @return array<int, int> */
+    public function getRolesIds(): array
+    {
+        return array();
+    }
+
+    /** @param array<int, int> $assignedRoles */
+    public function hasRight(array $assignedRoles): bool
+    {
+        return true;
+    }
+}

@@ -477,14 +477,7 @@ function mf_is_work_input_authorized(): bool
  */
 function mf_work_year_locked(int $year): bool
 {
-    global $gDb, $gCurrentOrgId;
-
-    \Plugins\MembershipFee\classes\Bookings\BookingStore::ensureTables();
-    $scope = CollectionScope::work((int) $gCurrentOrgId);
-    $sql = 'SELECT COUNT(*) FROM ' . \Plugins\MembershipFee\classes\Bookings\BookingStore::bookingsTable() . '
-             WHERE mfb_org_id = ? AND mfb_year = ? AND ' . $scope->sourceSqlCondition() . '
-               AND mfb_status IN (?, ?)';
-    return (int) $gDb->queryPrepared($sql, array((int) $gCurrentOrgId, $year, 'exportiert', 'eingezogen'))->fetchColumn() > 0;
+    return \Plugins\MembershipFee\classes\Work\WorkYearLock::isLocked($year);
 }
 
 /**
