@@ -10,6 +10,9 @@ Buchungshistorie, hat aber eigene Profilfelder, eigene Läufe und eine eigene SE
 - Befreit sind Mitglieder in Ausnahme-Rollen oder Rollen aus Ausnahme-Kategorien, ausser die Rolle ist unter
   „Trotz Kategorie pflichtig“ eingetragen. Befreit ist auch, wer am Stichtag die Altersgrenze (60) erreicht hat.
 - Kein Stundenübertrag ins Folgejahr.
+- Jeder Eintrag hat einen **Status** (ab Version 6.10.0): `angemeldet`, `teilgenommen`, `entschuldigt`,
+  `unentschuldigt`. Nur `teilgenommen` hat Stunden (> 0) und zählt als geleistet (Ist, Fehlstunden, Ersatzbeitrag,
+  Rechnung); die anderen Status haben 0 Stunden. Einträge aus der Zeit vor 6.10.0 gelten als `teilgenommen`.
 - Ersatzbeitrag = fehlende Stunden x Stundensatz (20,00 EUR).
 
 ## Profilfelder (Kategorie „Arbeitsdienst“)
@@ -26,8 +29,10 @@ Die Felder werden beim ersten Aufruf automatisch angelegt und bei der Deinstalla
 1. **Sollstunden abgleichen**: setzt ADTARGET für alle Mitglieder nach den Regeln (Vorschau, dann übernehmen).
    Zeigt zugleich je Mitglied Ist, Fehlstunden, Ersatzbeitrag und Stand (Filter nach Stand, Suche, CSV-Export);
    die frühere Jahresübersicht ist darin aufgegangen.
-2. **Arbeitsdienst erfassen**: Einsätze (Datum, Bezeichnung, Teilnehmer, Stunden). Eigene Seite mit eigenem
-   Menüpunkt; Berechtigung über „Sichtbar für“ des Menüpunkts (z. B. Arbeitsdienstleiter).
+2. **Arbeitsdienst erfassen**: Einsätze (Datum, Bezeichnung, Status, Teilnehmer, Stunden). Eigene Seite mit eigenem
+   Menüpunkt; Berechtigung über „Sichtbar für“ des Menüpunkts (z. B. Arbeitsdienstleiter). Der Status gilt für alle
+   ausgewählten Teilnehmer; Stunden werden nur bei „teilgenommen“ abgefragt. Je Eintrag lassen sich Status und
+   Stunden einzeln ändern; die Einsatzliste zeigt den Status und im Kopf die Anzahl je Status.
 4. **Arbeitsdienst abrechnen**: legt je Mitglied eine offene Position „Ersatzleistung Arbeitsdienst“ (Quelle `ad`)
    an, passt sie an oder entfernt sie. Bereits exportierte oder eingezogene Positionen bleiben unverändert.
 5. **Rechnungen erstellen** (2.0): Rechnungen mit Nummer `JAHR-AD-NNNN`; Lastschrift-Zahler ohne Fälligkeit erhalten
@@ -58,7 +63,9 @@ Sichtbar für das Mitglied selbst, die Zugriffsrolle und alle, die Arbeitsdienst
   Profilfelder (WorkProfileFields), Abrechnung (WorkBillingPlanner), Jahressperre (WorkYearLock).
 - `classes/Work/WorkHoursApi.php`: Schnittstelle für andere Plugins (z. B. WpUserSync): Stunden eines
   Mitglieds per UUID lesen (`read`), anlegen/ändern (`write`) und löschen (`delete`), Sollstunden setzen
-  (`writeTarget`, Profilfeld ADTARGET). Es gelten dieselben
+  (`writeTarget`, Profilfeld ADTARGET). Eintrag mit `status` (Standard `teilgenommen`); Ändern nur des Status
+  (z. B. `angemeldet` → `teilgenommen` mit `hours`) per `id`. Mit Status prüft `check_duplicates` nur Datum und
+  Einsatz, damit ein Statuswechsel keinen zweiten Eintrag erzeugt. Es gelten dieselben
   Regeln wie auf „Arbeitsdienst erfassen“: Recht über die Zugriffsrolle oder den Menüpunkt, Mitglied im
   Leistungsjahr. Gesperrte Jahre ändert die Schnittstelle nie (Fehler `year_locked`). Beträge werden nicht
   ausgegeben. Fehler kommen als `WorkApiException` mit Code und HTTP-Status.

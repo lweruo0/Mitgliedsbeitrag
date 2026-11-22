@@ -3,6 +3,9 @@
  ***********************************************************************************************
  * Arbeitsdienst erfassen: Einsaetze mit den geleisteten Stunden je Mitglied
  *
+ * Jeder Eintrag hat einen Status (angemeldet, teilgenommen, entschuldigt, unentschuldigt). Stunden gibt es nur
+ * beim Status teilgenommen; nur diese zaehlen als geleistet.
+ *
  * Aufrufen duerfen die Zugriffsrolle des Plugins und alle Rollen, die unter "Sichtbar für" beim
  * Menuepunkt "Arbeitsdienst erfassen" (system/work_input.php) eingetragen sind. Betraege, IBANs und
  * Buchungen werden hier nicht angezeigt. Ist ein Leistungsjahr schon abgerechnet, kann nur noch die
@@ -49,6 +52,25 @@ try {
     $selfUrl = ADMIDIO_URL . FOLDER_PLUGINS . PLUGIN_FOLDER . '/system/work_input.php';
     WorkHoursStore::ensureTable();
 
+    // Status mit Beschriftung (Auswahl und Anzeige)
+    $statusLabels = array();
+    foreach (WorkHoursStore::STATUSES as $status) {
+        $statusLabels[$status] = $gL10n->get('PLG_MEMBERSHIPFEE_WORK_ENTRY_STATUS_' . strtoupper($status));
+    }
+    $statusBadge = static function (string $status) use ($statusLabels): string {
+        $class = array(
+            WorkHoursStore::STATUS_REGISTERED => 'text-bg-info',
+            WorkHoursStore::STATUS_ATTENDED => 'text-bg-success',
+            WorkHoursStore::STATUS_EXCUSED => 'text-bg-secondary',
+            WorkHoursStore::STATUS_UNEXCUSED => 'text-bg-danger'
+        )[$status] ?? 'text-bg-light';
+        return '<span class="badge ' . $class . '">' . SecurityUtils::encodeHTML($statusLabels[$status] ?? $status) . '</span>';
+    };
+    $postStatus = static function () use ($statusLabels): string {
+        $status = (string) ($_POST['work_status'] ?? WorkHoursStore::STATUS_ATTENDED);
+        return isset($statusLabels[$status]) ? $status : WorkHoursStore::STATUS_ATTENDED;
+    };
+
     /**
      * Darf das Leistungsjahr geaendert werden? Sonst Exception mit Hinweis.
      */
@@ -74,7 +96,12 @@ try {
             if ($activity === '') {
                 throw new Exception('SYS_FIELD_EMPTY', array($gL10n->get('PLG_MEMBERSHIPFEE_WORK_ACTIVITY')));
             }
+            $status = $postStatus();
             $hoursByUser = (array) ($_POST['work_hours'] ?? array());
+            if ($status !== WorkHoursStore::STATUS_ATTENDED) {
+                // ohne Stunden: alle ausgewaehlten Mitglieder
+                $hoursByUser = array_fill_keys(array_map('intval', (array) ($_POST['work_members'] ?? array())), '0');
+            }
             if (count($hoursByUser) === 0) {
                 throw new Exception('PLG_MEMBERSHIPFEE_WORK_NO_MEMBERS');
             }
@@ -89,15 +116,16 @@ try {
                     continue;
                 }
                 $hours = trim(str_replace(',', '.', (string) $hours));
-                if ($hours === '' || (float) $hours <= 0) {
+                if ($status === WorkHoursStore::STATUS_ATTENDED && ($hours === '' || (float) $hours <= 0)) {
                     continue;
                 }
                 WorkHoursStore::insert(array(
                     'mfw_usr_id' => $usrId,
                     'mfw_date' => $date,
-                    'mfw_hours' => $hours,
+                    'mfw_hours' => $status === WorkHoursStore::STATUS_ATTENDED ? $hours : '0',
                     'mfw_activity' => $activity,
-                    'mfw_comment' => (string) ($_POST['work_comment'] ?? '')
+                    'mfw_comment' => (string) ($_POST['work_comment'] ?? ''),
+                    'mfw_status' => $status
                 ));
                 $count++;
             }
@@ -117,11 +145,13 @@ try {
                     throw new Exception('SYS_DATE_INVALID', array($gL10n->get('SYS_DATE'), $gSettingsManager->getString('system_date')));
                 }
                 $assertYearEditable((int) substr($date, 0, 4));
+                $status = $postStatus();
                 WorkHoursStore::update($getId, array(
                     'mfw_date' => $date,
-                    'mfw_hours' => (string) ($_POST['work_hours_single'] ?? ''),
+                    'mfw_hours' => $status === WorkHoursStore::STATUS_ATTENDED ? (string) ($_POST['work_hours_single'] ?? '') : '0',
                     'mfw_activity' => (string) ($_POST['work_activity'] ?? ''),
-                    'mfw_comment' => (string) ($_POST['work_comment'] ?? '')
+                    'mfw_comment' => (string) ($_POST['work_comment'] ?? ''),
+                    'mfw_status' => $status
                 ));
                 $getYear = (int) substr($date, 0, 4);
             } else {
@@ -171,12 +201,24 @@ try {
             'property' => HtmlForm::FIELD_REQUIRED,
             'maxLength' => 255
         ));
-        $form->addInput('work_hours_single', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_HOURS'), number_format((float) $entry['mfw_hours'], 2, ',', ''), array(
-            'property' => HtmlForm::FIELD_REQUIRED
+        $form->addSelectBox('work_status', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_ENTRY_STATUS'), $statusLabels, array(
+            'defaultValue' => (string) $entry['mfw_status'],
+            'showContextDependentFirstEntry' => false,
+            'helpTextId' => 'PLG_MEMBERSHIPFEE_WORK_ENTRY_STATUS_DESC'
         ));
+        $form->addInput('work_hours_single', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_HOURS'), number_format((float) $entry['mfw_hours'], 2, ',', ''));
         $form->addMultilineTextInput('work_comment', $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_COMMENT'), (string) ($entry['mfw_comment'] ?? ''), 2);
         $form->addSubmitButton('btn_save', $gL10n->get('SYS_SAVE'), array('icon' => 'bi-check-lg'));
         $page->addHtml($form->show(false));
+        // Stunden nur bei "teilgenommen"
+        $page->addJavascript('
+            function toggleWorkHoursSingle() {
+                var attended = $("#work_status").val() === ' . json_encode(WorkHoursStore::STATUS_ATTENDED) . ';
+                $("#work_hours_single").prop("required", attended);
+                $("#work_hours_single_group").toggle(attended);
+            }
+            $("#work_status").on("change", toggleWorkHoursSingle);
+            toggleWorkHoursSingle();', true);
         $page->show();
         exit();
     }
@@ -223,6 +265,11 @@ try {
             'maxLength' => 255,
             'helpTextId' => 'PLG_MEMBERSHIPFEE_WORK_ACTIVITY_DESC'
         ));
+        $form->addSelectBox('work_status', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_ENTRY_STATUS'), $statusLabels, array(
+            'defaultValue' => WorkHoursStore::STATUS_ATTENDED,
+            'showContextDependentFirstEntry' => false,
+            'helpTextId' => 'PLG_MEMBERSHIPFEE_WORK_ENTRY_STATUS_DESC'
+        ));
         $form->addInput('work_default_hours', $gL10n->get('PLG_MEMBERSHIPFEE_WORK_DEFAULT_HOURS'), '', array(
             'helpTextId' => 'PLG_MEMBERSHIPFEE_WORK_DEFAULT_HOURS_DESC'
         ));
@@ -265,6 +312,16 @@ try {
                 $("#work_rows").html(html);
             }
             $("#work_members").on("change", renderWorkRows);
+            // Stunden nur bei "teilgenommen"
+            function toggleWorkHours() {
+                var attended = $("#work_status").val() === ' . json_encode(WorkHoursStore::STATUS_ATTENDED) . ';
+                $("#work_default_hours_group").toggle(attended);
+                $("#work_rows").closest(".admidio-form-group").toggle(attended);
+                $("#work_rows input.work-hours").prop("required", attended);
+            }
+            $("#work_status").on("change", toggleWorkHours);
+            $("#work_members").on("change", toggleWorkHours);
+            toggleWorkHours();
             $("#work_default_hours").on("change", function() {
                 var value = $(this).val();
                 $("#work_rows input.work-hours").each(function() {
@@ -286,7 +343,7 @@ try {
         foreach ($entries as $entry) {
             $key = (string) $entry['mfw_date'] . "\n" . (string) $entry['mfw_activity'];
             $groups[$key][] = $entry;
-            $sumHours += (float) $entry['mfw_hours'];
+            $sumHours += WorkHoursStore::doneHours($entry);
             $sumMembers[(int) $entry['mfw_usr_id']] = true;
         }
         krsort($groups);    // neueste Einsaetze zuerst
@@ -308,10 +365,18 @@ try {
         foreach ($groups as $groupEntries) {
             $index++;
             $first = $groupEntries[0];
-            $groupHours = array_sum(array_map(static fn (array $entry): float => (float) $entry['mfw_hours'], $groupEntries));
+            $groupHours = array_sum(array_map(array(WorkHoursStore::class, 'doneHours'), $groupEntries));
             usort($groupEntries, static function (array $a, array $b) use ($members): int {
                 return strcasecmp($members[(int) $a['mfw_usr_id']]['name'] ?? '', $members[(int) $b['mfw_usr_id']]['name'] ?? '');
             });
+
+            // Anzahl je Status ausser "teilgenommen" (z. B. 3 angemeldet, 1 entschuldigt)
+            $groupStatus = '';
+            foreach (array_count_values(array_map(static fn (array $entry): string => (string) $entry['mfw_status'], $groupEntries)) as $status => $count) {
+                if ($status !== WorkHoursStore::STATUS_ATTENDED) {
+                    $groupStatus .= ' <span class="ms-2">' . (int) $count . ' ' . $statusBadge((string) $status) . '</span>';
+                }
+            }
 
             $rows = '';
             foreach ($groupEntries as $entry) {
@@ -326,7 +391,8 @@ try {
                 }
                 $rows .= '<tr>'
                     . '<td>' . SecurityUtils::encodeHTML($members[(int) $entry['mfw_usr_id']]['name'] ?? ('#' . $entry['mfw_usr_id'])) . '</td>'
-                    . '<td style="text-align: right; white-space: nowrap;">' . WorkRules::formatHours((float) $entry['mfw_hours']) . '</td>'
+                    . '<td>' . $statusBadge((string) $entry['mfw_status']) . '</td>'
+                    . '<td style="text-align: right; white-space: nowrap;">' . (WorkHoursStore::counts($entry) ? WorkRules::formatHours((float) $entry['mfw_hours']) : '&ndash;') . '</td>'
                     . '<td>' . SecurityUtils::encodeHTML((string) ($entry['mfw_comment'] ?? '')) . '</td>'
                     . '<td style="white-space: nowrap; text-align: center;">' . $actions . '</td>'
                     . '</tr>';
@@ -338,10 +404,12 @@ try {
                 . '<span class="me-3" style="min-width: 6.5rem;">' . mf_format_date((string) $first['mfw_date']) . '</span>'
                 . '<strong class="me-3">' . SecurityUtils::encodeHTML((string) $first['mfw_activity']) . '</strong>'
                 . '<span class="text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_GROUP_INFO', array(count($groupEntries), WorkRules::formatHours($groupHours))) . '</span>'
+                . $groupStatus
                 . '</button></h2>'
                 . '<div id="work_group_' . $index . '" class="accordion-collapse collapse" aria-labelledby="work_group_head_' . $index . '">'
                 . '<div class="accordion-body p-2"><table class="table table-sm table-hover mb-0"><thead><tr>'
                 . '<th>' . $gL10n->get('SYS_NAME') . '</th>'
+                . '<th>' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_ENTRY_STATUS') . '</th>'
                 . '<th style="text-align: right;">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_HOURS') . '</th>'
                 . '<th>' . $gL10n->get('PLG_MEMBERSHIPFEE_BOOKING_COMMENT') . '</th>'
                 . '<th></th>'

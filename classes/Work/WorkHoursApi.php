@@ -19,7 +19,9 @@
  * Seite "Sollstunden abgleichen" beim manuellen Setzen (gleiche Rechte wie beim Schreiben von Stunden).
  *
  * Eintrag (Ein- und Ausgabe):
- *   id, date (Y-m-d), hours (> 0, zwei Nachkommastellen), activity (Einsatz, Pflicht), comment
+ *   id, date (Y-m-d), hours (zwei Nachkommastellen), activity (Einsatz, Pflicht), comment,
+ *   status (angemeldet | teilgenommen | entschuldigt | unentschuldigt; Standard teilgenommen)
+ *   Nur "teilgenommen" hat Stunden (> 0, Pflicht) und zaehlt fuer done_hours; die anderen Status haben 0 Stunden.
  *   Eingabe akzeptiert auch "name" statt "activity" (alte WpUserSync-Schnittstelle).
  *
  * @copyright The Admidio Team
@@ -88,9 +90,11 @@ final class WorkHoursApi
     /**
      * Legt einen Eintrag an oder aendert ihn (mit "id").
      *
-     * Beim Aendern muessen nur die geaenderten Felder uebergeben werden.
+     * Beim Aendern muessen nur die geaenderten Felder uebergeben werden (z. B. nur status und hours).
      * Mit $checkDuplicates wird kein zweiter Eintrag mit gleichem Datum, Einsatz und Stunden angelegt;
      * stattdessen kommt der vorhandene mit action "exists" zurueck (wiederholtes Senden ist damit unschaedlich).
+     * Wird ein Status uebergeben, zaehlen fuer die Dublette nur Datum und Einsatz (ein Mitglied hat je Einsatz
+     * einen Eintrag, dessen Status sich aendert).
      *
      * @param array<string, mixed> $data
      * @param int|null $expectedYear wenn gesetzt, muss das Einsatzdatum in diesem Jahr liegen
@@ -102,6 +106,7 @@ final class WorkHoursApi
         $usrId = self::userIdByUuid($userUuid);
 
         $id = self::entryId($data);
+        $statusGiven = isset($data['status']) && trim((string) (is_scalar($data['status']) ? $data['status'] : '')) !== '';
         $input = self::normalizeInput($data, $id !== null);
 
         if ($id !== null) {
@@ -125,17 +130,25 @@ final class WorkHoursApi
 
         if ($existing !== null) {
             if (count($input) > 0) {
-                WorkHoursStore::update($id, $input);
+                try {
+                    WorkHoursStore::update($id, $input);
+                } catch (InvalidArgumentException $e) {
+                    throw new WorkApiException($e->getMessage(), 'validation_failed', 422);
+                }
             }
             $action = self::ACTION_UPDATED;
         } else {
-            $duplicate = $checkDuplicates ? self::findDuplicate(WorkHoursStore::getByYear($year, $usrId), $input) : null;
+            $duplicate = $checkDuplicates ? self::findDuplicate(WorkHoursStore::getByYear($year, $usrId), $input, !$statusGiven) : null;
             if ($duplicate !== null) {
                 $id = (int) $duplicate['mfw_id'];
                 $action = self::ACTION_EXISTS;
             } else {
                 $input['mfw_usr_id'] = $usrId;
-                $id = WorkHoursStore::insert($input);
+                try {
+                    $id = WorkHoursStore::insert($input);
+                } catch (InvalidArgumentException $e) {
+                    throw new WorkApiException($e->getMessage(), 'validation_failed', 422);
+                }
                 $action = self::ACTION_CREATED;
             }
         }
@@ -221,10 +234,11 @@ final class WorkHoursApi
 
     /**
      * Eingabe in Tabellenspalten umsetzen und pruefen.
-     * Neu: date, hours und activity sind Pflicht. Aendern ($partial): nur die uebergebenen Felder.
+     * Neu: date und activity sind Pflicht, hours beim Status teilgenommen (Standard). Aendern ($partial): nur die
+     * uebergebenen Felder; ob Stunden und Status zusammenpassen, prueft der Store mit dem vorhandenen Eintrag.
      *
      * @param array<string, mixed> $data
-     * @return array<string, mixed> mfw_date, mfw_hours, mfw_activity, mfw_comment (soweit uebergeben)
+     * @return array<string, mixed> mfw_date, mfw_hours, mfw_activity, mfw_comment, mfw_status (soweit uebergeben)
      */
     public static function normalizeInput(array $data, bool $partial = false): array
     {
@@ -233,7 +247,7 @@ final class WorkHoursApi
         }
 
         $input = array();
-        foreach (array('date' => 'mfw_date', 'hours' => 'mfw_hours', 'activity' => 'mfw_activity', 'comment' => 'mfw_comment') as $key => $column) {
+        foreach (array('date' => 'mfw_date', 'hours' => 'mfw_hours', 'activity' => 'mfw_activity', 'comment' => 'mfw_comment', 'status' => 'mfw_status') as $key => $column) {
             if (array_key_exists($key, $data)) {
                 if ($data[$key] !== null && !is_scalar($data[$key])) {
                     throw new WorkApiException('Field "' . $key . '" must be a scalar value.', 'validation_failed', 422);
@@ -243,7 +257,12 @@ final class WorkHoursApi
         }
 
         if (!$partial) {
-            foreach (array('date' => 'mfw_date', 'hours' => 'mfw_hours', 'activity' => 'mfw_activity') as $key => $column) {
+            $required = array('date' => 'mfw_date', 'activity' => 'mfw_activity');
+            $status = mb_strtolower(trim((string) ($input['mfw_status'] ?? WorkHoursStore::STATUS_ATTENDED)));
+            if ($status === WorkHoursStore::STATUS_ATTENDED) {
+                $required['hours'] = 'mfw_hours';
+            }
+            foreach ($required as $key => $column) {
                 if (!isset($input[$column]) || trim((string) $input[$column]) === '') {
                     throw new WorkApiException('Field "' . $key . '" is required.', 'validation_failed', 422);
                 }
@@ -261,8 +280,15 @@ final class WorkHoursApi
             $input['mfw_comment'] = trim((string) $input['mfw_comment']);
         }
 
+        if (array_key_exists('mfw_status', $input) && ($input['mfw_status'] === null || trim((string) $input['mfw_status']) === '')) {
+            unset($input['mfw_status']);
+        }
+
         try {
             $input = WorkHoursStore::validate($input);
+            if (!$partial) {
+                $input = WorkHoursStore::applyStatusRules($input);
+            }
         } catch (InvalidArgumentException $e) {
             throw new WorkApiException($e->getMessage(), 'validation_failed', 422);
         }
@@ -309,17 +335,19 @@ final class WorkHoursApi
 
     /**
      * Gleicher Eintrag (Datum, Einsatz ohne Gross-/Kleinschreibung, Stunden) unter $entries?
+     * Mit Status in der Eingabe nur Datum und Einsatz (der Status eines Einsatzes aendert sich).
      *
      * @param array<int, array<string, mixed>> $entries
      * @param array<string, mixed> $input normalisierte Eingabe
+     * @param bool $matchHours false: Stunden nicht vergleichen (Eingabe mit Status)
      * @return array<string, mixed>|null
      */
-    public static function findDuplicate(array $entries, array $input): ?array
+    public static function findDuplicate(array $entries, array $input, bool $matchHours = true): ?array
     {
         foreach ($entries as $entry) {
             if ((string) $entry['mfw_date'] === (string) $input['mfw_date']
                 && mb_strtolower(trim((string) $entry['mfw_activity'])) === mb_strtolower((string) $input['mfw_activity'])
-                && abs((float) $entry['mfw_hours'] - (float) $input['mfw_hours']) < 0.005) {
+                && (!$matchHours || abs((float) $entry['mfw_hours'] - (float) $input['mfw_hours']) < 0.005)) {
                 return $entry;
             }
         }
@@ -358,7 +386,7 @@ final class WorkHoursApi
             $yearEntries = array_values(array_filter($entries, static fn (array $entry): bool => (int) $entry['mfw_year'] === $year));
             usort($yearEntries, static fn (array $a, array $b): int => array((string) $a['mfw_date'], (int) $a['mfw_id']) <=> array((string) $b['mfw_date'], (int) $b['mfw_id']));
 
-            $done = round(array_sum(array_map(static fn (array $entry): float => (float) $entry['mfw_hours'], $yearEntries)), 2);
+            $done = round(array_sum(array_map(array(WorkHoursStore::class, 'doneHours'), $yearEntries)), 2);
             $result[] = array(
                 'year' => $year,
                 'done_hours' => $done,
@@ -386,6 +414,7 @@ final class WorkHoursApi
             'hours' => round((float) ($entry['mfw_hours'] ?? 0), 2),
             'activity' => (string) ($entry['mfw_activity'] ?? ''),
             'comment' => ($comment === null || $comment === '') ? null : (string) $comment,
+            'status' => (string) ($entry['mfw_status'] ?? WorkHoursStore::STATUS_ATTENDED),
             'created_at' => isset($entry['mfw_timestamp_create']) ? (string) $entry['mfw_timestamp_create'] : null,
             'changed_at' => isset($entry['mfw_timestamp_change']) ? (string) $entry['mfw_timestamp_change'] : null
         );

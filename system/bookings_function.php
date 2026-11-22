@@ -225,7 +225,7 @@ function mf_render_work(int $usrId): string
     $years = array();
     foreach ($entries as $entry) {
         $year = (int) $entry['mfw_year'];
-        $years[$year]['hours'] = ($years[$year]['hours'] ?? 0.0) + (float) $entry['mfw_hours'];
+        $years[$year]['hours'] = ($years[$year]['hours'] ?? 0.0) + \Plugins\MembershipFee\classes\Work\WorkHoursStore::doneHours($entry);
         $years[$year]['entries'][] = $entry;
     }
     foreach ($positions as $position) {
@@ -264,7 +264,7 @@ function mf_render_work(int $usrId): string
             $items = array();
             foreach (array_reverse($data['entries']) as $entry) {
                 $items[] = '<li>' . mf_format_date((string) $entry['mfw_date']) . ' &middot; ' . SecurityUtils::encodeHTML((string) $entry['mfw_activity'])
-                    . ' &middot; ' . \Plugins\MembershipFee\classes\Work\WorkRules::formatHours((float) $entry['mfw_hours']) . '</li>';
+                    . ' &middot; ' . mf_work_entry_hours_text($entry) . '</li>';
             }
             $list = '<details><summary>' . $gL10n->get(count($data['entries']) === 1 ? 'PLG_MEMBERSHIPFEE_WORK_PROFILE_ENTRY_ONE' : 'PLG_MEMBERSHIPFEE_WORK_PROFILE_ENTRIES_MANY', array(count($data['entries']))) . '</summary><ul class="mb-0">' . implode('', $items) . '</ul></details>';
         }
@@ -275,6 +275,22 @@ function mf_render_work(int $usrId): string
     }
     $html .= '</tbody></table></div>';
     return $html;
+}
+
+/**
+ * Stunden eines Arbeitsdienst-Eintrags fuer die Anzeige: bei "teilgenommen" die Stunden, sonst der Status
+ * (angemeldet, entschuldigt, unentschuldigt).
+ *
+ * @param array<string, mixed> $entry Zeile aus WorkHoursStore
+ */
+function mf_work_entry_hours_text(array $entry): string
+{
+    global $gL10n;
+
+    if (\Plugins\MembershipFee\classes\Work\WorkHoursStore::counts($entry)) {
+        return \Plugins\MembershipFee\classes\Work\WorkRules::formatHours((float) $entry['mfw_hours']);
+    }
+    return '<span class="text-muted">' . $gL10n->get('PLG_MEMBERSHIPFEE_WORK_ENTRY_STATUS_' . strtoupper((string) $entry['mfw_status'])) . '</span>';
 }
 
 /**
@@ -309,7 +325,7 @@ function mf_render_work_tab(int $usrId, bool $withInputLink = false): string
     $years = array();
     foreach ($entries as $entry) {
         $year = (int) $entry['mfw_year'];
-        $years[$year]['hours'] = ($years[$year]['hours'] ?? 0.0) + (float) $entry['mfw_hours'];
+        $years[$year]['hours'] = ($years[$year]['hours'] ?? 0.0) + \Plugins\MembershipFee\classes\Work\WorkHoursStore::doneHours($entry);
         $years[$year]['entries'][] = $entry;
     }
     foreach ($positions as $position) {
@@ -389,7 +405,7 @@ function mf_render_work_tab(int $usrId, bool $withInputLink = false): string
             $html .= '<tr><td>' . mf_format_date((string) $entry['mfw_date']) . '</td>'
                 . '<td>' . SecurityUtils::encodeHTML((string) $entry['mfw_activity'])
                 . ($comment !== '' ? '<br/><small class="text-muted">' . SecurityUtils::encodeHTML($comment) . '</small>' : '') . '</td>'
-                . '<td style="text-align: right;">' . $fmt((float) $entry['mfw_hours']) . '</td></tr>';
+                . '<td style="text-align: right;">' . mf_work_entry_hours_text($entry) . '</td></tr>';
         }
     }
     return $html . '</tbody></table></div>';

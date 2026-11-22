@@ -6,6 +6,9 @@
  * Tabelle adm_plugin_membershipfee_workhours: ein Eintrag je Mitglied und Einsatz.
  * Das Leistungsjahr ist das Jahr des Einsatzdatums.
  *
+ * Status eines Eintrags (ab Version 6.10.0): angemeldet, teilgenommen (Standard), entschuldigt, unentschuldigt.
+ * Nur "teilgenommen" hat Stunden (> 0) und zaehlt als geleistet; die anderen Status haben immer 0 Stunden.
+ *
  * @copyright The Admidio Team
  * @see https://www.admidio.org/
  * @license https://www.gnu.org/licenses/gpl-2.0.html GNU General Public License v2.0 only
@@ -18,8 +21,16 @@ use InvalidArgumentException;
 
 class WorkHoursStore
 {
+    public const STATUS_REGISTERED = 'angemeldet';
+    public const STATUS_ATTENDED = 'teilgenommen';
+    public const STATUS_EXCUSED = 'entschuldigt';
+    public const STATUS_UNEXCUSED = 'unentschuldigt';
+
+    /** Alle Status in Anzeigereihenfolge */
+    public const STATUSES = array(self::STATUS_REGISTERED, self::STATUS_ATTENDED, self::STATUS_EXCUSED, self::STATUS_UNEXCUSED);
+
     /** Spalten, die ueber insert()/update() gesetzt werden duerfen */
-    private const COLUMNS = array('mfw_usr_id', 'mfw_date', 'mfw_hours', 'mfw_activity', 'mfw_comment');
+    private const COLUMNS = array('mfw_usr_id', 'mfw_date', 'mfw_hours', 'mfw_activity', 'mfw_comment', 'mfw_status');
 
     private static bool $tableChecked = false;
 
@@ -49,6 +60,7 @@ class WorkHoursStore
                     mfw_hours              decimal(6,2)  NOT NULL DEFAULT 0,
                     mfw_activity           varchar(255)  NOT NULL DEFAULT \'\',
                     mfw_comment            text,
+                    mfw_status             varchar(20)   NOT NULL DEFAULT \'teilgenommen\',
                     mfw_usr_id_create      integer,
                     mfw_timestamp_create   timestamp     NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     mfw_usr_id_change      integer,
@@ -64,6 +76,7 @@ class WorkHoursStore
                     mfw_hours              decimal(6,2)  NOT NULL DEFAULT 0,
                     mfw_activity           varchar(255)  NOT NULL DEFAULT \'\',
                     mfw_comment            text,
+                    mfw_status             varchar(20)   NOT NULL DEFAULT \'teilgenommen\',
                     mfw_usr_id_create      integer unsigned,
                     mfw_timestamp_create   timestamp     NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     mfw_usr_id_change      integer unsigned,
@@ -73,11 +86,16 @@ class WorkHoursStore
             }
             $gDb->queryPrepared('CREATE INDEX ' . self::table() . '_idx_year ON ' . self::table() . ' (mfw_org_id, mfw_year, mfw_usr_id)');
         }
+        // Version 6.10.0: Status nachruesten; vorhandene Eintraege gelten als teilgenommen
+        if ($gDb->queryPrepared('SELECT mfw_status FROM ' . self::table() . ' WHERE 1 = 0', array(), false) === false) {
+            $gDb->queryPrepared('ALTER TABLE ' . self::table() . ' ADD mfw_status varchar(20) NOT NULL DEFAULT \'' . self::STATUS_ATTENDED . '\'');
+        }
         self::$tableChecked = true;
     }
 
     /**
-     * Prueft und normalisiert einen Eintrag (Datum Y-m-d, Stunden > 0 mit hoechstens zwei Nachkommastellen).
+     * Prueft und normalisiert die Felder eines Eintrags (Datum Y-m-d, Stunden 0 bis 1000 mit hoechstens zwei
+     * Nachkommastellen, Status aus STATUSES). Ob die Stunden zum Status passen, prueft applyStatusRules().
      *
      * @param array<string, mixed> $data
      * @return array<string, mixed>
@@ -92,10 +110,17 @@ class WorkHoursStore
         }
         if (isset($data['mfw_hours'])) {
             $hours = round((float) str_replace(',', '.', (string) $data['mfw_hours']), 2);
-            if ($hours <= 0 || $hours > 1000) {
-                throw new InvalidArgumentException('Die Stunden muessen groesser als 0 sein.');
+            if ($hours < 0 || $hours > 1000) {
+                throw new InvalidArgumentException('Die Stunden muessen zwischen 0 und 1000 liegen.');
             }
             $data['mfw_hours'] = $hours;
+        }
+        if (isset($data['mfw_status'])) {
+            $status = mb_strtolower(trim((string) $data['mfw_status']));
+            if (!in_array($status, self::STATUSES, true)) {
+                throw new InvalidArgumentException('Ungueltiger Status: ' . $data['mfw_status'] . ' (erlaubt: ' . implode(', ', self::STATUSES) . ')');
+            }
+            $data['mfw_status'] = $status;
         }
         if (isset($data['mfw_activity'])) {
             $data['mfw_activity'] = mb_substr(trim((string) $data['mfw_activity']), 0, 255);
@@ -104,17 +129,68 @@ class WorkHoursStore
     }
 
     /**
-     * @param array<string, mixed> $data mfw_usr_id, mfw_date, mfw_hours, mfw_activity, mfw_comment
+     * Stunden und Status in Einklang bringen (nach validate()).
+     *
+     * Der wirksame Status ist der uebergebene, sonst der des vorhandenen Eintrags, sonst "teilgenommen".
+     * - teilgenommen: Stunden > 0 sind Pflicht (uebergeben oder vorhanden).
+     * - sonst: Stunden sind 0; uebergebene Stunden > 0 sind ein Fehler.
+     *
+     * @param array<string, mixed> $data validierte Eingabe
+     * @param array<string, mixed>|null $existing vorhandener Eintrag beim Aendern
+     * @return array<string, mixed> Eingabe mit mfw_status und ggf. mfw_hours = 0
+     */
+    public static function applyStatusRules(array $data, ?array $existing = null): array
+    {
+        $status = (string) ($data['mfw_status'] ?? ($existing['mfw_status'] ?? self::STATUS_ATTENDED));
+        $hoursGiven = array_key_exists('mfw_hours', $data) && $data['mfw_hours'] !== null && $data['mfw_hours'] !== '';
+        $hours = $hoursGiven ? (float) $data['mfw_hours'] : (isset($existing['mfw_hours']) ? (float) $existing['mfw_hours'] : null);
+
+        if ($status === self::STATUS_ATTENDED) {
+            if ($hours === null || $hours <= 0) {
+                throw new InvalidArgumentException('Die Stunden muessen groesser als 0 sein.');
+            }
+        } else {
+            if ($hoursGiven && $hours > 0) {
+                throw new InvalidArgumentException('Stunden gibt es nur beim Status teilgenommen (Status: ' . $status . ').');
+            }
+            $data['mfw_hours'] = 0.0;
+        }
+        $data['mfw_status'] = $status;
+        return $data;
+    }
+
+    /**
+     * Zaehlen die Stunden des Eintrags als geleistet? (nur Status teilgenommen)
+     *
+     * @param array<string, mixed> $entry Zeile aus dem Store
+     */
+    public static function counts(array $entry): bool
+    {
+        return (string) ($entry['mfw_status'] ?? self::STATUS_ATTENDED) === self::STATUS_ATTENDED;
+    }
+
+    /**
+     * Geleistete Stunden des Eintrags (0 bei allen Status ausser teilgenommen).
+     *
+     * @param array<string, mixed> $entry Zeile aus dem Store
+     */
+    public static function doneHours(array $entry): float
+    {
+        return self::counts($entry) ? round((float) ($entry['mfw_hours'] ?? 0), 2) : 0.0;
+    }
+
+    /**
+     * @param array<string, mixed> $data mfw_usr_id, mfw_date, mfw_hours, mfw_activity, mfw_comment, mfw_status
      */
     public static function insert(array $data): int
     {
         global $gDb, $gCurrentOrgId;
         self::ensureTable();
 
-        if (!isset($data['mfw_usr_id'], $data['mfw_date'], $data['mfw_hours'])) {
-            throw new InvalidArgumentException('Mitglied, Datum und Stunden sind Pflicht.');
+        if (!isset($data['mfw_usr_id'], $data['mfw_date'])) {
+            throw new InvalidArgumentException('Mitglied und Datum sind Pflicht.');
         }
-        $data = self::validate($data);
+        $data = self::applyStatusRules(self::validate($data));
 
         $columns = array('mfw_org_id', 'mfw_year', 'mfw_usr_id_create', 'mfw_timestamp_create');
         $values = array((int) $gCurrentOrgId, (int) substr((string) $data['mfw_date'], 0, 4), self::currentUserId(), DATETIME_NOW);
@@ -138,6 +214,9 @@ class WorkHoursStore
         self::ensureTable();
 
         $data = self::validate($data);
+        if (array_key_exists('mfw_hours', $data) || array_key_exists('mfw_status', $data)) {
+            $data = self::applyStatusRules($data, self::find($id));
+        }
         $sets = array('mfw_usr_id_change = ?', 'mfw_timestamp_change = ?');
         $values = array(self::currentUserId(), DATETIME_NOW);
         if (isset($data['mfw_date'])) {
@@ -218,7 +297,7 @@ class WorkHoursStore
     }
 
     /**
-     * Summe der geleisteten Stunden je Mitglied im Leistungsjahr.
+     * Summe der geleisteten Stunden (Status teilgenommen) je Mitglied im Leistungsjahr.
      * @return array<int, float> usr_id => Stunden
      */
     public static function sumByUser(int $year): array
@@ -228,7 +307,7 @@ class WorkHoursStore
 
         $sums = array();
         $statement = $gDb->queryPrepared('SELECT mfw_usr_id, SUM(mfw_hours) AS hours FROM ' . self::table() . '
-            WHERE mfw_org_id = ? AND mfw_year = ? GROUP BY mfw_usr_id', array((int) $gCurrentOrgId, $year));
+            WHERE mfw_org_id = ? AND mfw_year = ? AND mfw_status = ? GROUP BY mfw_usr_id', array((int) $gCurrentOrgId, $year, self::STATUS_ATTENDED));
         while ($row = $statement->fetch()) {
             $sums[(int) $row['mfw_usr_id']] = round((float) $row['hours'], 2);
         }
@@ -284,6 +363,7 @@ class WorkHoursStore
             }
         }
         $row['mfw_hours'] = round((float) ($row['mfw_hours'] ?? 0), 2);
+        $row['mfw_status'] = (string) ($row['mfw_status'] ?? '') !== '' ? (string) $row['mfw_status'] : self::STATUS_ATTENDED;
         return $row;
     }
 

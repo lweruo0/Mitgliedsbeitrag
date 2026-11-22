@@ -766,6 +766,12 @@
     <string name="PLG_MEMBERSHIPFEE_WORK_MEMBERS">Members</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_MEMBERS_DESC">Select the members who took part.</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_HOURS">Hours</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_ENTRY_STATUS">Status</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_ENTRY_STATUS_DESC">Registered, excused and unexcused entries have no hours; only attended counts as done.</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_ENTRY_STATUS_ANGEMELDET">registered</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_ENTRY_STATUS_TEILGENOMMEN">attended</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_ENTRY_STATUS_ENTSCHULDIGT">excused</string>
+    <string name="PLG_MEMBERSHIPFEE_WORK_ENTRY_STATUS_UNENTSCHULDIGT">unexcused</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_NO_MEMBERS">No members selected yet.</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_SAVED">Assignment "#VAR2#" saved for #VAR1# member(s).</string>
     <string name="PLG_MEMBERSHIPFEE_WORK_ENTRIES">Recorded assignments #VAR1#</string>

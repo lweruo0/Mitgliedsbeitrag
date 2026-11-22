@@ -141,6 +141,9 @@ final class InvoicePdfData
             $done = WorkHoursStore::sumByUser($data['year'])[(int) $invoice['mfi_usr_id']] ?? 0.0;
             $entries = array();
             foreach (WorkHoursStore::getByYear($data['year'], (int) $invoice['mfi_usr_id']) as $entry) {
+                if (!WorkHoursStore::counts($entry)) {
+                    continue;   // nur geleistete Einsaetze (Status teilgenommen)
+                }
                 $entries[] = array(
                     'date' => (string) $entry['mfw_date'],
                     'activity' => (string) ($entry['mfw_activity'] ?? ''),

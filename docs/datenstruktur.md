@@ -1,6 +1,6 @@
 # Datenstruktur des Plugins Mitgliedsbeitrag
 
-Stand: Version 6.9.1 (06.11.2026). Beschreibt, welche Tabellen, Profilfelder, Einstellungen und Dateien das Plugin
+Stand: Version 6.10.0 (21.11.2026). Beschreibt, welche Tabellen, Profilfelder, Einstellungen und Dateien das Plugin
 anlegt und was darin steht.
 
 Allgemeines:
@@ -163,6 +163,7 @@ Eindeutig: `(org_id, usr_id, year, kind)`.
 | `mfw_hours` | decimal(6,2) | Stunden |
 | `mfw_activity` | varchar(255) | Tätigkeit |
 | `mfw_comment` | text, null | Notiz |
+| `mfw_status` | varchar(20) | `angemeldet`, `teilgenommen` (Standard), `entschuldigt`, `unentschuldigt` (ab 6.10.0); Stunden nur bei `teilgenommen`, sonst 0 |
 
 Index: `(org_id, year, usr_id)`. Die Sollstunden stehen im Profilfeld `ADTARGET<org>`.
 

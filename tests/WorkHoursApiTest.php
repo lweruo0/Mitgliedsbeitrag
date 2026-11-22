@@ -11,7 +11,7 @@ final class WorkHoursApiTest extends TestCase
     {
         $input = WorkHoursApi::normalizeInput(array('date' => '2026-04-18', 'hours' => '2,5', 'activity' => ' Gewässerputzete ', 'comment' => ' Ufer '));
 
-        self::assertSame(array('mfw_date' => '2026-04-18', 'mfw_hours' => 2.5, 'mfw_activity' => 'Gewässerputzete', 'mfw_comment' => 'Ufer'), $input);
+        self::assertSame(array('mfw_date' => '2026-04-18', 'mfw_hours' => 2.5, 'mfw_activity' => 'Gewässerputzete', 'mfw_comment' => 'Ufer', 'mfw_status' => 'teilgenommen'), $input);
     }
 
     public function testLegacyNameIsAcceptedAsActivity(): void
@@ -36,6 +36,9 @@ final class WorkHoursApiTest extends TestCase
             'null Stunden' => array(array('date' => '2026-04-18', 'hours' => 0, 'activity' => 'X')),
             'Stunden kein Wert' => array(array('date' => '2026-04-18', 'hours' => 'viel', 'activity' => 'X')),
             'Array als Wert' => array(array('date' => '2026-04-18', 'hours' => array(2), 'activity' => 'X')),
+            'unbekannter Status' => array(array('date' => '2026-04-18', 'hours' => 2, 'activity' => 'X', 'status' => 'krank')),
+            'teilgenommen ohne Stunden' => array(array('date' => '2026-04-18', 'activity' => 'X', 'status' => 'teilgenommen')),
+            'angemeldet mit Stunden' => array(array('date' => '2026-04-18', 'hours' => 3, 'activity' => 'X', 'status' => 'angemeldet')),
         );
     }
 
@@ -53,6 +56,34 @@ final class WorkHoursApiTest extends TestCase
             self::assertSame('validation_failed', $e->getErrorCode());
             self::assertSame(422, $e->getHttpStatus());
         }
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function statusesWithoutHours(): array
+    {
+        return array('angemeldet' => array('angemeldet'), 'entschuldigt' => array('entschuldigt'), 'unentschuldigt' => array('unentschuldigt'));
+    }
+
+    /**
+     * @dataProvider statusesWithoutHours
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('statusesWithoutHours')]
+    public function testStatusWithoutHoursGetsZeroHours(string $status): void
+    {
+        $input = WorkHoursApi::normalizeInput(array('date' => '2026-04-18', 'activity' => 'Räuchern', 'status' => strtoupper($status)));
+
+        self::assertSame($status, $input['mfw_status']);
+        self::assertSame(0.0, $input['mfw_hours']);
+        // ausdrücklich 0 Stunden sind ebenfalls erlaubt
+        self::assertSame(0.0, WorkHoursApi::normalizeInput(array('date' => '2026-04-18', 'activity' => 'Räuchern', 'status' => $status, 'hours' => 0))['mfw_hours']);
+    }
+
+    public function testPartialUpdateWithStatusOnly(): void
+    {
+        self::assertSame(array('mfw_status' => 'entschuldigt'), WorkHoursApi::normalizeInput(array('id' => 5, 'status' => 'entschuldigt'), true));
+        self::assertSame(array('mfw_hours' => 4.0, 'mfw_status' => 'teilgenommen'), WorkHoursApi::normalizeInput(array('id' => 5, 'hours' => 4, 'status' => 'teilgenommen'), true));
     }
 
     public function testPartialUpdateOnlyContainsGivenFields(): void
@@ -91,6 +122,33 @@ final class WorkHoursApiTest extends TestCase
         self::assertSame(1, $found['mfw_id']);
         self::assertNull(WorkHoursApi::findDuplicate($entries, array('mfw_date' => '2026-04-18', 'mfw_activity' => 'Gewässerputzete', 'mfw_hours' => 3.0)));
         self::assertNull(WorkHoursApi::findDuplicate($entries, array('mfw_date' => '2026-04-19', 'mfw_activity' => 'Gewässerputzete', 'mfw_hours' => 2.5)));
+    }
+
+    public function testDuplicateWithStatusIgnoresHours(): void
+    {
+        $entries = array(
+            array('mfw_id' => 1, 'mfw_date' => '2026-04-18', 'mfw_activity' => 'Räuchern', 'mfw_hours' => 0.0, 'mfw_status' => 'angemeldet'),
+        );
+
+        $found = WorkHoursApi::findDuplicate($entries, array('mfw_date' => '2026-04-18', 'mfw_activity' => 'räuchern', 'mfw_hours' => 4.0, 'mfw_status' => 'teilgenommen'), false);
+        self::assertNotNull($found);
+        self::assertSame(1, $found['mfw_id']);
+        self::assertNull(WorkHoursApi::findDuplicate($entries, array('mfw_date' => '2026-04-18', 'mfw_activity' => 'räuchern', 'mfw_hours' => 4.0)));
+    }
+
+    public function testSummarizeCountsOnlyAttended(): void
+    {
+        $entries = array(
+            array('mfw_id' => 1, 'mfw_year' => 2026, 'mfw_date' => '2026-04-18', 'mfw_hours' => 3.0, 'mfw_activity' => 'A', 'mfw_status' => 'teilgenommen'),
+            array('mfw_id' => 2, 'mfw_year' => 2026, 'mfw_date' => '2026-05-02', 'mfw_hours' => 0.0, 'mfw_activity' => 'B', 'mfw_status' => 'angemeldet'),
+            array('mfw_id' => 3, 'mfw_year' => 2026, 'mfw_date' => '2026-06-01', 'mfw_hours' => 5.0, 'mfw_activity' => 'C', 'mfw_status' => 'unentschuldigt'),
+        );
+
+        $years = WorkHoursApi::summarize($entries, array(2026), 10.0, array());
+
+        self::assertSame(3.0, $years[0]['done_hours']);
+        self::assertSame(7.0, $years[0]['missing_hours']);
+        self::assertSame(array('teilgenommen', 'angemeldet', 'unentschuldigt'), array_column($years[0]['entries'], 'status'));
     }
 
     public function testYearsIncludeCurrentYearNewestFirst(): void
@@ -142,7 +200,8 @@ final class WorkHoursApiTest extends TestCase
             'mfw_timestamp_create' => '2026-04-18 10:00:00', 'mfw_timestamp_change' => null
         ));
 
-        self::assertSame(array('id', 'date', 'year', 'hours', 'activity', 'comment', 'created_at', 'changed_at'), array_keys($entry));
+        self::assertSame(array('id', 'date', 'year', 'hours', 'activity', 'comment', 'status', 'created_at', 'changed_at'), array_keys($entry));
+        self::assertSame('teilgenommen', $entry['status']);  // Einträge ohne Status (vor 6.10.0) gelten als teilgenommen
         self::assertSame('2026-04-18 10:00:00', $entry['created_at']);
         self::assertNull($entry['changed_at']);
     }
